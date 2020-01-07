@@ -22,3 +22,10 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 wasmex-*.tar
 
+# Cargo things in the Rust part of this package
+
+native/wasmex/target
+native/wasmex/**/*.rs.bk
+native/wasmex/Cargo.lock
+native/wasmex/bin/
+native/wasmex/pkg/

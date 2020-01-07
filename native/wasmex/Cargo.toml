@@ -12,3 +12,6 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.21.0"
 lazy_static = "1.0"
+wasmer-runtime = "0.12.0"
+serde = "1.0.104"
+serde_rustler = { git = "https://github.com/SkipMike/serde_rustler" }
