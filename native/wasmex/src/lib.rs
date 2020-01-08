@@ -1,4 +1,11 @@
+#[macro_use]
+extern crate rustler;
+
+use std::sync::Mutex;
 use rustler::{Encoder, Env, Error, Term};
+use rustler::resource::ResourceArc;
+use rustler::types::binary::Binary;
+use wasmer_runtime::{self as runtime, imports};
 
 mod atoms {
     rustler::rustler_atoms! {
@@ -9,17 +16,33 @@ mod atoms {
     }
 }
 
-rustler::rustler_export_nifs! {
-    "Elixir.Wasmex",
-    [
-        ("add", 2, add)
-    ],
-    None
+struct InstanceResource {
+    pub instance: Mutex<runtime::Instance>,
 }
 
-fn add<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let num1: i64 = args[0].decode()?;
-    let num2: i64 = args[1].decode()?;
+rustler::rustler_export_nifs! {
+    "Elixir.Wasmex.Native",
+    [
+        ("instance_new_from_bytes", 1, instance_new_from_bytes)
+    ],
+    Some(on_load)
+}
 
-    Ok((atoms::ok(), num1 + num2).encode(env))
+fn on_load(env: Env, _info: Term) -> bool {
+    resource_struct_init!(InstanceResource, env);
+    true
+}
+
+fn instance_new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let binary: Binary = args[0].decode()?;
+    let bytes = binary.as_slice();
+
+    let import_object = imports! {};
+    let instance = runtime::instantiate(bytes, &import_object).map_err(|_| Error::Atom("could_not_instantiate"))?;
+
+    // assign memory
+    // assign exported functions
+
+    let resource = ResourceArc::new(InstanceResource { instance: Mutex::new(instance) });
+    Ok((atoms::ok(), resource).encode(env))
 }

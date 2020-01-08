@@ -29,3 +29,5 @@ native/wasmex/**/*.rs.bk
 native/wasmex/Cargo.lock
 native/wasmex/bin/
 native/wasmex/pkg/
+
+priv/native/libwasmex.so

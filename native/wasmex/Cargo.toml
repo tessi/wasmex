@@ -1,7 +1,12 @@
 [package]
 name = "wasmex"
 version = "0.1.0"
-authors = []
+authors = ["Philipp Tessenow <philipp@tessenow.org>"]
+description = "Elixir extension to run WebAssembly binaries"
+readme = "README.md"
+repository = "https://github.com/tessi/wasmex"
+keywords = ["elixir", "extension", "webassembly"]
+categories = ["wasm"]
 edition = "2018"
 
 [lib]
@@ -14,4 +19,6 @@ rustler = "0.21.0"
 lazy_static = "1.0"
 wasmer-runtime = "0.12.0"
 serde = "1.0.104"
+# need to point to a fork which upgrades to rustler 0.21
+# the original from crates.io still uses 0.20 which cannot handle OTS 22
 serde_rustler = { git = "https://github.com/SkipMike/serde_rustler" }
