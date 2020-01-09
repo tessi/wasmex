@@ -42,12 +42,19 @@ pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
 
   let function = match instance.dyn_func(&given_name) {
     Ok(f) => f,
-    Err(_) => return Ok((atoms::error(),"function not found").encode(env))
+    Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
+      "exported function `{}` not found",
+      given_name
+    ))))
   };
   let signature = function.signature();
   let params = signature.params();
   if 0 != params.len() as isize - given_params.len() as isize {
-    return Ok((atoms::error(),"number of params does not match").encode(env))
+    return Err(Error::RaiseTerm(Box::new(format!(
+      "number of params does not match. expected {}, got {}",
+      params.len(),
+      given_params.len()
+    ))))
   }
 
   let mut function_params = Vec::<runtime::Value>::with_capacity(params.len() as usize);
@@ -56,24 +63,45 @@ pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
       (Type::I32, TermType::Number) => runtime::Value::I32(
         match given_param.decode() {
           Ok(value) => value,
-          Err(_) => return Ok((
-            atoms::error(),
-            &format!(
-              "Cannot convert argument #{} to a WebAssembly i32 value.",
-              nth + 1
-            )
-          ).encode(env))
+          Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
+            "Cannot convert argument #{} to a WebAssembly i32 value.",
+            nth + 1
+          ))))
+        }
+      ),
+      (Type::I64, TermType::Number) => runtime::Value::I64(
+        match given_param.decode() {
+          Ok(value) => value,
+          Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
+            "Cannot convert argument #{} to a WebAssembly i64 value.",
+            nth + 1
+          ))))
+        }
+      ),
+      (Type::F32, TermType::Number) => runtime::Value::F32(
+        match given_param.decode() {
+          Ok(value) => value,
+          Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
+            "Cannot convert argument #{} to a WebAssembly f32 value.",
+            nth + 1
+          ))))
+        }
+      ),
+      (Type::F64, TermType::Number) => runtime::Value::F64(
+        match given_param.decode() {
+          Ok(value) => value,
+          Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
+            "Cannot convert argument #{} to a WebAssembly f64 value.",
+            nth + 1
+          ))))
         }
       ),
       (_, term_type) => {
-        return Ok((
-          atoms::error(),
-          &format!(
-            "Cannot convert argument #{} to a WebAssembly value. Given `{:?}`.",
-            nth + 1,
-            PrintableTermType::PrintTerm(term_type)
-          )
-        ).encode(env))
+        return Err(Error::RaiseTerm(Box::new(format!(
+          "Cannot convert argument #{} to a WebAssembly value. Given `{:?}`.",
+          nth + 1,
+          PrintableTermType::PrintTerm(term_type)
+        ))))
       }
     };
     function_params.push(value);
