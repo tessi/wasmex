@@ -9,7 +9,8 @@ use rustler::{Env, Term};
 rustler::rustler_export_nifs! {
     "Elixir.Wasmex.Native",
     [
-        ("instance_new_from_bytes", 1, instance::new_from_bytes)
+        ("instance_new_from_bytes", 1, instance::new_from_bytes),
+        ("instance_function_export_exists", 2, instance::function_export_exists),
     ],
     Some(on_load)
 }

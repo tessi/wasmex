@@ -23,3 +23,11 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let resource = ResourceArc::new(InstanceResource { instance: Mutex::new(instance) });
     Ok((atoms::ok(), resource).encode(env))
 }
+
+pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+  let resource: ResourceArc<InstanceResource> = args[0].decode()?;
+  let function_name: String = args[1].decode()?;
+  let instance = resource.instance.lock().unwrap();
+  let function_exists = instance.dyn_func(function_name.as_str()).is_ok();
+  Ok(function_exists.encode(env))
+}
