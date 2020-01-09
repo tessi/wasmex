@@ -18,6 +18,7 @@ crate-type = ["dylib"]
 rustler = "0.21.0"
 lazy_static = "1.0"
 wasmer-runtime = "0.12.0"
+wasmer-runtime-core = "0.12.0"
 serde = "1.0.104"
 # need to point to a fork which upgrades to rustler 0.21
 # the original from crates.io still uses 0.20 which cannot handle OTS 22

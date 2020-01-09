@@ -7,8 +7,8 @@ defmodule Wasmex.Native do
   use Rustler, otp_app: :wasmex
 
   def instance_new_from_bytes(_bytes), do: error()
-
   def instance_function_export_exists(_resource, _function_name), do: error()
+  def instance_call_exported_function(_resource, _function_name, _params), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is just to handle the case when the nif could not be loaded.

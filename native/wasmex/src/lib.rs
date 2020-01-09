@@ -1,6 +1,7 @@
 pub mod atoms;
 pub mod instance;
 
+extern crate lazy_static;
 #[macro_use]
 extern crate rustler;
 
@@ -11,6 +12,7 @@ rustler::rustler_export_nifs! {
     [
         ("instance_new_from_bytes", 1, instance::new_from_bytes),
         ("instance_function_export_exists", 2, instance::function_export_exists),
+        ("instance_call_exported_function", 3, instance::call_exported_function),
     ],
     Some(on_load)
 }

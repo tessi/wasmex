@@ -36,7 +36,19 @@ defmodule Wasmex.Instance do
   end
   
   @spec function_export_exists(__MODULE__.t(), binary()) :: boolean()
-  def function_export_exists(%__MODULE__{resource: resource}, name) when is_binary(name), do: Wasmex.Native.instance_function_export_exists(resource, name)
+  def function_export_exists(%__MODULE__{resource: resource}, name) when is_binary(name) do
+    Wasmex.Native.instance_function_export_exists(resource, name)
+  end
+  
+  @spec call_exported_function(__MODULE__.t(), binary()) :: any()
+  def call_exported_function(%__MODULE__{} = instance, name) when is_binary(name) do
+     call_exported_function(instance, name, [])
+  end
+
+  @spec call_exported_function(__MODULE__.t(), binary(), [any()]) :: any()
+  def call_exported_function(%__MODULE__{resource: resource}, name, params) when is_binary(name) do
+    Wasmex.Native.instance_call_exported_function(resource, name, params)
+  end
 end
 
 defimpl Inspect, for: Wasmex.Instance do

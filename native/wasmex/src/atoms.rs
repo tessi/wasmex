@@ -1,6 +1,5 @@
 rustler::rustler_atoms! {
     atom ok;
-    //atom error;
-    //atom __true__ = "true";
-    //atom __false__ = "false";
+    atom error;
+    atom __nil__ = "nil";
 }
