@@ -23,11 +23,5 @@ erl_crash.dump
 wasmex-*.tar
 
 # Cargo things in the Rust part of this package
-
-native/wasmex/target
-native/wasmex/**/*.rs.bk
-native/wasmex/Cargo.lock
-native/wasmex/bin/
-native/wasmex/pkg/
-
+Cargo.*
 priv/native/libwasmex.so
