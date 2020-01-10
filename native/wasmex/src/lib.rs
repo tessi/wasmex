@@ -1,6 +1,7 @@
 pub mod atoms;
 pub mod instance;
 pub mod printable_term_type;
+pub mod functions;
 
 extern crate lazy_static;
 #[macro_use]

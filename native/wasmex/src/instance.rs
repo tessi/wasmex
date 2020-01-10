@@ -6,33 +6,33 @@ use rustler::dynamic::TermType;
 use wasmer_runtime::{self as runtime, imports};
 use wasmer_runtime_core::types::Type;
 
-use crate::atoms;
+use crate::{atoms, functions};
 use crate::printable_term_type::PrintableTermType;
 
 pub struct InstanceResource {
-    pub instance: Mutex<runtime::Instance>,
+  pub instance: Mutex<runtime::Instance>,
 }
 
 pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let binary: Binary = args[0].decode()?;
-    let bytes = binary.as_slice();
+  let binary: Binary = args[0].decode()?;
+  let bytes = binary.as_slice();
 
-    let import_object = imports! {};
-    let instance = runtime::instantiate(bytes, &import_object).map_err(|_| Error::Atom("could_not_instantiate"))?;
+  let import_object = imports! {};
+  let instance = runtime::instantiate(bytes, &import_object).map_err(|_| Error::Atom("could_not_instantiate"))?;
 
-    // assign memory
-    // assign exported functions
+  // assign memory
+  // assign exported functions
 
-    let resource = ResourceArc::new(InstanceResource { instance: Mutex::new(instance) });
-    Ok((atoms::ok(), resource).encode(env))
+  let resource = ResourceArc::new(InstanceResource { instance: Mutex::new(instance) });
+  Ok((atoms::ok(), resource).encode(env))
 }
 
 pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
   let resource: ResourceArc<InstanceResource> = args[0].decode()?;
   let function_name: String = args[1].decode()?;
   let instance = resource.instance.lock().unwrap();
-  let function_exists = instance.dyn_func(function_name.as_str()).is_ok();
-  Ok(function_exists.encode(env))
+
+  Ok(functions::exists(&instance, &function_name).encode(env))
 }
 
 pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
@@ -41,7 +41,7 @@ pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
   let given_params: Vec<Term> = args[2].decode()?;
   let instance = resource.instance.lock().unwrap();
 
-  let function = match instance.dyn_func(&given_name) {
+  let function = match functions::find(&instance, &given_name) {
     Ok(f) => f,
     Err(_) => return Err(Error::RaiseTerm(Box::new(format!(
       "exported function `{}` not found",
