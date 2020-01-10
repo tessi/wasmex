@@ -100,5 +100,20 @@ defmodule Wasmex.InstanceTest do
       {:ok, instance} = build_wasm_instance()
       assert_in_delta 20.4, Wasmex.Instance.call_exported_function(instance, "i32_i64_f32_f64_f64", [3, 4, 5.6, 7.8]), 0.001
     end
+
+    test "calling a function with a boolean return value" do
+      {:ok, instance} = build_wasm_instance()
+      assert 1 == Wasmex.Instance.call_exported_function(instance, "bool_casted_to_i32", [])
+    end
+
+    test "calling a function with no return value" do
+      {:ok, instance} = build_wasm_instance()
+      assert nil == Wasmex.Instance.call_exported_function(instance, "void", [])
+    end
+
+    test "calling a function which returns a string pointer" do
+      {:ok, instance} = build_wasm_instance()
+      assert 1048636 == Wasmex.Instance.call_exported_function(instance, "string", [])
+    end
   end
 end

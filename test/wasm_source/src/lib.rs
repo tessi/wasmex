@@ -45,3 +45,8 @@ pub extern "C" fn string() -> *const u8 {
 
 #[no_mangle]
 pub extern "C" fn void() {}
+
+#[no_mangle]
+pub extern "C" fn string_length(s: &str) -> i64 {
+  s.len() as i64
+}
