@@ -116,4 +116,11 @@ defmodule Wasmex.InstanceTest do
       assert 1048636 == Wasmex.Instance.call_exported_function(instance, "string", [])
     end
   end
+
+  describe "memory/3" do
+    test "returns a memory struct" do
+      {:ok, instance} = build_wasm_instance()
+      {:ok, %Wasmex.Memory{size: :uint8, offset: 0, resource: _}} = Wasmex.Instance.memory(instance, :uint8, 0)
+    end
+  end
 end

@@ -20,10 +20,9 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
   let import_object = imports! {};
   let instance = runtime::instantiate(bytes, &import_object).map_err(|_| Error::Atom("could_not_instantiate"))?;
 
-  // assign memory
-  // assign exported functions
-
-  let resource = ResourceArc::new(InstanceResource { instance: Mutex::new(instance) });
+  let resource = ResourceArc::new(InstanceResource {
+    instance: Mutex::new(instance),
+  });
   Ok((atoms::ok(), resource).encode(env))
 }
 

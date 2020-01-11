@@ -10,7 +10,7 @@ defmodule Wasmex.Instance do
   }
 
   defstruct [
-    # The actual NIF instance Resource.
+    # The actual NIF instance resource.
     resource: nil,
     # Normally the compiler will happily do stuff like inlining the
     # resource in attributes. This will convert the resource into an
@@ -48,6 +48,11 @@ defmodule Wasmex.Instance do
   @spec call_exported_function(__MODULE__.t(), binary(), [any()]) :: any()
   def call_exported_function(%__MODULE__{resource: resource}, name, params) when is_binary(name) do
     Wasmex.Native.instance_call_exported_function(resource, name, params)
+  end
+
+  @spec memory(__MODULE__.t(), atom(), pos_integer()) :: Wasmex.Memory.t()
+  def memory(%__MODULE__{} = instance, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
+    Wasmex.Memory.from_instance(instance, size, offset)
   end
 end
 
