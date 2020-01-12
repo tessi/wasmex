@@ -12,6 +12,7 @@ defmodule Wasmex.Native do
   def memory_from_instance(_resource, _size, _offset), do: error()
   def memory_bytes_per_element(_resource), do: error()
   def memory_length(_resource), do: error()
+  def memory_grow(_resource, _pages), do: error()
   def memory_get(_resource, _index), do: error()
   def memory_set(_resource, _index, _value), do: error()
   

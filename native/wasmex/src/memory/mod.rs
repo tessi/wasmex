@@ -54,11 +54,57 @@ fn size_from_term(term: &Term) -> Result<ElementSize, Error> {
 }
 
 pub fn bytes_per_element<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-  Ok(atoms::ok().encode(env))
+  let resource: ResourceArc<MemoryResource> = args[0].decode()?;
+  let bytes_count = byte_size(&resource.size);
+  Ok(bytes_count.encode(env))
+}
+
+fn byte_size(element_size: &ElementSize) -> usize {
+  match *element_size {
+    ElementSize::Uint8 => 1,
+    ElementSize::Int8 => 1,
+    ElementSize::Uint16 => 2,
+    ElementSize::Int16 => 2,
+    ElementSize::Uint32 => 4,
+    ElementSize::Int32 => 4,
+  }
 }
 
 pub fn length<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-  Ok(atoms::ok().encode(env))
+  let resource: ResourceArc<MemoryResource> = args[0].decode()?;
+  let instance = resource.instance.instance.lock().unwrap();
+  let memory = memory_from_instance(&instance)?;
+  let length = byte_length(&memory, resource.offset, &resource.size);
+  Ok(length.encode(env))
+}
+
+fn byte_length(memory: &runtime::Memory, offset: usize, element_size: &ElementSize) -> usize {
+  match  *element_size {
+    ElementSize::Uint8  => memory.view::<u8>()[offset..].len(),
+    ElementSize::Int8   => memory.view::<i8>()[offset..].len(),
+    ElementSize::Uint16 => memory.view::<u16>()[offset..].len(),
+    ElementSize::Int16  => memory.view::<i16>()[offset..].len(),
+    ElementSize::Uint32 => memory.view::<u32>()[offset..].len(),
+    ElementSize::Int32  => memory.view::<i32>()[offset..].len(),
+  }
+}
+
+pub fn grow<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+  let resource: ResourceArc<MemoryResource> = args[0].decode()?;
+  let pages: u32 = args[1].decode()?;
+  
+  let instance = resource.instance.instance.lock().unwrap();
+  let memory = memory_from_instance(&instance)?;
+  let old_pages = grow_by_pages(&memory, pages)?;
+  Ok(old_pages.encode(env))
+}
+
+/// Grows the memory by the given amount of pages. Returns the old page count.
+fn grow_by_pages(memory: &runtime::Memory, number_of_pages: u32) -> Result<u32, Error> {
+  memory
+      .grow(Pages(number_of_pages))
+      .map(|previous_pages| previous_pages.0)
+      .map_err(|err| Error::RaiseTerm(Box::new(format!("Failed to grow the memory: {}.", err))))
 }
 
 pub fn get<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
@@ -69,7 +115,7 @@ pub fn set<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
   Ok(atoms::ok().encode(env))
 }
 
-fn memory(instance: runtime::Instance) -> Result<runtime::Memory, Error> {
+fn memory_from_instance(instance: &runtime::Instance) -> Result<runtime::Memory, Error> {
   instance
     .exports()
     .find_map(|(_, export)| match export {

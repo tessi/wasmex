@@ -37,6 +37,21 @@ defmodule Wasmex.Memory do
       offset: offset
     }
   end
+
+  @spec bytes_per_element(__MODULE__.t()) :: pos_integer()
+  def bytes_per_element(%Wasmex.Memory{resource: resource}) do
+    Wasmex.Native.memory_bytes_per_element(resource)
+  end
+
+  @spec length(__MODULE__.t()) :: pos_integer()
+  def length(%Wasmex.Memory{resource: resource}) do
+    Wasmex.Native.memory_length(resource)
+  end
+
+  @spec grow(__MODULE__.t(), pos_integer()) :: pos_integer()
+  def grow(%Wasmex.Memory{resource: resource}, pages) do
+    Wasmex.Native.memory_grow(resource, pages)
+  end
 end
 
 defimpl Inspect, for: Wasmex.Memory do

@@ -19,6 +19,7 @@ rustler::rustler_export_nifs! {
         ("memory_from_instance", 3, memory::from_instance),
         ("memory_bytes_per_element", 1, memory::bytes_per_element),
         ("memory_length", 1, memory::length),
+        ("memory_grow", 2, memory::grow),
         ("memory_get", 2, memory::get),
         ("memory_set", 3, memory::set),
     ],
