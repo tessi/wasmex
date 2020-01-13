@@ -113,7 +113,20 @@ defmodule Wasmex.InstanceTest do
 
     test "calling a function which returns a string pointer" do
       {:ok, instance} = build_wasm_instance()
-      assert 1048636 == Wasmex.Instance.call_exported_function(instance, "string", [])
+      pointer = Wasmex.Instance.call_exported_function(instance, "string", [])
+      {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+      returned_string = Wasmex.Memory.read_binary(memory, pointer)
+      assert returned_string == "Hello, World!"
+    end
+
+    test "calling a function which gets a string as param" do
+      {:ok, instance} = build_wasm_instance()
+      {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+      string = "hello, world"
+      memory_offset = 42
+
+      Wasmex.Memory.write_binary(memory, memory_offset, string)
+      assert 104 == Wasmex.Instance.call_exported_function(instance, "string_first_byte", [memory_offset, String.length(string)])
     end
   end
 

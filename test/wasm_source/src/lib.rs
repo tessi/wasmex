@@ -47,6 +47,9 @@ pub extern "C" fn string() -> *const u8 {
 pub extern "C" fn void() {}
 
 #[no_mangle]
-pub extern "C" fn string_length(s: &str) -> i64 {
-  s.len() as i64
+pub extern "C" fn string_first_byte(s: &str) -> u8 {
+  match s.bytes().nth(0) {
+    Some(i) => i,
+    None => 0
+  }
 }
