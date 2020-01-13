@@ -22,6 +22,7 @@ rustler::rustler_export_nifs! {
         ("memory_grow", 4, memory::grow),
         ("memory_get", 4, memory::get),
         ("memory_set", 5, memory::set),
+        ("memory_write_binary", 5, memory::write_binary),
     ],
     Some(on_load)
 }

@@ -84,4 +84,25 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.get(memory, 0) == 42
     end
   end
+
+  describe "memory_write_binary/3" do
+    test "writes a string into memory" do
+      {:ok, memory} = build_memory(:uint8, 0)
+      :ok = Wasmex.Memory.write_binary(memory, 0, "hello")
+      assert Wasmex.Memory.get(memory, 0) == 104 # h
+      assert Wasmex.Memory.get(memory, 1) == 101 # e
+      assert Wasmex.Memory.get(memory, 2) == 108 # l
+      assert Wasmex.Memory.get(memory, 3) == 108 # l
+      assert Wasmex.Memory.get(memory, 4) == 111 # o
+      assert Wasmex.Memory.get(memory, 5) == 0   # automatically added null byte
+
+      # overwriting the same area in memory to see if the automatic null byte is being added
+      :ok = Wasmex.Memory.write_binary(memory, 1, "abc")
+      assert Wasmex.Memory.get(memory, 0) == 104 # not changed because of the index
+      assert Wasmex.Memory.get(memory, 1) == 97 # a
+      assert Wasmex.Memory.get(memory, 2) == 98 # b
+      assert Wasmex.Memory.get(memory, 3) == 99 # c
+      assert Wasmex.Memory.get(memory, 4) == 0  # automatically added null byte
+    end
+  end
 end

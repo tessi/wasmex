@@ -87,6 +87,17 @@ defmodule Wasmex.Memory do
   def set(%Wasmex.Memory{resource: resource}, size, offset, index, value) do
     Wasmex.Native.memory_set(resource, size, offset, index, value)
   end
+
+  @spec write_binary(__MODULE__.t(), pos_integer(), binary()) :: :ok
+  def write_binary(%Wasmex.Memory{} = memory, index, str) when is_binary(str) do
+    write_binary(memory, memory.size, memory.offset, index, str)
+  end
+
+  @spec write_binary(__MODULE__.t(), atom(), pos_integer(), pos_integer(), binary()) :: :ok
+  def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str) when is_binary(str) do
+    str = str <> "\0" # strings a null-byte terminated in C-land
+    Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
+  end
 end
 
 defimpl Inspect, for: Wasmex.Memory do
