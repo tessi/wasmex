@@ -85,7 +85,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "memory_write_binary/3" do
+  describe "write_binary/3" do
     test "writes a string into memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       :ok = Wasmex.Memory.write_binary(memory, 0, "hello")
@@ -103,6 +103,22 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.get(memory, 2) == 98 # b
       assert Wasmex.Memory.get(memory, 3) == 99 # c
       assert Wasmex.Memory.get(memory, 4) == 0  # automatically added null byte
+    end
+  end
+
+  describe "read_binary/2" do
+    test "reads a string from memory" do
+      {:ok, memory} = build_memory(:uint8, 0)
+      Wasmex.Memory.set(memory, 0, 104) # h
+      Wasmex.Memory.set(memory, 1, 101) # e
+      Wasmex.Memory.set(memory, 2, 108) # l
+      Wasmex.Memory.set(memory, 3, 108) # l
+      Wasmex.Memory.set(memory, 4, 111) # o
+      Wasmex.Memory.set(memory, 5, 0)   # automatically added null byte
+
+      assert Wasmex.Memory.read_binary(memory, 0) == "hello"
+      assert Wasmex.Memory.read_binary(memory, 3) == "lo"
+      assert Wasmex.Memory.read_binary(memory, 8) == ""
     end
   end
 end

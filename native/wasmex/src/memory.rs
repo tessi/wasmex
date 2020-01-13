@@ -193,6 +193,31 @@ fn memory_from_instance(instance: &runtime::Instance) -> Result<runtime::Memory,
         .ok_or_else(|| Error::RaiseTerm(Box::new("The WebAssembly module has no exported memory.")))
 }
 
+pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let (resource, size, offset) = extract_params(args)?;
+    let instance = resource.instance.instance.lock().unwrap();
+    let memory = memory_from_instance(&instance)?;
+    let index: usize = args[3].decode()?;
+    let index = bounds_checked_index(&memory, size, offset, index)?;
+    let view = memory.view::<u8>();
+
+    if offset + index >= view.len() {
+        return Err(Error::RaiseTerm(Box::new(
+            "Out of bound: The given binary will write out of memory",
+        )));
+    }
+
+    let mut binary: Vec<u8> = Vec::new();
+    for i in (offset + index)..view.len() {
+        let value = view[i].get();
+        binary.push(value);
+        if value == 0 {
+            break;
+        }
+    }
+    Ok(binary.encode(env))
+}
+
 pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let instance = resource.instance.instance.lock().unwrap();

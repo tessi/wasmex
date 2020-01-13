@@ -15,6 +15,7 @@ defmodule Wasmex.Native do
   def memory_grow(_resource, _size, _offset, _pages), do: error()
   def memory_get(_resource, _size, _offset, _index), do: error()
   def memory_set(_resource, _size, _offset, _index, _value), do: error()
+  def memory_read_binary(_resource, _size, _offset, _index), do: error()
   def memory_write_binary(_resource, _size, _offset, _index, _binary), do: error()
   
   # When the NIF is loaded, it will override functions in this module.

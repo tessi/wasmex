@@ -98,6 +98,18 @@ defmodule Wasmex.Memory do
     str = str <> "\0" # strings a null-byte terminated in C-land
     Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
   end
+
+  @spec read_binary(__MODULE__.t(), pos_integer()) :: binary()
+  def read_binary(%Wasmex.Memory{} = memory, index)do
+    read_binary(memory, memory.size, memory.offset, index)
+  end
+
+  @spec read_binary(__MODULE__.t(), atom(), pos_integer(), pos_integer()) :: binary()
+  def read_binary(%Wasmex.Memory{resource: resource}, size, offset, index) do
+    Wasmex.Native.memory_read_binary(resource, size, offset, index)
+    |> to_string
+    |> String.trim_trailing("\0")
+  end
 end
 
 defimpl Inspect, for: Wasmex.Memory do
