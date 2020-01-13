@@ -23,7 +23,7 @@ defmodule Wasmex.Memory do
 
   @spec from_instance(Wasmex.Instance.t(), atom(), pos_integer()) :: __MODULE__.t()
   def from_instance(%Wasmex.Instance{resource: resource}, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
-    case Wasmex.Native.memory_from_instance(resource, size, offset) do
+    case Wasmex.Native.memory_from_instance(resource) do
       {:ok, resource} -> {:ok, wrap_resource(resource, size, offset)}
       {:error, err} -> {:error, err}
     end
@@ -39,18 +39,33 @@ defmodule Wasmex.Memory do
   end
 
   @spec bytes_per_element(__MODULE__.t()) :: pos_integer()
-  def bytes_per_element(%Wasmex.Memory{resource: resource}) do
-    Wasmex.Native.memory_bytes_per_element(resource)
+  def bytes_per_element(%Wasmex.Memory{resource: resource} = memory) do
+    Wasmex.Native.memory_bytes_per_element(resource, memory.size, memory.offset)
+  end
+
+  @spec bytes_per_element(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
+  def bytes_per_element(%Wasmex.Memory{resource: resource}, size, offset) do
+    Wasmex.Native.memory_bytes_per_element(resource, size, offset)
   end
 
   @spec length(__MODULE__.t()) :: pos_integer()
-  def length(%Wasmex.Memory{resource: resource}) do
-    Wasmex.Native.memory_length(resource)
+  def length(%Wasmex.Memory{resource: resource} = memory) do
+    Wasmex.Native.memory_length(resource, memory.size, memory.offset)
+  end
+
+  @spec length(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
+  def length(%Wasmex.Memory{resource: resource}, size, offset) do
+    Wasmex.Native.memory_length(resource, size, offset)
   end
 
   @spec grow(__MODULE__.t(), pos_integer()) :: pos_integer()
-  def grow(%Wasmex.Memory{resource: resource}, pages) do
-    Wasmex.Native.memory_grow(resource, pages)
+  def grow(%Wasmex.Memory{resource: resource} = memory, pages) do
+    Wasmex.Native.memory_grow(resource, memory.size, memory.offset, pages)
+  end
+
+  @spec grow(__MODULE__.t(), atom(), pos_integer(), pos_integer()) :: pos_integer()
+  def grow(%Wasmex.Memory{resource: resource}, size, offset, pages) do
+    Wasmex.Native.memory_grow(resource, size, offset, pages)
   end
 end
 

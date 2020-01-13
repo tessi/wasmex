@@ -10,8 +10,6 @@ use wasmer_runtime::{self as runtime, Export};
 use crate::{atoms, instance};
 pub struct MemoryResource {
     pub instance: ResourceArc<instance::InstanceResource>,
-    pub size: ElementSize,
-    pub offset: usize,
 }
 
 pub enum ElementSize {
@@ -25,14 +23,7 @@ pub enum ElementSize {
 
 pub fn from_instance<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let instance: ResourceArc<instance::InstanceResource> = args[0].decode()?;
-    let size = size_from_term(&args[1])?;
-    let offset: usize = args[2].decode()?;
-
-    let memory_resource = ResourceArc::new(MemoryResource {
-        instance,
-        size,
-        offset,
-    });
+    let memory_resource = ResourceArc::new(MemoryResource { instance });
 
     Ok((atoms::ok(), memory_resource).encode(env))
 }
@@ -58,8 +49,8 @@ fn size_from_term(term: &Term) -> Result<ElementSize, Error> {
 }
 
 pub fn bytes_per_element<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let resource: ResourceArc<MemoryResource> = args[0].decode()?;
-    let bytes_count = byte_size(&resource.size);
+    let (_resource, size, _offset) = extract_params(args)?;
+    let bytes_count = byte_size(&size);
     Ok(bytes_count.encode(env))
 }
 
@@ -75,11 +66,20 @@ fn byte_size(element_size: &ElementSize) -> usize {
 }
 
 pub fn length<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let resource: ResourceArc<MemoryResource> = args[0].decode()?;
+    let (resource, size, offset) = extract_params(args)?;
     let instance = resource.instance.instance.lock().unwrap();
     let memory = memory_from_instance(&instance)?;
-    let length = byte_length(&memory, resource.offset, &resource.size);
+    let length = byte_length(&memory, offset, &size);
     Ok(length.encode(env))
+}
+
+fn extract_params<'a>(
+    args: &[Term<'a>],
+) -> Result<(ResourceArc<MemoryResource>, ElementSize, usize), Error> {
+    let resource: ResourceArc<MemoryResource> = args[0].decode()?;
+    let size = size_from_term(&args[1])?;
+    let offset = args[2].decode()?;
+    Ok((resource, size, offset))
 }
 
 fn byte_length(memory: &runtime::Memory, offset: usize, element_size: &ElementSize) -> usize {
@@ -94,8 +94,8 @@ fn byte_length(memory: &runtime::Memory, offset: usize, element_size: &ElementSi
 }
 
 pub fn grow<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let resource: ResourceArc<MemoryResource> = args[0].decode()?;
-    let pages: u32 = args[1].decode()?;
+    let (resource, _size, _offset) = extract_params(args)?;
+    let pages: u32 = args[3].decode()?;
 
     let instance = resource.instance.instance.lock().unwrap();
     let memory = memory_from_instance(&instance)?;
