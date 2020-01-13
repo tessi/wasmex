@@ -65,7 +65,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "grow/1" do
+  describe "grow/2" do
     test "grows the memory by the given number of pages" do
       {:ok, memory} = build_memory(:uint8, 0)
       assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages
@@ -73,6 +73,15 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages + 3
       assert Wasmex.Memory.grow(memory, 1) == @initial_pages + 3
       assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages + 4
+    end
+  end
+
+  describe "get/2 and set/3" do
+    test "sets and gets uint8 values" do
+      {:ok, memory} = build_memory(:uint8, 0)
+      assert Wasmex.Memory.get(memory, 0) == 0
+      :ok = Wasmex.Memory.set(memory, 0, 42)
+      assert Wasmex.Memory.get(memory, 0) == 42
     end
   end
 end

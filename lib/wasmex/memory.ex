@@ -39,8 +39,8 @@ defmodule Wasmex.Memory do
   end
 
   @spec bytes_per_element(__MODULE__.t()) :: pos_integer()
-  def bytes_per_element(%Wasmex.Memory{resource: resource} = memory) do
-    Wasmex.Native.memory_bytes_per_element(resource, memory.size, memory.offset)
+  def bytes_per_element(%Wasmex.Memory{} = memory) do
+    bytes_per_element(memory, memory.size, memory.offset)
   end
 
   @spec bytes_per_element(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
@@ -49,8 +49,8 @@ defmodule Wasmex.Memory do
   end
 
   @spec length(__MODULE__.t()) :: pos_integer()
-  def length(%Wasmex.Memory{resource: resource} = memory) do
-    Wasmex.Native.memory_length(resource, memory.size, memory.offset)
+  def length(%Wasmex.Memory{} = memory) do
+    length(memory, memory.size, memory.offset)
   end
 
   @spec length(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
@@ -59,13 +59,33 @@ defmodule Wasmex.Memory do
   end
 
   @spec grow(__MODULE__.t(), pos_integer()) :: pos_integer()
-  def grow(%Wasmex.Memory{resource: resource} = memory, pages) do
-    Wasmex.Native.memory_grow(resource, memory.size, memory.offset, pages)
+  def grow(%Wasmex.Memory{} = memory, pages) do
+    grow(memory, memory.size, memory.offset, pages)
   end
 
   @spec grow(__MODULE__.t(), atom(), pos_integer(), pos_integer()) :: pos_integer()
   def grow(%Wasmex.Memory{resource: resource}, size, offset, pages) do
     Wasmex.Native.memory_grow(resource, size, offset, pages)
+  end
+
+  @spec get(__MODULE__.t(), pos_integer()) :: number()
+  def get(%Wasmex.Memory{} = memory, index) do
+    get(memory, memory.size, memory.offset, index)
+  end
+
+  @spec get(__MODULE__.t(), atom(), pos_integer(), pos_integer()) :: number()
+  def get(%Wasmex.Memory{resource: resource}, size, offset, index) do
+    Wasmex.Native.memory_get(resource, size, offset, index)
+  end
+
+  @spec set(__MODULE__.t(), pos_integer(), number()) :: number()
+  def set(%Wasmex.Memory{} = memory, index, value) do
+    set(memory, memory.size, memory.offset, index, value)
+  end
+
+  @spec set(__MODULE__.t(), atom(), pos_integer(), pos_integer(), number()) :: number()
+  def set(%Wasmex.Memory{resource: resource}, size, offset, index, value) do
+    Wasmex.Native.memory_set(resource, size, offset, index, value)
   end
 end
 
