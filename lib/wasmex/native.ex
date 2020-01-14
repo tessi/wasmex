@@ -1,5 +1,5 @@
 defmodule Wasmex.Native do
-   @moduledoc """
+  @moduledoc """
   Contains calls that are implemented in our Rust NIF.
   Functions in this module are not intended to be called directly.
   """
@@ -17,7 +17,7 @@ defmodule Wasmex.Native do
   def memory_set(_resource, _size, _offset, _index, _value), do: error()
   def memory_read_binary(_resource, _size, _offset, _index), do: error()
   def memory_write_binary(_resource, _size, _offset, _index, _binary), do: error()
-  
+
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is just to handle the case when the nif could not be loaded.
   defp error, do: :erlang.nif_error(:nif_not_loaded)

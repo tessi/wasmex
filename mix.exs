@@ -8,9 +8,11 @@ defmodule Wasmex.MixProject do
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       compilers: [:rustler] ++ Mix.compilers(),
-      rustler_crates: [wasmex: [
-        mode: (if Mix.env() == :prod, do: :release, else: :debug)
-      ]],
+      rustler_crates: [
+        wasmex: [
+          mode: if(Mix.env() == :prod, do: :release, else: :debug)
+        ]
+      ],
       name: "Wasmex",
       description: description(),
       package: package(),
@@ -30,7 +32,7 @@ defmodule Wasmex.MixProject do
     [
       {:rustler, "~> 0.21.0"},
       {:ex_doc, "~> 0.21.2", only: :dev},
-      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false}
     ]
   end
 

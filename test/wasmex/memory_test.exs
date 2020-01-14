@@ -3,7 +3,7 @@ defmodule Wasmex.MemoryTest do
   doctest Wasmex.Memory
 
   defp build_wasm_instance do
-    bytes = File.read!(TestHelper.wasm_file_path)
+    bytes = File.read!(TestHelper.wasm_file_path())
     Wasmex.Instance.from_bytes(bytes)
   end
 
@@ -44,35 +44,37 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  @page_size 65_536 # in bytes
+  # in bytes
+  @page_size 65_536
   @initial_pages 17
-  @min_memory_size @initial_pages * @page_size # in bytes
+  # in bytes
+  @min_memory_size @initial_pages * @page_size
 
   describe "length/1" do
     test "returns number of uint8 elements that fit into memory" do
       {:ok, memory} = build_memory(:uint8, 0)
-      assert Wasmex.Memory.length(memory) ==  @min_memory_size
+      assert Wasmex.Memory.length(memory) == @min_memory_size
     end
 
     test "returns number of uint16 elements that fit into memory" do
       {:ok, memory} = build_memory(:uint16, 0)
-      assert Wasmex.Memory.length(memory) ==  @min_memory_size / 2
+      assert Wasmex.Memory.length(memory) == @min_memory_size / 2
     end
 
     test "returns number of int32 elements that fit into memory" do
       {:ok, memory} = build_memory(:int32, 0)
-      assert Wasmex.Memory.length(memory) ==  @min_memory_size / 4
+      assert Wasmex.Memory.length(memory) == @min_memory_size / 4
     end
   end
 
   describe "grow/2" do
     test "grows the memory by the given number of pages" do
       {:ok, memory} = build_memory(:uint8, 0)
-      assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages
+      assert Wasmex.Memory.length(memory) / @page_size == @initial_pages
       assert Wasmex.Memory.grow(memory, 3) == @initial_pages
-      assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages + 3
+      assert Wasmex.Memory.length(memory) / @page_size == @initial_pages + 3
       assert Wasmex.Memory.grow(memory, 1) == @initial_pages + 3
-      assert Wasmex.Memory.length(memory) / @page_size ==  @initial_pages + 4
+      assert Wasmex.Memory.length(memory) / @page_size == @initial_pages + 4
     end
   end
 
@@ -89,32 +91,49 @@ defmodule Wasmex.MemoryTest do
     test "writes a string into memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       :ok = Wasmex.Memory.write_binary(memory, 0, "hello")
-      assert Wasmex.Memory.get(memory, 0) == 104 # h
-      assert Wasmex.Memory.get(memory, 1) == 101 # e
-      assert Wasmex.Memory.get(memory, 2) == 108 # l
-      assert Wasmex.Memory.get(memory, 3) == 108 # l
-      assert Wasmex.Memory.get(memory, 4) == 111 # o
-      assert Wasmex.Memory.get(memory, 5) == 0   # automatically added null byte
+      # h
+      assert Wasmex.Memory.get(memory, 0) == 104
+      # e
+      assert Wasmex.Memory.get(memory, 1) == 101
+      # l
+      assert Wasmex.Memory.get(memory, 2) == 108
+      # l
+      assert Wasmex.Memory.get(memory, 3) == 108
+      # o
+      assert Wasmex.Memory.get(memory, 4) == 111
+      # automatically added null byte
+      assert Wasmex.Memory.get(memory, 5) == 0
 
       # overwriting the same area in memory to see if the automatic null byte is being added
       :ok = Wasmex.Memory.write_binary(memory, 1, "abc")
-      assert Wasmex.Memory.get(memory, 0) == 104 # not changed because of the index
-      assert Wasmex.Memory.get(memory, 1) == 97 # a
-      assert Wasmex.Memory.get(memory, 2) == 98 # b
-      assert Wasmex.Memory.get(memory, 3) == 99 # c
-      assert Wasmex.Memory.get(memory, 4) == 0  # automatically added null byte
+      # not changed because of the index
+      assert Wasmex.Memory.get(memory, 0) == 104
+      # a
+      assert Wasmex.Memory.get(memory, 1) == 97
+      # b
+      assert Wasmex.Memory.get(memory, 2) == 98
+      # c
+      assert Wasmex.Memory.get(memory, 3) == 99
+      # automatically added null byte
+      assert Wasmex.Memory.get(memory, 4) == 0
     end
   end
 
   describe "read_binary/2" do
     test "reads a string from memory" do
       {:ok, memory} = build_memory(:uint8, 0)
-      Wasmex.Memory.set(memory, 0, 104) # h
-      Wasmex.Memory.set(memory, 1, 101) # e
-      Wasmex.Memory.set(memory, 2, 108) # l
-      Wasmex.Memory.set(memory, 3, 108) # l
-      Wasmex.Memory.set(memory, 4, 111) # o
-      Wasmex.Memory.set(memory, 5, 0)   # automatically added null byte
+      # h
+      Wasmex.Memory.set(memory, 0, 104)
+      # e
+      Wasmex.Memory.set(memory, 1, 101)
+      # l
+      Wasmex.Memory.set(memory, 2, 108)
+      # l
+      Wasmex.Memory.set(memory, 3, 108)
+      # o
+      Wasmex.Memory.set(memory, 4, 111)
+      # automatically added null byte
+      Wasmex.Memory.set(memory, 5, 0)
 
       assert Wasmex.Memory.read_binary(memory, 0) == "hello"
       assert Wasmex.Memory.read_binary(memory, 3) == "lo"

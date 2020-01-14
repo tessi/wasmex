@@ -24,5 +24,4 @@ defmodule Wasmex do
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
   """
-
 end

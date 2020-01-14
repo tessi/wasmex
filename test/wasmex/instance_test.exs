@@ -3,13 +3,13 @@ defmodule Wasmex.InstanceTest do
   doctest Wasmex.Instance
 
   defp build_wasm_instance do
-    bytes = File.read!(TestHelper.wasm_file_path)
+    bytes = File.read!(TestHelper.wasm_file_path())
     Wasmex.Instance.from_bytes(bytes)
   end
 
   describe "from_bytes/1" do
     test "instantiates an Instance from a valid wasm file" do
-      bytes = File.read!(TestHelper.wasm_file_path)
+      bytes = File.read!(TestHelper.wasm_file_path())
       {:ok, _} = Wasmex.Instance.from_bytes(bytes)
     end
   end
@@ -18,7 +18,8 @@ defmodule Wasmex.InstanceTest do
     test "returns whether a function export could be found in the wasm file" do
       {:ok, instance} = build_wasm_instance()
       assert Wasmex.Instance.function_export_exists(instance, "sum")
-      refute Wasmex.Instance.function_export_exists(instance, "sum42") # 🎸
+      # 🎸
+      refute Wasmex.Instance.function_export_exists(instance, "sum42")
     end
   end
 
@@ -42,17 +43,23 @@ defmodule Wasmex.InstanceTest do
 
     test "calling the sum(i32, i32) function with wrong number of params" do
       {:ok, instance} = build_wasm_instance()
-      assert_raise ErlangError, "Erlang error: \"number of params does not match. expected 2, got 1\"", fn ->
-        Wasmex.Instance.call_exported_function(instance, "sum", [3])
-      end
 
-      assert_raise ErlangError, "Erlang error: \"number of params does not match. expected 2, got 3\"", fn ->
-        Wasmex.Instance.call_exported_function(instance, "sum", [3, 4, 5])
-      end
+      assert_raise ErlangError,
+                   "Erlang error: \"number of params does not match. expected 2, got 1\"",
+                   fn ->
+                     Wasmex.Instance.call_exported_function(instance, "sum", [3])
+                   end
+
+      assert_raise ErlangError,
+                   "Erlang error: \"number of params does not match. expected 2, got 3\"",
+                   fn ->
+                     Wasmex.Instance.call_exported_function(instance, "sum", [3, 4, 5])
+                   end
     end
 
     test "calling a function that does not exist" do
       {:ok, instance} = build_wasm_instance()
+
       assert_raise ErlangError, "Erlang error: \"exported function `sum42` not found\"", fn ->
         Wasmex.Instance.call_exported_function(instance, "sum42", [])
       end
@@ -64,9 +71,11 @@ defmodule Wasmex.InstanceTest do
 
       # a value greater than i32::max_value()
       # see: https://doc.rust-lang.org/std/primitive.i32.html#method.max_value
-      assert_raise ErlangError, "Erlang error: \"Cannot convert argument #1 to a WebAssembly i32 value.\"", fn ->
-        Wasmex.Instance.call_exported_function(instance, "i32_i32", [3000000000])
-      end
+      assert_raise ErlangError,
+                   "Erlang error: \"Cannot convert argument #1 to a WebAssembly i32 value.\"",
+                   fn ->
+                     Wasmex.Instance.call_exported_function(instance, "i32_i32", [3_000_000_000])
+                   end
     end
 
     test "using i64 as param and return value" do
@@ -75,12 +84,16 @@ defmodule Wasmex.InstanceTest do
 
       # a value greater than i32::max_value()
       # see: https://doc.rust-lang.org/std/primitive.i32.html#method.max_value
-      assert 3000000000 == Wasmex.Instance.call_exported_function(instance, "i64_i64", [3000000000])
+      assert 3_000_000_000 ==
+               Wasmex.Instance.call_exported_function(instance, "i64_i64", [3_000_000_000])
     end
 
     test "using f32 as param and return value" do
       {:ok, instance} = build_wasm_instance()
-      assert_in_delta 3.14, Wasmex.Instance.call_exported_function(instance, "f32_f32", [3.14]), 0.001
+
+      assert_in_delta 3.14,
+                      Wasmex.Instance.call_exported_function(instance, "f32_f32", [3.14]),
+                      0.001
 
       # a value greater than f32::max_value()
       assert_raise ArgumentError, fn ->
@@ -90,15 +103,26 @@ defmodule Wasmex.InstanceTest do
 
     test "using f64 as param and return value" do
       {:ok, instance} = build_wasm_instance()
-      assert_in_delta 3.14, Wasmex.Instance.call_exported_function(instance, "f64_f64", [3.14]), 0.001
+
+      assert_in_delta 3.14,
+                      Wasmex.Instance.call_exported_function(instance, "f64_f64", [3.14]),
+                      0.001
 
       # a value greater than f32::max_value()
-      assert  3.4e42 == Wasmex.Instance.call_exported_function(instance, "f64_f64", [3.4e42])
+      assert 3.4e42 == Wasmex.Instance.call_exported_function(instance, "f64_f64", [3.4e42])
     end
 
     test "using different param types as params" do
       {:ok, instance} = build_wasm_instance()
-      assert_in_delta 20.4, Wasmex.Instance.call_exported_function(instance, "i32_i64_f32_f64_f64", [3, 4, 5.6, 7.8]), 0.001
+
+      assert_in_delta 20.4,
+                      Wasmex.Instance.call_exported_function(instance, "i32_i64_f32_f64_f64", [
+                        3,
+                        4,
+                        5.6,
+                        7.8
+                      ]),
+                      0.001
     end
 
     test "calling a function with a boolean return value" do
@@ -126,14 +150,21 @@ defmodule Wasmex.InstanceTest do
       index = 42
 
       Wasmex.Memory.write_binary(memory, index, string)
-      assert 104 == Wasmex.Instance.call_exported_function(instance, "string_first_byte", [index, String.length(string)])
+
+      assert 104 ==
+               Wasmex.Instance.call_exported_function(instance, "string_first_byte", [
+                 index,
+                 String.length(string)
+               ])
     end
   end
 
   describe "memory/3" do
     test "returns a memory struct" do
       {:ok, instance} = build_wasm_instance()
-      {:ok, %Wasmex.Memory{size: :uint8, offset: 0, resource: _}} = Wasmex.Instance.memory(instance, :uint8, 0)
+
+      {:ok, %Wasmex.Memory{size: :uint8, offset: 0, resource: _}} =
+        Wasmex.Instance.memory(instance, :uint8, 0)
     end
   end
 end

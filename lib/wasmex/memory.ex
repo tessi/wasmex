@@ -42,22 +42,20 @@ defmodule Wasmex.Memory do
   """
 
   @type t :: %__MODULE__{
-    resource: binary(),
-    reference: reference(),
-  }
+          resource: binary(),
+          reference: reference()
+        }
 
-  defstruct [
-    # The actual NIF memory resource.
-    resource: nil,
-    # Normally the compiler will happily do stuff like inlining the
-    # resource in attributes. This will convert the resource into an
-    # empty binary with no warning. This will make that harder to
-    # accidentaly do.
-    # It also serves as a handy way to tell file handles apart.
-    reference: nil,
-    size: nil,
-    offset: nil
-  ]
+  defstruct resource: nil,
+            # The actual NIF memory resource.
+            # Normally the compiler will happily do stuff like inlining the
+            # resource in attributes. This will convert the resource into an
+            # empty binary with no warning. This will make that harder to
+            # accidentaly do.
+            # It also serves as a handy way to tell file handles apart.
+            reference: nil,
+            size: nil,
+            offset: nil
 
   @spec from_instance(Wasmex.Instance.t()) :: __MODULE__.t()
   def from_instance(%Wasmex.Instance{} = instance) do
@@ -65,13 +63,14 @@ defmodule Wasmex.Memory do
   end
 
   @spec from_instance(Wasmex.Instance.t(), atom(), pos_integer()) :: __MODULE__.t()
-  def from_instance(%Wasmex.Instance{resource: resource}, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
+  def from_instance(%Wasmex.Instance{resource: resource}, size, offset)
+      when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Native.memory_from_instance(resource) do
       {:ok, resource} -> {:ok, wrap_resource(resource, size, offset)}
       {:error, err} -> {:error, err}
     end
   end
-  
+
   defp wrap_resource(resource, size, offset) do
     %__MODULE__{
       resource: resource,
@@ -187,13 +186,15 @@ defmodule Wasmex.Memory do
   end
 
   @spec write_binary(__MODULE__.t(), atom(), pos_integer(), pos_integer(), binary()) :: :ok
-  def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str) when is_binary(str) do
-    str = str <> "\0" # strings a null-byte terminated in C-land
+  def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str)
+      when is_binary(str) do
+    # strings a null-byte terminated in C-land
+    str = str <> "\0"
     Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
   end
 
   @spec read_binary(__MODULE__.t(), pos_integer()) :: binary()
-  def read_binary(%Wasmex.Memory{} = memory, index)do
+  def read_binary(%Wasmex.Memory{} = memory, index) do
     read_binary(memory, memory.size, memory.offset, index)
   end
 
@@ -209,6 +210,6 @@ defimpl Inspect, for: Wasmex.Memory do
   import Inspect.Algebra
 
   def inspect(dict, opts) do
-    concat ["#Wasmex.Memory<", to_doc(dict.reference, opts), ">"]
+    concat(["#Wasmex.Memory<", to_doc(dict.reference, opts), ">"])
   end
 end
