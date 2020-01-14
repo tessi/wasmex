@@ -24,7 +24,6 @@ defmodule Wasmex.Instance do
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
   ```
   """
-  @type wasm_bytes :: binary
 
   @type t :: %__MODULE__{
           resource: binary(),
@@ -40,7 +39,7 @@ defmodule Wasmex.Instance do
             # It also serves as a handy way to tell file handles apart.
             reference: nil
 
-  @spec from_bytes(wasm_bytes) :: __MODULE__.t()
+  @spec from_bytes(binary()) :: {:error, binary()} | {:ok, __MODULE__.t()}
   def from_bytes(bytes) when is_binary(bytes) do
     case Wasmex.Native.instance_new_from_bytes(bytes) do
       {:error, err} -> {:error, err}
@@ -71,7 +70,7 @@ defmodule Wasmex.Instance do
     Wasmex.Native.instance_call_exported_function(resource, name, params)
   end
 
-  @spec memory(__MODULE__.t(), atom(), pos_integer()) :: Wasmex.Memory.t()
+  @spec memory(__MODULE__.t(), atom(), pos_integer()) :: {:error, binary()} | {:ok, Wasmex.Memory.t()}
   def memory(%__MODULE__{} = instance, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     Wasmex.Memory.from_instance(instance, size, offset)

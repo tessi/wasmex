@@ -12,6 +12,15 @@ defmodule Wasmex.MemoryTest do
     Wasmex.Memory.from_instance(instance, size, offset)
   end
 
+  describe "from_instance/1" do
+    test "creates memory with defaults fir size and offset" do
+      {:ok, instance} = build_wasm_instance()
+      {:ok, memory} = Wasmex.Memory.from_instance(instance)
+      assert memory.size == :uint8
+      assert memory.offset == 0
+    end
+  end
+
   describe "bytes_per_element/1" do
     test "returns number of bytes for uint8" do
       {:ok, memory} = build_memory(:uint8, 0)
