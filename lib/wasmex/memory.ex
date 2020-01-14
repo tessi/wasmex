@@ -1,6 +1,44 @@
 defmodule Wasmex.Memory do
-  @typedoc """
-  TBD
+  @moduledoc """
+  A WebAssembly instance has its own memory, represented by the `Memory` struct.
+  It is accessible by the `Wasmex.Instance.memory` getter.
+
+  The `Memory.grow` methods allows to grow the memory by a number of pages (of 65kb each).
+
+  ```elixir
+  Wasmex.Memory.grow(memory, 1)
+  ```
+
+  The current size of the memory can be obtained with the `length` method:
+
+  ```elixir
+  Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
+  ```
+
+  When creating the memory struct, the `offset` param can be provided, to subset the memory array at a particular offset.
+
+  ```elixir
+  offset = 7
+  index = 4
+  value = 42
+
+  {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, offset)
+  Wasmex.Memory.set(memory, index, value)
+  IO.puts Wasmex.Memory.get(memory, index) # 42
+  ```
+
+  The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
+  Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
+  The underlying data is not changed when viewed in different types - its just its represenation that changes.
+
+  | View memory buffer as a sequence of… | Bytes per element |
+  |----------|---|
+  | `int8`   | 1 |
+  | `uint8`  | 1 |
+  | `int16`  | 2 |
+  | `uint16` | 2 |
+  | `int32`  | 4 |
+  | `uint32` | 4 |
   """
 
   @type t :: %__MODULE__{
@@ -21,6 +59,11 @@ defmodule Wasmex.Memory do
     offset: nil
   ]
 
+  @spec from_instance(Wasmex.Instance.t()) :: __MODULE__.t()
+  def from_instance(%Wasmex.Instance{} = instance) do
+    from_instance(instance, :uint8, 0)
+  end
+
   @spec from_instance(Wasmex.Instance.t(), atom(), pos_integer()) :: __MODULE__.t()
   def from_instance(%Wasmex.Instance{resource: resource}, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Native.memory_from_instance(resource) do
@@ -38,26 +81,76 @@ defmodule Wasmex.Memory do
     }
   end
 
+  @doc """
+  Returns the number of bytes used to represent a unit in memory.
+
+  For the limited number of unit sizes the byte values are the following:
+
+   size | Bytes per element |
+  |----------|---|
+  | `int8`   | 1 |
+  | `uint8`  | 1 |
+  | `int16`  | 2 |
+  | `uint16` | 2 |
+  | `int32`  | 4 |
+  | `uint32` | 4 |
+
+  ```elixir
+  {:ok, memory} = Wasmex.Instance.memory(instance, :uint16, 0)
+  Wasmex.Memory.bytes_per_element(memory) # 2
+  ```
+  """
   @spec bytes_per_element(__MODULE__.t()) :: pos_integer()
   def bytes_per_element(%Wasmex.Memory{} = memory) do
     bytes_per_element(memory, memory.size, memory.offset)
   end
 
+  @doc """
+  Same as bytes_per_element/1 except the unit `size` and offset given at memory creation are overwritten by the given values.
+
+  ```elixir
+  {:ok, memory} = Wasmex.Instance.memory(instance)
+  Wasmex.Memory.bytes_per_element(memory, :uint32, 0) # 4
+  ```
+  """
   @spec bytes_per_element(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
   def bytes_per_element(%Wasmex.Memory{resource: resource}, size, offset) do
     Wasmex.Native.memory_bytes_per_element(resource, size, offset)
   end
 
+  @doc """
+  Returns the number of elements that fit into memory for the given unit size and offset.
+
+  Note that the WebAssembly memory consists of pages of 65kb each.
+  Different unit `size`s needs a different number of bytes per element and the `offset` may reduce the number of available elements.
+
+  ```elixir
+  {:ok, memory} = Wasmex.Memory.from_instance(instance, :uint8, 0)
+  Wasmex.Memory.length(memory) # 1114112 (17 * 65_536)
+  ```
+  """
   @spec length(__MODULE__.t()) :: pos_integer()
   def length(%Wasmex.Memory{} = memory) do
     length(memory, memory.size, memory.offset)
   end
 
+  @doc """
+  Same as length/1 except the unit `size` and offset given at memory creation are overwritten by the given values.
+
+  ```elixir
+  {:ok, memory} = Wasmex.Instance.memory(instance)
+  Wasmex.Memory.length(memory, :uint8, 0) # 1114112 (17 * 65_536)
+  ```
+  """
   @spec length(__MODULE__.t(), atom(), pos_integer()) :: pos_integer()
   def length(%Wasmex.Memory{resource: resource}, size, offset) do
     Wasmex.Native.memory_length(resource, size, offset)
   end
 
+  @doc """
+  Grows the amount of available memory by the given number of pages and returns the number of previously available pages.
+  Note that the maximum number of pages is `65_536`
+  """
   @spec grow(__MODULE__.t(), pos_integer()) :: pos_integer()
   def grow(%Wasmex.Memory{} = memory, pages) do
     grow(memory, memory.size, memory.offset, pages)

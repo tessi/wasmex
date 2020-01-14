@@ -1,6 +1,6 @@
 defmodule Wasmex.Native do
    @moduledoc """
-  Containes calls that are implemented in our Rust NIF.
+  Contains calls that are implemented in our Rust NIF.
   Functions in this module are not intended to be called directly.
   """
 

@@ -53,7 +53,7 @@ pub extern fn sum(x: i32, y: i32) -> i32 {
 
 Once this program compiled to WebAssembly (which we do every time when running tests), we end up with a `test/wasm_source/target/wasm32-unknown-unknown/debug/wasmex_test.wasm` binary file.
 
-This WASM file can be executed in Elixir (!):
+This WASM file can be executed in Elixir:
 
 ```elixir
 {:ok, bytes } = File.read("wasmex_test.wasm")
@@ -67,7 +67,7 @@ instance
 
 ## The `Instance` module
 
-Instantiates a WebAssembly module represented by bytes and allow calling exported functions on it:
+Instantiates a WebAssembly module represented by bytes and allows calling exported functions on it:
 
 ```elixir
 # Get the Wasm module as bytes.
@@ -95,11 +95,10 @@ See below for more information.
 
 ## The `Memory` module
 
-A WebAssembly instance has its own memory, represented by the `Memory` strct.
+A WebAssembly instance has its own memory, represented by the `Memory` struct.
 It is accessible by the `Wasmex.Instance.memory` getter.
 
-The `Memory.grow` methods allows to grow the memory by a number of
-pages (of 65kb each).
+The `Memory.grow` methods allows to grow the memory by a number of pages (of 65kb each).
 
 ```elixir
 Wasmex.Memory.grow(memory, 1)
@@ -279,3 +278,5 @@ The entire project is under the MIT License. Please read [the
 `LICENSE` file][license].
 
 [license]: https://github.com/tessi/wasmex/blob/master/LICENSE
+
+Many parts of this project are heavily inspired by the [wasmerio family of language integrations](https://github.com/wasmerio). These are also MIT licensed.
