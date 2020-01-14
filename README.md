@@ -32,19 +32,17 @@ def deps do
 end
 ```
 
-**Note**: [Rust][rust] is required to install the Ruby library (Cargo
-—the build tool for Rust— is used to compile the extension). See [how
-to install Rust][install-rust].
+**Note**: [Rust][rust] is required to install the Elixir library (Cargo — the build tool for Rust — is used to compile the extension). See [how to install Rust][install-rust].
 
 [rust]: https://www.rust-lang.org/
 [install-rust]: https://www.rust-lang.org/tools/install
 
 The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
 
-# Example (TBD)
+# Example
 
-There is a toy program in `examples/simple.rs`, written in Rust (or
-any other language that compiles to Wasm):
+There is a toy WASM program in `test/wasm_source/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to Wasm).
+It defines many funtions we use for end-to-end testing, but also serves as example code. For example:
 
 ```rust
 #[no_mangle]
@@ -53,139 +51,197 @@ pub extern fn sum(x: i32, y: i32) -> i32 {
 }
 ```
 
-Once this program compiled to WebAssembly, we end up with a
-`examples/simple.wasm` binary file.
+Once this program compiled to WebAssembly (which we do every time when running tests), we end up with a `test/wasm_source/target/wasm32-unknown-unknown/debug/wasmex_test.wasm` binary file.
 
-Then, we can execute it in Elixir (!) with the `examples/simple.exs` file:
+This WASM file can be executed in Elixir (!):
 
-```rb
-{:ok, bytes } = File.read("simple.wasm")
+```elixir
+{:ok, bytes } = File.read("wasmex_test.wasm")
 {:ok, instance } = Wasmex.Instance.from_bytes(bytes)
-IO.puts(instance.exports(:sum)(1, 2))
+
+instance
+  |> Wasmex.Instance.call_exported_function("sum", [50, -8])
 ```
 
-And then, finally, enjoy by running:
+# API Overview
 
-```sh
-$ elixir simple.rb
-3
-```
+## The `Instance` module
 
-# API documentation (TBD)
+Instantiates a WebAssembly module represented by bytes and allow calling exported functions on it:
 
-## The `Instance` class
-
-Instantiates a WebAssembly module represented by bytes, and calls exported functions on it:
-
-```ruby
-require "wasmer"
-
+```elixir
 # Get the Wasm module as bytes.
-wasm_bytes = IO.read "my_program.wasm", mode: "rb"
+{:ok, bytes } = File.read("wasmex_test.wasm")
 
 # Instantiates the Wasm module.
-instance = Wasmer::Instance.new wasm_bytes
+{:ok, instance } = Wasmex.Instance.from_bytes(bytes)
 
 # Call a function on it.
-result = instance.exports.sum 1, 2
+result = Wasmex.Instance.call_exported_function(instance, "sum", [1, 2])
 
-puts result # 3
+IO.puts result # 3
 ```
 
-All exported functions are accessible on the `exports`
-getter. Arguments of these functions are automatically casted to
-WebAssembly values.
+All exported functions are accessible via the `call_exported_function` function. Arguments of these functions are automatically casted to WebAssembly values.
+Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-The `memory` getter exposes the `Memory` class representing the memory
-of that particular instance, e.g.:
+You can pass arbritrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
 
-```ruby
-view = instance.memory.uint8_view
+```elixir
+{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
 ```
 
 See below for more information.
 
-## The `Memory` class
+## The `Memory` module
 
-A WebAssembly instance has its own memory, represented by the `Memory`
-class. It is accessible by the `Wasmer::Instance.memory` getter.
+A WebAssembly instance has its own memory, represented by the `Memory` strct.
+It is accessible by the `Wasmex.Instance.memory` getter.
 
 The `Memory.grow` methods allows to grow the memory by a number of
 pages (of 65kb each).
 
-```ruby
-instance.memory.grow 1
+```elixir
+Wasmex.Memory.grow(memory, 1)
 ```
 
-The `Memory` class offers methods to create views of the memory
-internal buffer, e.g. `uint8_view`, `int8_view`, `uint16_view`
-etc. All these methods accept one optional argument: `offset`, to
-subset the memory buffer at a particular offset. These methods return
-respectively a `*Array` object, i.e. `uint8_view` returns a
-`Uint8Array` object etc.
+The current size of the memory can be obtained with the `length` method:
 
-```ruby
+```elixir
+Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
+```
+
+When creating the memory struct, the `offset` param can be provided, to subset the memory array at a particular offset.
+
+```elixir
 offset = 7
-view = instance.memory.uint8_view offset
+index = 4
+value = 42
 
-puts view[0]
+{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, offset)
+Wasmex.Memory.set(memory, index, value)
+IO.puts Wasmex.Memory.get(memory, index) # 42
 ```
 
-### The `*Array` classes
+### Memory Buffer viewed in different Datatypes
 
-These classes represent views over a memory buffer of an instance.
+The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
+Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
+The underlying data is not changed when viewed in different types - its just its represenation that changes.
 
-| Class | View buffer as a sequence of… | Bytes per element |
-|-|-|-|
-| `Int8Array` | `int8` | 1 |
-| `Uint8Array` | `uint8` | 1 |
-| `Int16Array` | `int16` | 2 |
-| `Uint16Array` | `uint16` | 2 |
-| `Int32Array` | `int32` | 4 |
-| `Uint32Array` | `uint32` | 4 |
+| View memory buffer as a sequence of… | Bytes per element |
+|----------|---|
+| `int8`   | 1 |
+| `uint8`  | 1 |
+| `int16`  | 2 |
+| `uint16` | 2 |
+| `int32`  | 4 |
+| `uint32` | 4 |
 
-All these classes share the same implementation. Taking the example of
-`Uint8Array`, the class looks like this:
+This can also be resolved programmatically:
 
-```ruby
-class Uint8Array
-    def bytes_per_element
-    def length
-    def [](index)
-    def []=(index, value)
-end
+```elixir
+{:ok, memory} = Wasmex.Instance.memory(instance, :uint16, 0)
+Wasmex.Memory.bytes_per_element(memory) # 2
 ```
 
-Let's see it in action:
+Since the same memory seen in different data types uses the same buffer internally. Let's have some fun:
 
-```ruby
-require "wasmer"
+```elixir
+int8 = Wasmex.Instance.memory(instance, :int8, 0)
+int16 = Wasmex.Instance.memory(instance, :int16, 0)
+int32 = Wasmex.Instance.memory(instance, :int32, 0)
 
-# Get the Wasm module as bytes.
-wasm_bytes = IO.read "my_program.wasm", mode: "rb"
+                        b₁
+                     ┌┬┬┬┬┬┬┐
+Memory.set(int8, 0, 0b00000001)
+                        b₂
+                     ┌┬┬┬┬┬┬┐
+Memory.set(int8, 1, 0b00000100)
+                        b₃
+                     ┌┬┬┬┬┬┬┐
+Memory.set(int8, 2, 0b00010000)
+                        b₄
+                     ┌┬┬┬┬┬┬┐
+Memory.set(int8, 3, 0b01000000)
 
-# Instantiates the Wasm module.
-instance = Wasmer::Instance.new wasm_bytes
+# Viewed in `int16`, 2 bytes are read per value
+            b₂       b₁
+         ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+assert 0b00000100_00000001 == Memory.get(int16, 0)
+            b₄       b₃
+         ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+assert 0b01000000_00010000 == Memory.get(int16, 1)
 
-# Call a function that returns a pointer to a string for instance.
-pointer = instance.exports.return_string
-
-# Get the memory view, with the offset set to `pointer` (default is 0).
-memory = instance.memory.uint8_view pointer
-
-# Read the string pointed by the pointer.
-
-string = ""
-
-memory.each do |char|
-  break if char == 0
-  string += char.chr
-end
-
-puts string # Hello, World!
+# Viewed in `int32`, 4 bytes are read per value
+            b₄       b₃       b₂       b₁
+         ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+assert 0b01000000_00010000_00000100_00000001 == Memory.get(int32, 0)
 ```
 
-Notice that `*Array` treat bytes in little-endian, as required by the
+### Strings as Parameters and Return Values
+
+Strings can not directly be used as parameters or return values when calling WebAssembly functions since WebAssembly only knows number data types.
+But since Strings are just "a bunch of bytes" we can write these bytes into memory and give our WebAssembly function a pointer to that memory location.
+
+#### Strings as Function Parameters
+
+Given we have the following Rust function in our WebAssembly (copied from our test code):
+
+```rust
+#[no_mangle]
+pub extern "C" fn string_first_byte(s: &str) -> u8 {
+  match s.bytes().nth(0) {
+    Some(i) => i,
+    None => 0
+  }
+}
+```
+
+This function returns the first byte of the given String.
+Let's see how we can call this function from Elixir:
+
+```elixir
+bytes = File.read!(TestHelper.wasm_file_path)
+{:ok, instance} = Wasmex.Instance.from_bytes(bytes)
+{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+index = 42
+string = "hello, world"
+
+Wasmex.Memory.write_binary(memory, index, string)
+Wasmex.Instance.call_exported_function(instance, "string_first_byte", [index, String.length(string)]) # 104, "h" in ASCII/UTF-8
+```
+
+Please not that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
+
+#### Strings as Function Return Values
+
+Given we have the following Rust function in our WebAssembly (copied from our test code):
+
+```rust
+#[no_mangle]
+pub extern "C" fn string() -> *const u8 {
+    b"Hello, World!\0".as_ptr()
+}
+```
+
+This function returns a pointer to its memory.
+This memory location contains the String "Hellow, World!" (ending with a null-byte since in C-land all strings end with a null-byte to mark the end of the string).
+
+Thsi is how we would receive this String in Elixir:
+
+```elixir
+bytes = File.read!(TestHelper.wasm_file_path)
+{:ok, instance} = Wasmex.Instance.from_bytes(bytes)
+{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+
+pointer = Wasmex.Instance.call_exported_function(instance, "string", [])
+returned_string = Wasmex.Memory.read_binary(memory, pointer) # "Hellow, World!"
+```
+
+# Endianness of WASM Values
+
+Please note that bytes are treated in little-endian, as required by the
 WebAssembly specification, [Chapter Structure, Section Instructions,
 Sub-Section Memory
 Instructions](https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions):
@@ -193,71 +249,6 @@ Instructions](https://webassembly.github.io/spec/core/syntax/instructions.html#m
 > All values are read and written in [little
 > endian](https://en.wikipedia.org/wiki/Endianness#Little-endian) byte
 > order.
-
-Each view shares the same memory buffer internally. Let's have some fun:
-
-```ruby
-int8 = instance.memory.int8_view
-int16 = instance.memory.int16_view
-int32 = instance.memory.int32_view
-
-               b₁
-            ┌┬┬┬┬┬┬┐
-int8[0] = 0b00000001
-               b₂
-            ┌┬┬┬┬┬┬┐
-int8[1] = 0b00000100
-               b₃
-            ┌┬┬┬┬┬┬┐
-int8[2] = 0b00010000
-               b₄
-            ┌┬┬┬┬┬┬┐
-int8[3] = 0b01000000
-
-// No surprise with the following assertions.
-                  b₁
-               ┌┬┬┬┬┬┬┐
-assert_equal 0b00000001, int8[0]
-                  b₂
-               ┌┬┬┬┬┬┬┐
-assert_equal 0b00000100, int8[1]
-                  b₃
-               ┌┬┬┬┬┬┬┐
-assert_equal 0b00010000, int8[2]
-                  b₄
-               ┌┬┬┬┬┬┬┐
-assert_equal 0b01000000, int8[3]
-
-// The `int16` view reads 2 bytes.
-                  b₂       b₁
-               ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
-assert_equal 0b00000100_00000001, int16[0]
-                  b₄       b₃
-               ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
-assert_equal 0b01000000_00010000, int16[1]
-
-// The `int32` view reads 4 bytes.
-                  b₄       b₃       b₂       b₁
-               ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
-assert_equal 0b01000000_00010000_00000100_00000001, int32[0]
-```
-
-## The `Module` class
-
-The `Module` class contains one static method `validate`, that checks
-whether the given bytes represent valid WebAssembly bytes:
-
-```ruby
-require "wasmer"
-
-wasm_bytes = IO.read "my_program.wasm", mode: "rb"
-
-if not Wasmer::Module.validate wasm_bytes
-    puts "The program seems corrupted."
-end
-```
-
-This function returns a boolean.
 
 # What is WebAssembly?
 
@@ -287,4 +278,4 @@ About safety:
 The entire project is under the MIT License. Please read [the
 `LICENSE` file][license].
 
-[license]: https://github.com/wasmerio/wasmer/blob/master/LICENSE
+[license]: https://github.com/tessi/wasmex/blob/master/LICENSE
