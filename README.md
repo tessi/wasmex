@@ -1,10 +1,4 @@
 <p align="center">
-  <a href="https://wasmer.io" target="_blank" rel="noopener">
-    <img width="300" src="https://raw.githubusercontent.com/wasmerio/wasmer/master/logo.png" alt="Wasmer logo">
-  </a>
-</p>
-
-<p align="center">
   <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/wasmerio/wasmer.svg" alt="License">
   </a>
@@ -18,6 +12,8 @@ Wasmex is an Elixir library for executing WebAssembly binaries:
  * **Easy to use**: The `wasmex` API mimics the standard WebAssembly API,
  * **Fast**: `wasmex` executes the WebAssembly modules as fast as possible,
  * **Safe**: All calls to WebAssembly will be fast and completely safe and sandboxed.
+ 
+ It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF. We use [Rust][rust] to implement the NIF to make it as safe as possible.
 
 # Install
 
