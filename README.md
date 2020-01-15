@@ -1,6 +1,9 @@
 <p align="center">
+  <img width="300" src="./logo.svg" alt="Wasmex logo">
+</p>
+<p align="center">
   <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/wasmerio/wasmer.svg" alt="License">
+    <img src="https://img.shields.io/github/license/tessi/wasmex.svg" alt="License">
   </a>
   <a href="https://circleci.com/gh/tessi/wasmex">
     <img src="https://circleci.com/gh/tessi/wasmex.svg?style=svg" alt="CI">
