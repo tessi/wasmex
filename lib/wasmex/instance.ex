@@ -18,7 +18,7 @@ defmodule Wasmex.Instance do
   All exported functions are accessible via the `call_exported_function` function. Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbritrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
+  You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
 
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
@@ -35,7 +35,7 @@ defmodule Wasmex.Instance do
             # Normally the compiler will happily do stuff like inlining the
             # resource in attributes. This will convert the resource into an
             # empty binary with no warning. This will make that harder to
-            # accidentaly do.
+            # accidentally do.
             # It also serves as a handy way to tell file handles apart.
             reference: nil
 

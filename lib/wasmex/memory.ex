@@ -29,7 +29,7 @@ defmodule Wasmex.Memory do
 
   The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
   Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
-  The underlying data is not changed when viewed in different types - its just its represenation that changes.
+  The underlying data is not changed when viewed in different types - its just its representation that changes.
 
   | View memory buffer as a sequence of… | Bytes per element |
   |----------|---|
@@ -51,7 +51,7 @@ defmodule Wasmex.Memory do
             # Normally the compiler will happily do stuff like inlining the
             # resource in attributes. This will convert the resource into an
             # empty binary with no warning. This will make that harder to
-            # accidentaly do.
+            # accidentally do.
             # It also serves as a handy way to tell file handles apart.
             reference: nil,
             size: nil,
