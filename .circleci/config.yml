@@ -1,0 +1,49 @@
+# Check https://circleci.com/docs/2.0/language-elixir/ for more details on CircleCI configuration
+version: 2
+jobs:
+  build:
+    parallelism: 1
+    docker:
+      - image: circleci/elixir:1.9.1
+        environment:
+            MIX_ENV: test
+
+    working_directory: ~/repo
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-dependency-cache-{{ checksum "mix.lock" }}
+            - v1-dependency-cache
+
+      - run: mix local.hex --force  # install Hex locally (without prompt)
+      - run: mix local.rebar --force  # fetch a copy of rebar (without prompt)
+      - run:
+          name: "Install Rust"
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+            source $HOME/.cargo/env
+            rustup component add rustfmt
+            rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
+
+      - run:
+          name: "Run Checks (Tests, Formatters, ..)"
+          command: |
+            source $HOME/.cargo/env
+            mix deps.get
+            mix test
+            mix format --check-formatted
+            cargo fmt --manifest-path native/wasmex/Cargo.toml  -- --check
+            mix dialyzer
+            mix docs
+
+      - save_cache:
+          key: v1-dependency-cache-{{ checksum "mix.lock" }}
+          paths:
+            - _build
+            - deps
+            - ~/.mix
+
+      - store_test_results:
+          path: _build/test/lib/wasmex

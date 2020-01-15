@@ -5,12 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://spectrum.chat/wasmer">
-    <img src="https://withspectrum.github.io/badge/badge.svg" alt="Join the Wasmer Community">
-  </a>
-  <a href="https://github.com/wasmerio/wasmer/blob/master/LICENSE">
+  <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/wasmerio/wasmer.svg" alt="License">
   </a>
+  [![CircleCI](https://circleci.com/gh/tessi/wasmex.svg?style=svg)](https://circleci.com/gh/tessi/wasmex)
 </p>
 
 Wasmex is an Elixir library for executing WebAssembly binaries:
@@ -42,7 +40,7 @@ The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
 # Example
 
 There is a toy WASM program in `test/wasm_source/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to Wasm).
-It defines many funtions we use for end-to-end testing, but also serves as example code. For example:
+It defines many functions we use for end-to-end testing, but also serves as example code. For example:
 
 ```rust
 #[no_mangle]
@@ -85,7 +83,7 @@ IO.puts result # 3
 All exported functions are accessible via the `call_exported_function` function. Arguments of these functions are automatically casted to WebAssembly values.
 Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-You can pass arbritrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
+You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
 
 ```elixir
 {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
@@ -126,7 +124,7 @@ IO.puts Wasmex.Memory.get(memory, index) # 42
 
 The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
 Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
-The underlying data is not changed when viewed in different types - its just its represenation that changes.
+The underlying data is not changed when viewed in different types - its just its representation that changes.
 
 | View memory buffer as a sequence of… | Bytes per element |
 |----------|---|
@@ -137,7 +135,7 @@ The underlying data is not changed when viewed in different types - its just its
 | `int32`  | 4 |
 | `uint32` | 4 |
 
-This can also be resolved programmatically:
+This can also be resolved at runtime:
 
 ```elixir
 {:ok, memory} = Wasmex.Instance.memory(instance, :uint16, 0)
@@ -225,9 +223,9 @@ pub extern "C" fn string() -> *const u8 {
 ```
 
 This function returns a pointer to its memory.
-This memory location contains the String "Hellow, World!" (ending with a null-byte since in C-land all strings end with a null-byte to mark the end of the string).
+This memory location contains the String "Hello, World!" (ending with a null-byte since in C-land all strings end with a null-byte to mark the end of the string).
 
-Thsi is how we would receive this String in Elixir:
+This is how we would receive this String in Elixir:
 
 ```elixir
 bytes = File.read!(TestHelper.wasm_file_path)

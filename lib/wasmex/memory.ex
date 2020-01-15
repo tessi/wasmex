@@ -29,7 +29,7 @@ defmodule Wasmex.Memory do
 
   The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
   Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
-  The underlying data is not changed when viewed in different types - its just its represenation that changes.
+  The underlying data is not changed when viewed in different types - its just its representation that changes.
 
   | View memory buffer as a sequence of… | Bytes per element |
   |----------|---|
@@ -51,7 +51,7 @@ defmodule Wasmex.Memory do
             # Normally the compiler will happily do stuff like inlining the
             # resource in attributes. This will convert the resource into an
             # empty binary with no warning. This will make that harder to
-            # accidentaly do.
+            # accidentally do.
             # It also serves as a handy way to tell file handles apart.
             reference: nil,
             size: nil,
@@ -62,7 +62,8 @@ defmodule Wasmex.Memory do
     from_instance(instance, :uint8, 0)
   end
 
-  @spec from_instance(Wasmex.Instance.t(), atom(), non_neg_integer()) :: {:error, binary()} | {:ok, __MODULE__.t()}
+  @spec from_instance(Wasmex.Instance.t(), atom(), non_neg_integer()) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
   def from_instance(%Wasmex.Instance{resource: resource}, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Native.memory_from_instance(resource) do
@@ -185,7 +186,8 @@ defmodule Wasmex.Memory do
     write_binary(memory, memory.size, memory.offset, index, str)
   end
 
-  @spec write_binary(__MODULE__.t(), atom(), non_neg_integer(), non_neg_integer(), binary()) :: :ok
+  @spec write_binary(__MODULE__.t(), atom(), non_neg_integer(), non_neg_integer(), binary()) ::
+          :ok
   def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str)
       when is_binary(str) do
     # strings a null-byte terminated in C-land
