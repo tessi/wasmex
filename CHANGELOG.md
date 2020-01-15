@@ -16,6 +16,10 @@ Types of changes
 
 ## [Unreleased]
 
+### Added
+
+* Provide better error messages for Wasmex.Instance.from_bytes when the WASM instance could not be instantiated.
+
 ## [0.1.0] - 2020-01-15
 
 ### Changed

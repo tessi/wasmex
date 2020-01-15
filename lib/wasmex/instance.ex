@@ -42,8 +42,8 @@ defmodule Wasmex.Instance do
   @spec from_bytes(binary()) :: {:error, binary()} | {:ok, __MODULE__.t()}
   def from_bytes(bytes) when is_binary(bytes) do
     case Wasmex.Native.instance_new_from_bytes(bytes) do
-      {:error, err} -> {:error, err}
       {:ok, resource} -> {:ok, wrap_resource(resource)}
+      {:error, err} -> {:error, err}
     end
   end
 
