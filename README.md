@@ -235,7 +235,7 @@ bytes = File.read!(TestHelper.wasm_file_path)
 {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
 
 pointer = Wasmex.Instance.call_exported_function(instance, "string", [])
-returned_string = Wasmex.Memory.read_binary(memory, pointer) # "Hellow, World!"
+returned_string = Wasmex.Memory.read_binary(memory, pointer) # "Hello, World!"
 ```
 
 # Endianness of WASM Values

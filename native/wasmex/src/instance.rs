@@ -18,8 +18,10 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let bytes = binary.as_slice();
 
     let import_object = imports! {};
-    let instance = runtime::instantiate(bytes, &import_object)
-        .map_err(|_| Error::Atom("could_not_instantiate"))?;
+    let instance = match runtime::instantiate(bytes, &import_object) {
+        Ok(instance) => instance,
+        Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
+    };
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),

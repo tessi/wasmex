@@ -12,6 +12,14 @@ defmodule Wasmex.InstanceTest do
       bytes = File.read!(TestHelper.wasm_file_path())
       {:ok, _} = Wasmex.Instance.from_bytes(bytes)
     end
+
+    test "errors when not providing necessary imports" do
+      bytes = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/simple.wasm")
+
+      assert {:error,
+              "Cannot Instantiate: LinkError([ImportNotFound { namespace: \"imports\", name: \"imported_func\" }])"} ==
+               Wasmex.Instance.from_bytes(bytes)
+    end
   end
 
   describe "function_export_exists/2" do
