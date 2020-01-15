@@ -70,7 +70,8 @@ defmodule Wasmex.Instance do
     Wasmex.Native.instance_call_exported_function(resource, name, params)
   end
 
-  @spec memory(__MODULE__.t(), atom(), pos_integer()) :: {:error, binary()} | {:ok, Wasmex.Memory.t()}
+  @spec memory(__MODULE__.t(), atom(), pos_integer()) ::
+          {:error, binary()} | {:ok, Wasmex.Memory.t()}
   def memory(%__MODULE__{} = instance, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     Wasmex.Memory.from_instance(instance, size, offset)

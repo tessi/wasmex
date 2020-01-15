@@ -5,10 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://spectrum.chat/wasmer">
-    <img src="https://withspectrum.github.io/badge/badge.svg" alt="Join the Wasmer Community">
-  </a>
-  <a href="https://github.com/wasmerio/wasmer/blob/master/LICENSE">
+  <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/wasmerio/wasmer.svg" alt="License">
   </a>
 </p>
