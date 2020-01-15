@@ -8,7 +8,9 @@
   <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/wasmerio/wasmer.svg" alt="License">
   </a>
-  [![CircleCI](https://circleci.com/gh/tessi/wasmex.svg?style=svg)](https://circleci.com/gh/tessi/wasmex)
+  <a href="https://circleci.com/gh/tessi/wasmex">
+    <img src="https://circleci.com/gh/tessi/wasmex.svg?style=svg" alt="CI">
+  </a>
 </p>
 
 Wasmex is an Elixir library for executing WebAssembly binaries:
