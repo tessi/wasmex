@@ -24,3 +24,5 @@ wasmex-*.tar
 
 # Cargo things in the Rust part of this package
 priv/native/libwasmex.so
+
+**/.DS_Store

@@ -43,7 +43,8 @@ defmodule Wasmex.MixProject do
   defp package() do
     [
       # These are the default files included in the package
-      files: ~w(lib native priv .formatter.exs mix.exs README.md LICENSE.md CHANGELOG.md),
+      files:
+        ~w(lib native/wasmex/src native/wasmex/Cargo.* native/wasmex/README.md native/wasmex/.cargo .formatter.exs mix.exs README.md LICENSE.md CHANGELOG.md),
       licenses: ["MIT"],
       links: %{
         "GitHub" => "https://github.com/tessi/wasmex",
