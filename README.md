@@ -40,7 +40,7 @@ The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
 
 # Example
 
-There is a toy WASM program in `test/wasm_source/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to Wasm).
+There is a toy WASM program in `test/wasm_source/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
 It defines many functions we use for end-to-end testing, but also serves as example code. For example:
 
 ```rust
