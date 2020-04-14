@@ -23,10 +23,16 @@ To ease handling, we converted our main module `Wasmex` into a `GenServer` so th
 ### Added
 
 - Changed: The Wasmex module is now a GenServer. WASM function calls are now asynchronous
-- Removed: Instance.call_exported_function/2 use Instance.call_exported_function/3 instead.
-- Fixed: Enhanced documentation
-- Changed: Removed unused Rust dependencies
+- Removed unused Rust dependencies
 - Provide better error messages for Wasmex.Instance.from_bytes when the WASM instance could not be instantiated.
+
+### Removed
+
+- Instance.call_exported_function/2 use Instance.call_exported_function/3 instead.
+
+### Fixed
+
+- Enhanced documentation
 
 ## [0.1.0] - 2020-01-15
 
