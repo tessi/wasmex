@@ -128,13 +128,14 @@ fn get_value<'a>(
     index: usize,
     element_size: ElementSize,
 ) -> Term<'a> {
+    let i = offset + index;
     match element_size {
-        ElementSize::Uint8 => memory.view::<u8>()[offset + index].get().encode(*env),
-        ElementSize::Int8 => memory.view::<i8>()[offset + index].get().encode(*env),
-        ElementSize::Uint16 => memory.view::<u16>()[offset + index].get().encode(*env),
-        ElementSize::Int16 => memory.view::<i16>()[offset + index].get().encode(*env),
-        ElementSize::Uint32 => memory.view::<u32>()[offset + index].get().encode(*env),
-        ElementSize::Int32 => memory.view::<i32>()[offset + index].get().encode(*env),
+        ElementSize::Uint8 => memory.view::<u8>()[i].get().encode(*env),
+        ElementSize::Int8 => memory.view::<i8>()[i].get().encode(*env),
+        ElementSize::Uint16 => memory.view::<u16>()[i].get().encode(*env),
+        ElementSize::Int16 => memory.view::<i16>()[i].get().encode(*env),
+        ElementSize::Uint32 => memory.view::<u32>()[i].get().encode(*env),
+        ElementSize::Int32 => memory.view::<i32>()[i].get().encode(*env),
     }
 }
 

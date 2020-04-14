@@ -48,8 +48,13 @@ pub extern "C" fn void() {}
 
 #[no_mangle]
 pub extern "C" fn string_first_byte(s: &str) -> u8 {
-  match s.bytes().nth(0) {
-    Some(i) => i,
-    None => 0
-  }
+    match s.bytes().nth(0) {
+        Some(i) => i,
+        None => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn endless_loop() -> () {
+    loop {}
 }

@@ -8,7 +8,7 @@ defmodule Wasmex.Native do
 
   def instance_new_from_bytes(_bytes), do: error()
   def instance_function_export_exists(_resource, _function_name), do: error()
-  def instance_call_exported_function(_resource, _function_name, _params), do: error()
+  def instance_call_exported_function(_resource, _function_name, _params, _from), do: error()
   def memory_from_instance(_resource), do: error()
   def memory_bytes_per_element(_resource, _size, _offset), do: error()
   def memory_length(_resource, _size, _offset), do: error()

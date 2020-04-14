@@ -15,7 +15,7 @@ rustler::rustler_export_nifs! {
     [
         ("instance_new_from_bytes", 1, instance::new_from_bytes),
         ("instance_function_export_exists", 2, instance::function_export_exists),
-        ("instance_call_exported_function", 3, instance::call_exported_function),
+        ("instance_call_exported_function", 4, instance::call_exported_function),
         ("memory_from_instance", 1, memory::from_instance),
         ("memory_bytes_per_element", 3, memory::bytes_per_element),
         ("memory_length", 3, memory::length),

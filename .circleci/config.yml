@@ -6,7 +6,7 @@ jobs:
     docker:
       - image: circleci/elixir:1.9.1
         environment:
-            MIX_ENV: test
+          MIX_ENV: test
 
     working_directory: ~/repo
     steps:
@@ -17,8 +17,8 @@ jobs:
             - v1-dependency-cache-{{ checksum "mix.lock" }}
             - v1-dependency-cache
 
-      - run: mix local.hex --force  # install Hex locally (without prompt)
-      - run: mix local.rebar --force  # fetch a copy of rebar (without prompt)
+      - run: mix local.hex --force # install Hex locally (without prompt)
+      - run: mix local.rebar --force # fetch a copy of rebar (without prompt)
       - run:
           name: "Install Rust"
           command: |
@@ -36,6 +36,7 @@ jobs:
             mix format --check-formatted
             cargo fmt --manifest-path native/wasmex/Cargo.toml  -- --check
             mix dialyzer
+            mix credo
             mix docs
 
       - save_cache:
