@@ -67,65 +67,33 @@ fn execute_function<'a>(
     function_params: SavedTerm,
     from: SavedTerm,
 ) -> Term<'a> {
-    let returned_function_call_atom = atoms::returned_function_call().encode(thread_env);
     let from = from
         .load(thread_env)
         .decode::<Term>()
         .unwrap_or("could not load 'from' param".encode(thread_env));
     let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
         Ok(vec) => vec,
-        Err(_) => {
-            return make_tuple(
-                thread_env,
-                &[
-                    returned_function_call_atom,
-                    thread_env.error_tuple("could not load 'function params'"),
-                    from,
-                ],
-            )
-        }
+        Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),
     };
     let instance = resource.instance.lock().unwrap();
     let function = match functions::find(&instance, &function_name) {
         Ok(f) => f,
         Err(_) => {
-            return make_tuple(
-                thread_env,
-                &[
-                    returned_function_call_atom,
-                    thread_env
-                        .error_tuple(format!("exported function `{}` not found", function_name)),
-                    from,
-                ],
+            return make_error_tuple(
+                &thread_env,
+                &format!("exported function `{}` not found", function_name),
+                from,
             )
         }
     };
     let function_params = match decode_function_param_terms(&function, given_params) {
         Ok(vec) => vec,
-        Err(reason) => {
-            return make_tuple(
-                thread_env,
-                &[
-                    returned_function_call_atom,
-                    thread_env.error_tuple(reason),
-                    from,
-                ],
-            )
-        }
+        Err(reason) => return make_error_tuple(&thread_env, &reason, from),
     };
 
     let results = match function.call(function_params.as_slice()) {
         Ok(results) => results,
-        Err(e) => {
-            return make_tuple(
-                thread_env,
-                &[
-                    returned_function_call_atom,
-                    thread_env.error_tuple(format!("Runtime Error `{}`.", e).encode(thread_env)),
-                    from,
-                ],
-            )
-        }
+        Err(e) => return make_error_tuple(&thread_env, &format!("Runtime Error `{}`.", e), from),
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
     for value in results {
@@ -136,21 +104,14 @@ fn execute_function<'a>(
             runtime::Value::F64(i) => i.encode(thread_env),
             // encoding V128 is not yet supported by rustler
             runtime::Value::V128(_) => {
-                return make_tuple(
-                    thread_env,
-                    &[
-                        returned_function_call_atom,
-                        thread_env.error_tuple("unable_to_return_v128_type"),
-                        from,
-                    ],
-                )
+                return make_error_tuple(&thread_env, &"unable_to_return_v128_type", from)
             }
         })
     }
     make_tuple(
         thread_env,
         &[
-            returned_function_call_atom,
+            atoms::returned_function_call().encode(thread_env),
             make_tuple(
                 thread_env,
                 &[
@@ -242,4 +203,15 @@ fn decode_function_param_terms(
         function_params.push(value);
     }
     Ok(function_params)
+}
+
+fn make_error_tuple<'a>(env: &Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
+    make_tuple(
+        *env,
+        &[
+            atoms::returned_function_call().encode(*env),
+            env.error_tuple(reason),
+            from,
+        ],
+    )
 }
