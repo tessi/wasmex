@@ -12,11 +12,11 @@
 
 Wasmex is an Elixir library for executing WebAssembly binaries:
 
- * **Easy to use**: The `wasmex` API mimics the standard WebAssembly API,
- * **Fast**: `wasmex` executes the WebAssembly modules as fast as possible,
- * **Safe**: All calls to WebAssembly will be fast and completely safe and sandboxed.
- 
- It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF. We use [Rust][rust] to implement the NIF to make it as safe as possible.
+- **Easy to use**: The `wasmex` API mimics the standard WebAssembly API,
+- **Fast**: `wasmex` executes the WebAssembly modules as fast as possible,
+- **Safe**: All calls to WebAssembly will be fast and completely safe and sandboxed.
+
+It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF. We use [Rust][rust] to implement the NIF to make it as safe as possible.
 
 # Install
 
@@ -56,10 +56,9 @@ This WASM file can be executed in Elixir:
 
 ```elixir
 {:ok, bytes } = File.read("wasmex_test.wasm")
-{:ok, instance } = Wasmex.Instance.from_bytes(bytes)
+{:ok, instance } = Wasmex.start_link(bytes)
 
-instance
-  |> Wasmex.Instance.call_exported_function("sum", [50, -8])
+{:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
 ```
 
 # API Overview
@@ -69,25 +68,26 @@ instance
 Instantiates a WebAssembly module represented by bytes and allows calling exported functions on it:
 
 ```elixir
-# Get the Wasm module as bytes.
+# Get the WASM module as bytes.
 {:ok, bytes } = File.read("wasmex_test.wasm")
 
-# Instantiates the Wasm module.
-{:ok, instance } = Wasmex.Instance.from_bytes(bytes)
+# Instantiates the WASM module.
+{:ok, instance } = Wasmex.start_link(bytes)
 
 # Call a function on it.
-result = Wasmex.Instance.call_exported_function(instance, "sum", [1, 2])
+{:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
 
 IO.puts result # 3
 ```
 
-All exported functions are accessible via the `call_exported_function` function. Arguments of these functions are automatically casted to WebAssembly values.
+All exported functions are callable via `Wasmex.call_function`.
+Arguments of these functions are automatically casted to WebAssembly values.
 Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
+You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. `Wasmex.memory` returns a `Memory` struct representing the memory of that particular instance, e.g.:
 
 ```elixir
-{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+{:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 ```
 
 See below for more information.
@@ -95,7 +95,7 @@ See below for more information.
 ## The `Memory` module
 
 A WebAssembly instance has its own memory, represented by the `Memory` struct.
-It is accessible by the `Wasmex.Instance.memory` getter.
+It is accessible by the `Wasmex.memory` getter.
 
 The `Memory.grow` methods allows to grow the memory by a number of pages (of 65kb each).
 
@@ -109,14 +109,14 @@ The current size of the memory can be obtained with the `length` method:
 Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
 ```
 
-When creating the memory struct, the `offset` param can be provided, to subset the memory array at a particular offset.
+When creating the memory struct, an `offset` param can be provided to subset the memory array at a particular offset.
 
 ```elixir
 offset = 7
 index = 4
 value = 42
 
-{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, offset)
+{:ok, memory} = Wasmex.memory(instance, :uint8, offset)
 Wasmex.Memory.set(memory, index, value)
 IO.puts Wasmex.Memory.get(memory, index) # 42
 ```
@@ -128,27 +128,27 @@ Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
 The underlying data is not changed when viewed in different types - its just its representation that changes.
 
 | View memory buffer as a sequence of… | Bytes per element |
-|----------|---|
-| `int8`   | 1 |
-| `uint8`  | 1 |
-| `int16`  | 2 |
-| `uint16` | 2 |
-| `int32`  | 4 |
-| `uint32` | 4 |
+| ------------------------------------ | ----------------- |
+| `int8`                               | 1                 |
+| `uint8`                              | 1                 |
+| `int16`                              | 2                 |
+| `uint16`                             | 2                 |
+| `int32`                              | 4                 |
+| `uint32`                             | 4                 |
 
 This can also be resolved at runtime:
 
 ```elixir
-{:ok, memory} = Wasmex.Instance.memory(instance, :uint16, 0)
+{:ok, memory} = Wasmex.memory(instance, :uint16, 0)
 Wasmex.Memory.bytes_per_element(memory) # 2
 ```
 
 Since the same memory seen in different data types uses the same buffer internally. Let's have some fun:
 
 ```elixir
-int8 = Wasmex.Instance.memory(instance, :int8, 0)
-int16 = Wasmex.Instance.memory(instance, :int16, 0)
-int32 = Wasmex.Instance.memory(instance, :int32, 0)
+int8 = Wasmex.memory(instance, :int8, 0)
+int16 = Wasmex.memory(instance, :int16, 0)
+int32 = Wasmex.memory(instance, :int32, 0)
 
                         b₁
                      ┌┬┬┬┬┬┬┐
@@ -201,13 +201,14 @@ Let's see how we can call this function from Elixir:
 
 ```elixir
 bytes = File.read!(TestHelper.wasm_file_path)
-{:ok, instance} = Wasmex.Instance.from_bytes(bytes)
-{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+{:ok, instance} = Wasmex.start_link(bytes)
+{:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 index = 42
 string = "hello, world"
-
 Wasmex.Memory.write_binary(memory, index, string)
-Wasmex.Instance.call_exported_function(instance, "string_first_byte", [index, String.length(string)]) # 104, "h" in ASCII/UTF-8
+
+# 104 is the letter "h" in ASCII/UTF-8 encoding
+{:ok, [104]} == Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
 ```
 
 Please not that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
@@ -230,10 +231,10 @@ This is how we would receive this String in Elixir:
 
 ```elixir
 bytes = File.read!(TestHelper.wasm_file_path)
-{:ok, instance} = Wasmex.Instance.from_bytes(bytes)
-{:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+{:ok, instance} = Wasmex.start_link(bytes)
+{:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 
-pointer = Wasmex.Instance.call_exported_function(instance, "string", [])
+{:ok, [pointer]} = Wasmex.call_function(instance, "string", [])
 returned_string = Wasmex.Memory.read_binary(memory, pointer) # "Hello, World!"
 ```
 

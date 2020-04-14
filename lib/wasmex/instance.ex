@@ -9,13 +9,12 @@ defmodule Wasmex.Instance do
   # Instantiates the Wasm module.
   {:ok, instance } = Wasmex.Instance.from_bytes(bytes)
 
-  # Call a function on it.
-  result = Wasmex.Instance.call_exported_function(instance, "sum", [1, 2])
-
-  IO.puts result # 3
+  # Test for existence of a function
+  true = Wasmex.Instance.function_export_exists(instance, "sum")
   ```
 
-  All exported functions are accessible via the `call_exported_function` function. Arguments of these functions are automatically casted to WebAssembly values.
+  All exported functions are accessible via `call_exported_function`.
+  Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
   You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
@@ -23,6 +22,8 @@ defmodule Wasmex.Instance do
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
   ```
+
+  This module, especially `call_exported_function` is assumed to be called within a GenServer context.
   """
 
   @type t :: %__MODULE__{
@@ -59,15 +60,24 @@ defmodule Wasmex.Instance do
     Wasmex.Native.instance_function_export_exists(resource, name)
   end
 
-  @spec call_exported_function(__MODULE__.t(), binary()) :: any()
-  def call_exported_function(%__MODULE__{} = instance, name) when is_binary(name) do
-    call_exported_function(instance, name, [])
-  end
+  @doc """
+  Calls a function with the given `name` and `params` on the WebAssembly `instance`.
+  This function assumes to be called within a GenServer context, it expects a `from` argument
+  as given by `handle_call` etc.
 
-  @spec call_exported_function(__MODULE__.t(), binary(), [any()]) :: any()
-  def call_exported_function(%__MODULE__{resource: resource}, name, params)
+  The WebAssembly function will be invoked asynchronously in a new OS thread.
+  The calling process will receive a `{:returned_function_call, result, from}` message once
+  the execution finished.
+  The result either is an `{:error, reason}` or `{:ok, results}` tuple with `results`
+  containing a list of the results form the called WebAssembly function.
+
+  Calling `call_exported_function` usually returns an `:ok` atom but may throw a BadArg exception when given
+  unexpected input data.
+  """
+  @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
+  def call_exported_function(%__MODULE__{resource: resource}, name, params, from)
       when is_binary(name) do
-    Wasmex.Native.instance_call_exported_function(resource, name, params)
+    Wasmex.Native.instance_call_exported_function(resource, name, params, from)
   end
 
   @spec memory(__MODULE__.t(), atom(), pos_integer()) ::

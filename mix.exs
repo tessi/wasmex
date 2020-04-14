@@ -32,7 +32,8 @@ defmodule Wasmex.MixProject do
     [
       {:rustler, "~> 0.21.0"},
       {:ex_doc, "~> 0.21.2", only: [:dev, :test]},
-      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.0.0", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

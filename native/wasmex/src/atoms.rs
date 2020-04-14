@@ -9,4 +9,6 @@ rustler::rustler_atoms! {
     atom int16;
     atom uint32;
     atom int32;
+
+    atom returned_function_call;
 }
