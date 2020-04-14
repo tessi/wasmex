@@ -14,7 +14,11 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [Unreleased - 0.2.0]
+## [Unreleased]
+
+- Put new changes here
+
+## [0.2.0] - 2020-04-14
 
 This release brings is closer to a production-ready experience.
 Calls of WebAssembly functions are now handled asynchronously: Invoking a WASM function via `Instance.call_exported_function` calls our Rust NIF as before, but does not directly execute the function. Instead, a new OS thread is spawned for the actual execution. This allows us to spend only few time in the NIF code (as required by the Erlang VM). Once the WASM function in that thread returns, we send a message to the calling erlang process.
