@@ -15,11 +15,13 @@ defmodule WasmexTest do
   end
 
   test "call_function: calling an unknown function", %{instance: instance} do
-    assert {:error, "exported function `unknown_function` not found"} = Wasmex.call_function(instance, "unknown_function", [1])
+    assert {:error, "exported function `unknown_function` not found"} =
+             Wasmex.call_function(instance, "unknown_function", [1])
   end
 
   test "call_function: arity0 with too many params", %{instance: instance} do
-    assert {:error, "number of params does not match. expected 0, got 1"} = Wasmex.call_function(instance, "arity_0", [1])
+    assert {:error, "number of params does not match. expected 0, got 1"} =
+             Wasmex.call_function(instance, "arity_0", [1])
   end
 
   test "call_function: arity0 -> i32", %{instance: instance} do
@@ -35,7 +37,8 @@ defmodule WasmexTest do
 
     # giving a value greater than i32::max_value()
     # see: https://doc.rust-lang.org/std/primitive.i32.html#method.max_value
-    assert {:error, "Cannot convert argument #1 to a WebAssembly i32 value."} == Wasmex.call_function(instance, "i32_i32", [3_000_000_000])
+    assert {:error, "Cannot convert argument #1 to a WebAssembly i32 value."} ==
+             Wasmex.call_function(instance, "i32_i32", [3_000_000_000])
   end
 
   test "call_function: i64_i64(i64) -> i64 function", %{instance: instance} do
@@ -48,16 +51,19 @@ defmodule WasmexTest do
 
   test "call_function: f32_f32(f32) -> f32 function", %{instance: instance} do
     {:ok, [result]} = Wasmex.call_function(instance, "f32_f32", [3.14])
+
     assert_in_delta 3.14,
                     result,
                     0.001
 
     # a value greater than f32::max_value()
-    assert {:error, "Cannot convert argument #1 to a WebAssembly f32 value."} == Wasmex.call_function(instance, "f32_f32", [3.5e38])
+    assert {:error, "Cannot convert argument #1 to a WebAssembly f32 value."} ==
+             Wasmex.call_function(instance, "f32_f32", [3.5e38])
   end
 
   test "call_function: f64_f64(f64) -> f64 function", %{instance: instance} do
     {:ok, [result]} = Wasmex.call_function(instance, "f64_f64", [3.14])
+
     assert_in_delta 3.14,
                     result,
                     0.001
@@ -66,8 +72,11 @@ defmodule WasmexTest do
     assert {:ok, [3.5e38]} == Wasmex.call_function(instance, "f64_f64", [3.5e38])
   end
 
-  test "call_function: i32_i64_f32_f64_f64(i32, i64, f32, f64) -> f64 function", %{instance: instance} do
+  test "call_function: i32_i64_f32_f64_f64(i32, i64, f32, f64) -> f64 function", %{
+    instance: instance
+  } do
     {:ok, [result]} = Wasmex.call_function(instance, "i32_i64_f32_f64_f64", [3, 4, 5.6, 7.8])
+
     assert_in_delta 20.4,
                     result,
                     0.001
@@ -94,6 +103,7 @@ defmodule WasmexTest do
     index = 42
     Wasmex.Memory.write_binary(memory, index, string)
 
-    assert {:ok, [104]} == Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
+    assert {:ok, [104]} ==
+             Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
   end
 end

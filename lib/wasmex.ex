@@ -52,7 +52,8 @@ defmodule Wasmex do
   end
 
   @impl true
-  def handle_call({:memory, size, offset}, _from, %{instance: instance}) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
+  def handle_call({:memory, size, offset}, _from, %{instance: instance})
+      when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Memory.from_instance(instance, size, offset) do
       {:ok, memory} -> {:reply, {:ok, memory}, %{instance: instance}}
       {:error, error} -> {:reply, {:error, error}, %{instance: instance}}
@@ -60,7 +61,8 @@ defmodule Wasmex do
   end
 
   @impl true
-  def handle_call({:exported_function_exists, name}, _from, %{instance: instance}) when is_binary(name) do
+  def handle_call({:exported_function_exists, name}, _from, %{instance: instance})
+      when is_binary(name) do
     {:reply, Wasmex.Instance.function_export_exists(instance, name), %{instance: instance}}
   end
 

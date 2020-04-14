@@ -49,7 +49,9 @@ defmodule Wasmex.InstanceTest do
       assert :ok == Wasmex.Instance.call_exported_function(instance, "arity_0", [1], :fake_from)
 
       receive do
-        {:returned_function_call, {:error, "number of params does not match. expected 0, got 1"}, :fake_from} -> nil
+        {:returned_function_call, {:error, "number of params does not match. expected 0, got 1"},
+         :fake_from} ->
+          nil
       after
         1000 ->
           raise "message_expected"
@@ -58,7 +60,9 @@ defmodule Wasmex.InstanceTest do
 
     test "calling a function that never returns" do
       {:ok, instance} = build_wasm_instance()
-      assert :ok == Wasmex.Instance.call_exported_function(instance, "endless_loop", [], :fake_from)
+
+      assert :ok ==
+               Wasmex.Instance.call_exported_function(instance, "endless_loop", [], :fake_from)
 
       receive do
         _ -> raise "no receive expected"

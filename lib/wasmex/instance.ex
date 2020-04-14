@@ -72,7 +72,7 @@ defmodule Wasmex.Instance do
   containing a list of the results form the called WebAssembly function.
 
   Calling `call_exported_function` usually returns an `:ok` atom but may throw a BadArg exception when given
-  unexpected input data.
+  unexpected input data. 
   """
   @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)
