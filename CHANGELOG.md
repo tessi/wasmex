@@ -22,13 +22,18 @@ To ease handling, we converted our main module `Wasmex` into a `GenServer` so th
 
 ### Added
 
-- Changed: The Wasmex module is now a GenServer. WASM function calls are now asynchronous
+- The `Wasmex` module is now a GenServer. WASM function calls are now asynchronous.
+
+### Changed
+
 - Removed unused Rust dependencies
-- Provide better error messages for Wasmex.Instance.from_bytes when the WASM instance could not be instantiated.
+- Provide better error messages for `Wasmex.Instance.from_bytes` when the WASM instance could not be instantiated.
+- WASM function calls now return a list of return values instead of just one value (this is to prepare for WASM tu officially support multiple return values)
+- Updated elixir and rust dependencies including wasmer to version 0.16.2
 
 ### Removed
 
-- Instance.call_exported_function/2 use Instance.call_exported_function/3 instead.
+- `Instance.call_exported_function/2` use `Instance.call_exported_function/3` instead.
 
 ### Fixed
 
