@@ -2,11 +2,11 @@ defmodule WasmexTest do
   use ExUnit.Case, async: true
   doctest Wasmex
 
-  @bytes File.read!(TestHelper.wasm_file_path())
+  @bytes File.read!(TestHelper.wasm_test_file_path())
+  @import_test_bytes File.read!(TestHelper.wasm_import_test_file_path())
 
   defp create_instance(_context) do
-    imports = %{"env" => %{"imported_sum" => &(&1 + &2)}}
-    instance = start_supervised!({Wasmex, %{bytes: @bytes, imports: imports}})
+    instance = start_supervised!({Wasmex, @bytes})
     %{instance: instance}
   end
 
@@ -117,7 +117,7 @@ defmodule WasmexTest do
       imports = %{"env" => %{
         "imported_sum" => {[:uint8, :uint8], [:uint8], &(&1 + &2)}
       }}
-      instance = start_supervised!({Wasmex,%{bytes: @bytes, imports: imports}})
+      instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
       assert {:ok, [42]} == Wasmex.call_function(instance, "using_imported_sum", [23, 19])
       assert {:ok, [23]} == Wasmex.call_function(instance, "using_imported_sum", [100, -77])
     end

@@ -3,14 +3,14 @@ defmodule Wasmex.InstanceTest do
   doctest Wasmex.Instance
 
   defp build_wasm_instance do
-    bytes = File.read!(TestHelper.wasm_file_path())
-    Wasmex.Instance.from_bytes(bytes)
+    bytes = File.read!(TestHelper.wasm_test_file_path())
+    Wasmex.Instance.from_bytes(bytes, %{})
   end
 
   describe "from_bytes/1" do
     test "instantiates an Instance from a valid wasm file" do
-      bytes = File.read!(TestHelper.wasm_file_path())
-      {:ok, _} = Wasmex.Instance.from_bytes(bytes)
+      bytes = File.read!(TestHelper.wasm_test_file_path())
+      {:ok, _} = Wasmex.Instance.from_bytes(bytes, %{})
     end
 
     test "errors when not providing necessary imports" do
@@ -18,7 +18,7 @@ defmodule Wasmex.InstanceTest do
 
       assert {:error,
               "Cannot Instantiate: LinkError([ImportNotFound { namespace: \"imports\", name: \"imported_func\" }])"} ==
-               Wasmex.Instance.from_bytes(bytes)
+               Wasmex.Instance.from_bytes(bytes, %{})
     end
   end
 

@@ -40,7 +40,7 @@ The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
 
 # Example
 
-There is a toy WASM program in `test/wasm_source/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
+There is a toy WASM program in `test/wasm_test/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
 It defines many functions we use for end-to-end testing, but also serves as example code. For example:
 
 ```rust
@@ -50,7 +50,7 @@ pub extern fn sum(x: i32, y: i32) -> i32 {
 }
 ```
 
-Once this program compiled to WebAssembly (which we do every time when running tests), we end up with a `test/wasm_source/target/wasm32-unknown-unknown/debug/wasmex_test.wasm` binary file.
+Once this program compiled to WebAssembly (which we do every time when running tests), we end up with a `test/wasm_test/target/wasm32-unknown-unknown/debug/wasmex_test.wasm` binary file.
 
 This WASM file can be executed in Elixir:
 
@@ -200,7 +200,7 @@ This function returns the first byte of the given String.
 Let's see how we can call this function from Elixir:
 
 ```elixir
-bytes = File.read!(TestHelper.wasm_file_path)
+bytes = File.read!(TestHelper.wasm_test_file_path)
 {:ok, instance} = Wasmex.start_link(bytes)
 {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 index = 42
@@ -230,7 +230,7 @@ This memory location contains the String "Hello, World!" (ending with a null-byt
 This is how we would receive this String in Elixir:
 
 ```elixir
-bytes = File.read!(TestHelper.wasm_file_path)
+bytes = File.read!(TestHelper.wasm_test_file_path)
 {:ok, instance} = Wasmex.start_link(bytes)
 {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 
