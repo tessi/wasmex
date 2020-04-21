@@ -17,5 +17,5 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.21.0"
 lazy_static = "1.0"
-wasmer-runtime = "0.16.2"
-wasmer-runtime-core = "0.16.2"
+wasmer-runtime = {path = "../../../wasmer/lib/runtime", version = "0.16.2"}
+wasmer-runtime-core = {path = "../../../wasmer/lib/runtime-core", version = "0.16.2", features = ["dynamicfunc-fat-closures"]}

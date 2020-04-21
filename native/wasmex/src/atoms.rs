@@ -1,6 +1,7 @@
 rustler::rustler_atoms! {
     atom ok;
     atom error;
+    atom success;
     atom __nil__ = "nil";
 
     atom uint8;
@@ -10,5 +11,9 @@ rustler::rustler_atoms! {
     atom uint32;
     atom int32;
 
+    atom params;
+    atom results;
+
     atom returned_function_call;
+    atom invoke_callback;
 }

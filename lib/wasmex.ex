@@ -27,8 +27,11 @@ defmodule Wasmex do
 
   # Client
 
+  def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
+    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: imports})
+  end
   def start_link(bytes) when is_binary(bytes) do
-    GenServer.start_link(__MODULE__, bytes)
+    start_link(%{bytes: bytes, imports: %{}})
   end
 
   def function_exists(pid, name) do
@@ -45,36 +48,63 @@ defmodule Wasmex do
 
   # Server
 
+  @doc """
+  Params:
+
+  * bytes (binary): the WASM bites defining the WASM module
+  * imports (map): a map defining imports. Structure is:
+                   %{
+                     "namespace_name": %{
+                       "import_name": {[:uint8, :uint8],[:uint8], callback}
+                     }
+                   }
+  """
   @impl true
-  def init(bytes) when is_binary(bytes) do
-    {:ok, instance} = Wasmex.Instance.from_bytes(bytes)
-    {:ok, %{instance: instance}}
+  def init(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
+    {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
+    {:ok, %{instance: instance, imports: imports}}
   end
 
   @impl true
-  def handle_call({:memory, size, offset}, _from, %{instance: instance})
+  def handle_call({:memory, size, offset}, _from, %{instance: instance} = state)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Memory.from_instance(instance, size, offset) do
-      {:ok, memory} -> {:reply, {:ok, memory}, %{instance: instance}}
-      {:error, error} -> {:reply, {:error, error}, %{instance: instance}}
+      {:ok, memory} -> {:reply, {:ok, memory}, state}
+      {:error, error} -> {:reply, {:error, error}, state}
     end
   end
 
   @impl true
-  def handle_call({:exported_function_exists, name}, _from, %{instance: instance})
+  def handle_call({:exported_function_exists, name}, _from, %{instance: instance} = state)
       when is_binary(name) do
-    {:reply, Wasmex.Instance.function_export_exists(instance, name), %{instance: instance}}
+    {:reply, Wasmex.Instance.function_export_exists(instance, name), state}
   end
 
   @impl true
-  def handle_call({:call_function, name, params}, from, %{instance: instance}) do
+  def handle_call({:call_function, name, params}, from, %{instance: instance} = state) do
     :ok = Wasmex.Instance.call_exported_function(instance, name, params, from)
-    {:noreply, %{instance: instance}}
+    {:noreply, state}
   end
 
   @impl true
   def handle_info({:returned_function_call, result, from}, state) do
     GenServer.reply(from, result)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:invoke_callback, namespace_name, import_name, params, token}, %{imports: imports} = state) do
+    # token = Wasmex.CallbackToken.wrap_resource(token)
+    {success, return_value} = try do
+      {_params, _returns, callback} = imports
+                                      |> Map.get(namespace_name, %{})
+                                      |> Map.get(import_name)
+      {true, apply(callback, params)}
+    rescue
+      e in RuntimeError -> {false, e.message}
+    end
+
+    Wasmex.Native.namespace_receive_callback_result(token, success, [return_value])
     {:noreply, state}
   end
 end

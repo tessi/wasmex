@@ -1,27 +1,39 @@
-use rustler::dynamic::TermType;
-use rustler::env::{OwnedEnv, SavedTerm};
-use rustler::resource::ResourceArc;
-use rustler::types::binary::Binary;
-use rustler::types::tuple::make_tuple;
-use rustler::{Encoder, Env, Error, Term};
+use rustler::{
+    dynamic::TermType,
+    env::{OwnedEnv, SavedTerm},
+    resource::ResourceArc,
+    types::binary::Binary,
+    types::tuple::make_tuple,
+    {Encoder, Env, Error, MapIterator, Term},
+};
 use std::sync::Mutex;
 use std::thread;
 use wasmer_runtime::{self as runtime, imports};
-use wasmer_runtime_core::instance::DynFunc;
-use wasmer_runtime_core::types::Type;
+use wasmer_runtime_core::{import::Namespace, types::Type};
 
-use crate::printable_term_type::PrintableTermType;
-use crate::{atoms, functions};
+use crate::{atoms, functions, namespace, printable_term_type::PrintableTermType};
 
 pub struct InstanceResource {
     pub instance: Mutex<runtime::Instance>,
 }
 
+// creates a new instance from the given WASM bytes
+// expects the following elixir params
+//
+// * bytes (binary): the bytes of the WASM module
+// * imports (map): a map defining eventual instance imports, may be empty if there are none.
+//   structure: %{namespace_name: %{import_name: {TODO: signature}}}
 pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let binary: Binary = args[0].decode()?;
+    let imports: MapIterator = args[1].decode()?;
     let bytes = binary.as_slice();
 
-    let import_object = imports! {};
+    let mut import_object = imports! {};
+    for (name, namespace_definition) in imports {
+        let name = name.decode::<String>()?;
+        let namespace: Namespace = namespace::create_from_definition(&name, namespace_definition)?;
+        import_object.register(name, namespace);
+    }
     let instance = match runtime::instantiate(bytes, &import_object) {
         Ok(instance) => instance,
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
@@ -86,10 +98,11 @@ fn execute_function<'a>(
             )
         }
     };
-    let function_params = match decode_function_param_terms(&function, given_params) {
-        Ok(vec) => vec,
-        Err(reason) => return make_error_tuple(&thread_env, &reason, from),
-    };
+    let function_params =
+        match decode_function_param_terms(&function.signature().params(), given_params) {
+            Ok(vec) => vec,
+            Err(reason) => return make_error_tuple(&thread_env, &reason, from),
+        };
 
     let results = match function.call(function_params.as_slice()) {
         Ok(results) => results,
@@ -124,12 +137,10 @@ fn execute_function<'a>(
     )
 }
 
-fn decode_function_param_terms(
-    function: &DynFunc,
+pub fn decode_function_param_terms(
+    params: &[Type],
     function_param_terms: Vec<Term>,
 ) -> Result<Vec<runtime::Value>, String> {
-    let signature = function.signature();
-    let params = signature.params();
     if 0 != params.len() as isize - function_param_terms.len() as isize {
         return Err(format!(
             "number of params does not match. expected {}, got {}",
