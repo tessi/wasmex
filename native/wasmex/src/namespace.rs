@@ -1,9 +1,9 @@
 //! Namespace API of an WebAssembly instance.
 
 use rustler::{
-    resource::ResourceArc, types::ListIterator, Encoder, Env, Error, MapIterator, OwnedEnv, Term,
+    resource::ResourceArc, types::ListIterator, types::tuple, Atom, Encoder, Env, Error, MapIterator, OwnedEnv, Term,
 };
-use std::sync::{Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use wasmer_runtime::{self as runtime};
 use wasmer_runtime_core::{
     import::Namespace, typed_func::DynamicFunc, types::FuncSig, types::Type, types::Value, vm::Ctx,
@@ -12,7 +12,12 @@ use wasmer_runtime_core::{
 use crate::{atoms, instance::decode_function_param_terms};
 
 pub struct CallbackTokenResource {
-    pub token: (Mutex<Option<(bool, Vec<runtime::Value>)>>, Condvar),
+    pub token: (
+        Mutex<Option<(bool, Vec<runtime::Value>)>>,
+        Condvar,
+        Vec<String>,
+        Vec<String>,
+    ),
 }
 
 pub fn create_from_definition(
@@ -25,29 +30,88 @@ pub fn create_from_definition(
         let name = name.decode::<String>()?;
         namespace.insert(
             name.clone(),
-            create_imported_function(namespace_name.clone(), name, import),
+            create_imported_function(namespace_name.clone(), name, import)?,
         );
     }
     Ok(namespace)
+}
+
+fn term_to_arg_type(
+    term: Term
+) -> Result<Type, Error> {
+    match Atom::from_term(term) {
+        Ok(atom) => {
+            if atoms::i32().eq(&atom) {
+                Ok(Type::I32)
+            } else if atoms::i64().eq(&atom) {
+                Ok(Type::I64)
+            } else if atoms::f32().eq(&atom) {
+                Ok(Type::F32)
+            } else if atoms::f64().eq(&atom) {
+                Ok(Type::F64)
+            } else if atoms::v128().eq(&atom) {
+                Ok(Type::V128)
+            } else {
+                Err(Error::Atom("unknown"))
+            }
+        }
+        Err(_) => {
+            Err(Error::Atom("not_an_atom"))
+        }
+    }
+}
+
+fn get_from_vec<T: Copy>(vec: &Vec<T>, index: usize) -> Result<T, Error> {
+    if vec.get(index).is_none() {
+        Err(Error::Atom("missing_tuple_entry"))
+    } else {
+        Ok(vec[index])
+    }
 }
 
 fn create_imported_function(
     namespace_name: String,
     import_name: String,
     definition: Term,
-) -> DynamicFunc<'static> {
+) -> Result<DynamicFunc<'static>, Error> {
     let pid = definition.get_env().pid();
-    // let signature = args[2];
-    // let param_types = signature.map_get(atoms::params().encode(env));
-    // let result_types = signature.map_get(atoms::results().encode(env)); // TODO: copy result_types into callback_token
-    // TODO: build a real signature
-    let signature = std::sync::Arc::new(FuncSig::new(vec![Type::I32, Type::I32], vec![Type::I32]));
 
-    DynamicFunc::new(
+    let import_tuple = tuple::get_tuple(definition)?;
+    let param_term = get_from_vec(&import_tuple, 0)?;
+    let results_term = get_from_vec(&import_tuple, 1)?;
+
+    let params_signature = param_term
+        .decode::<ListIterator>()?
+        .map(|term| term_to_arg_type(term))
+        .collect::<Result<Vec<Type>, _>>()?;
+
+    let results_signature = results_term
+        .decode::<ListIterator>()?
+        .map(|term| term_to_arg_type(term))
+        .collect::<Result<Vec<Type>, _>>()?;
+
+    let params_definition = param_term
+        .decode::<ListIterator>()?
+        .map(|term| term.atom_to_string())
+        .collect::<Result<Vec<String>, _>>()?;
+
+    let results_definition = results_term
+        .decode::<ListIterator>()?
+        .map(|term| term.atom_to_string())
+        .collect::<Result<Vec<String>, _>>()?;
+
+    let signature = Arc::new(FuncSig::new(params_signature, results_signature));
+
+    Ok(DynamicFunc::new(
         signature,
         move |_ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
-                token: (Mutex::new(None), Condvar::new()),
+                token: (
+                           Mutex::new(None),
+                           Condvar::new(),
+                           params_definition.clone(),
+                           results_definition.clone(),
+                       ),
             });
 
             let mut msg_env = OwnedEnv::new();
@@ -88,7 +152,7 @@ fn create_imported_function(
                 None => unreachable!(),
             }
         },
-    )
+    ))
 }
 
 // called from elixir, params

@@ -11,6 +11,12 @@ rustler::rustler_atoms! {
     atom uint32;
     atom int32;
 
+    atom i32;
+    atom i64;
+    atom f32;
+    atom f64;
+    atom v128;
+
     atom params;
     atom results;
 

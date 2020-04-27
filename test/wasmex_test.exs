@@ -20,12 +20,12 @@ defmodule WasmexTest do
 
     test "call_function: calling an unknown function", %{instance: instance} do
       assert {:error, "exported function `unknown_function` not found"} =
-              Wasmex.call_function(instance, "unknown_function", [1])
+               Wasmex.call_function(instance, "unknown_function", [1])
     end
 
     test "call_function: arity0 with too many params", %{instance: instance} do
       assert {:error, "number of params does not match. expected 0, got 1"} =
-              Wasmex.call_function(instance, "arity_0", [1])
+               Wasmex.call_function(instance, "arity_0", [1])
     end
 
     test "call_function: arity0 -> i32", %{instance: instance} do
@@ -42,7 +42,7 @@ defmodule WasmexTest do
       # giving a value greater than i32::max_value()
       # see: https://doc.rust-lang.org/std/primitive.i32.html#method.max_value
       assert {:error, "Cannot convert argument #1 to a WebAssembly i32 value."} ==
-              Wasmex.call_function(instance, "i32_i32", [3_000_000_000])
+               Wasmex.call_function(instance, "i32_i32", [3_000_000_000])
     end
 
     test "call_function: i64_i64(i64) -> i64 function", %{instance: instance} do
@@ -62,7 +62,7 @@ defmodule WasmexTest do
 
       # a value greater than f32::max_value()
       assert {:error, "Cannot convert argument #1 to a WebAssembly f32 value."} ==
-              Wasmex.call_function(instance, "f32_f32", [3.5e38])
+               Wasmex.call_function(instance, "f32_f32", [3.5e38])
     end
 
     test "call_function: f64_f64(f64) -> f64 function", %{instance: instance} do
@@ -108,18 +108,21 @@ defmodule WasmexTest do
       Wasmex.Memory.write_binary(memory, index, string)
 
       assert {:ok, [104]} ==
-              Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
+               Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
     end
   end
 
   describe "when instantiating with imports" do
-    test "call_function: using_imported_function_add_number(u32) -> (u32) function" do
-      imports = %{"env" => %{
-        "imported_sum" => {[:uint8, :uint8], [:uint8], &(&1 + &2)}
-      }}
+    test "call_function: using_imported_sum3(u32, u32, u32) -> (u32) function" do
+      imports = %{
+        "env" => %{
+          "imported_sum3" => {[:i32, :i32, :i32], [:i32], &(&1 + &2 + &3)}
+        }
+      }
+
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
-      assert {:ok, [42]} == Wasmex.call_function(instance, "using_imported_sum", [23, 19])
-      assert {:ok, [23]} == Wasmex.call_function(instance, "using_imported_sum", [100, -77])
+      assert {:ok, [44]} == Wasmex.call_function(instance, "using_imported_sum3", [23, 19, 2])
+      assert {:ok, [28]} == Wasmex.call_function(instance, "using_imported_sum3", [100, -77, 5])
     end
   end
 end
