@@ -152,9 +152,8 @@ pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
     let success = atoms::success() == args[1];
     let results = args[2].decode::<ListIterator>()?;
 
-    //TODO: use real signature
-    let signature = std::sync::Arc::new(FuncSig::new(vec![Type::I32], vec![Type::I32]));
-    let results = match decode_function_param_terms(signature.returns(), results.collect()) {
+    let return_types = token_resource.token.3.clone();
+    let results = match decode_function_param_terms(&return_types, results.collect()) {
         Ok(v) => v,
         Err(_reason) => {
             return Err(Error::Atom(

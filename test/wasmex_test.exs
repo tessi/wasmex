@@ -132,8 +132,11 @@ defmodule WasmexTest do
     end
 
     test "call_function using_imported_sumf", %{instance: instance} do
-      assert {:ok, [4.2]} == Wasmex.call_function(instance, "using_imported_sumf", [2.3, 1.9])
-      assert {:ok, [2.3]} == Wasmex.call_function(instance, "using_imported_sumf", [10.0, -7.7])
+      {:ok, [result]} = Wasmex.call_function(instance, "using_imported_sumf", [2.3, 1.9])
+      assert_in_delta 4.2, result, 0.001
+
+      assert {:ok, [result]} = Wasmex.call_function(instance, "using_imported_sumf", [10.0, -7.7])
+      assert_in_delta 2.3, result, 0.001
     end
   end
 end
