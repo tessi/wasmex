@@ -113,19 +113,25 @@ defmodule WasmexTest do
   end
 
   describe "when instantiating with imports" do
-    test "call_functions using_imported_sum3 and using_imported_sumf" do
+    def create_instance_with_imports(_context) do
       imports = %{
         "env" => %{
           "imported_sum3" => {[:i32, :i32, :i32], [:i32], &(&1 + &2 + &3)},
           "imported_sumf" => {[:f32, :f32], [:f32], &(&1 + &2)}
         }
       }
-
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+      %{instance: instance}
+    end
 
+    setup [:create_instance_with_imports]
+
+    test "call_function using_imported_sum3", %{instance: instance} do
       assert {:ok, [44]} == Wasmex.call_function(instance, "using_imported_sum3", [23, 19, 2])
       assert {:ok, [28]} == Wasmex.call_function(instance, "using_imported_sum3", [100, -77, 5])
+    end
 
+    test "call_function using_imported_sumf", %{instance: instance} do
       assert {:ok, [4.2]} == Wasmex.call_function(instance, "using_imported_sumf", [2.3, 1.9])
       assert {:ok, [2.3]} == Wasmex.call_function(instance, "using_imported_sumf", [10.0, -7.7])
     end

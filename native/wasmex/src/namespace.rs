@@ -1,7 +1,8 @@
 //! Namespace API of an WebAssembly instance.
 
 use rustler::{
-    resource::ResourceArc, types::ListIterator, types::tuple, Atom, Encoder, Env, Error, MapIterator, OwnedEnv, Term,
+    resource::ResourceArc, types::tuple, types::ListIterator, Atom, Encoder, Env, Error,
+    MapIterator, OwnedEnv, Term,
 };
 use std::sync::{Arc, Condvar, Mutex};
 use wasmer_runtime::{self as runtime};
@@ -36,9 +37,7 @@ pub fn create_from_definition(
     Ok(namespace)
 }
 
-fn term_to_arg_type(
-    term: Term
-) -> Result<Type, Error> {
+fn term_to_arg_type(term: Term) -> Result<Type, Error> {
     match Atom::from_term(term) {
         Ok(atom) => {
             if atoms::i32().eq(&atom) {
@@ -55,9 +54,7 @@ fn term_to_arg_type(
                 Err(Error::Atom("unknown"))
             }
         }
-        Err(_) => {
-            Err(Error::Atom("not_an_atom"))
-        }
+        Err(_) => Err(Error::Atom("not_an_atom")),
     }
 }
 
@@ -70,8 +67,12 @@ fn create_imported_function(
 
     let import_tuple = tuple::get_tuple(definition)?;
 
-    let param_term = import_tuple.get(0).ok_or_else(|| Error::Atom("missing_params"))?;
-    let results_term = import_tuple.get(1).ok_or_else(|| Error::Atom("missing_results"))?;
+    let param_term = import_tuple
+        .get(0)
+        .ok_or_else(|| Error::Atom("missing_params"))?;
+    let results_term = import_tuple
+        .get(1)
+        .ok_or_else(|| Error::Atom("missing_results"))?;
 
     let params_signature = param_term
         .decode::<ListIterator>()?
@@ -83,18 +84,21 @@ fn create_imported_function(
         .map(|term| term_to_arg_type(term))
         .collect::<Result<Vec<Type>, _>>()?;
 
-    let signature = Arc::new(FuncSig::new(params_signature.clone(), results_signature.clone()));
+    let signature = Arc::new(FuncSig::new(
+        params_signature.clone(),
+        results_signature.clone(),
+    ));
 
     Ok(DynamicFunc::new(
         signature,
         move |_ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
                 token: (
-                           Mutex::new(None),
-                           Condvar::new(),
-                           params_signature.clone(),
-                           results_signature.clone(),
-                       ),
+                    Mutex::new(None),
+                    Condvar::new(),
+                    params_signature.clone(),
+                    results_signature.clone(),
+                ),
             });
 
             let mut msg_env = OwnedEnv::new();
@@ -154,7 +158,7 @@ pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
         Ok(v) => v,
         Err(_reason) => {
             return Err(Error::Atom(
-                "could not convert callback result param to expected return signature (`{}`)",
+                "could not convert callback result param to expected return signature",
             ));
         }
     };

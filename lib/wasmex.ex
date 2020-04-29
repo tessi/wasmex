@@ -94,7 +94,6 @@ defmodule Wasmex do
 
   @impl true
   def handle_info({:invoke_callback, namespace_name, import_name, params, token}, %{imports: imports} = state) do
-    # token = Wasmex.CallbackToken.wrap_resource(token)
     {success, return_value} = try do
       {_params, _returns, callback} = imports
                                       |> Map.get(namespace_name, %{})
@@ -104,7 +103,7 @@ defmodule Wasmex do
       e in RuntimeError -> {false, e.message}
     end
 
-    Wasmex.Native.namespace_receive_callback_result(token, success, [return_value])
+    :ok = Wasmex.Native.namespace_receive_callback_result(token, success, [return_value])
     {:noreply, state}
   end
 end
