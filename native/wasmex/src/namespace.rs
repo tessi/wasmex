@@ -61,14 +61,6 @@ fn term_to_arg_type(
     }
 }
 
-fn get_from_vec<T: Copy>(vec: &Vec<T>, index: usize) -> Result<T, Error> {
-    if vec.get(index).is_none() {
-        Err(Error::Atom("missing_tuple_entry"))
-    } else {
-        Ok(vec[index])
-    }
-}
-
 fn create_imported_function(
     namespace_name: String,
     import_name: String,
@@ -77,8 +69,9 @@ fn create_imported_function(
     let pid = definition.get_env().pid();
 
     let import_tuple = tuple::get_tuple(definition)?;
-    let param_term = get_from_vec(&import_tuple, 0)?;
-    let results_term = get_from_vec(&import_tuple, 1)?;
+
+    let param_term = import_tuple.get(0).ok_or_else(|| Error::Atom("missing_params"))?;
+    let results_term = import_tuple.get(1).ok_or_else(|| Error::Atom("missing_results"))?;
 
     let params_signature = param_term
         .decode::<ListIterator>()?
