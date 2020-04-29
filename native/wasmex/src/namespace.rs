@@ -17,7 +17,6 @@ pub struct CallbackTokenResource {
         Mutex<Option<(bool, Vec<runtime::Value>)>>,
         Condvar,
         Vec<Type>,
-        Vec<Type>,
     ),
 }
 
@@ -93,12 +92,7 @@ fn create_imported_function(
         signature,
         move |_ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
-                token: (
-                    Mutex::new(None),
-                    Condvar::new(),
-                    params_signature.clone(),
-                    results_signature.clone(),
-                ),
+                token: (Mutex::new(None), Condvar::new(), results_signature.clone()),
             });
 
             let mut msg_env = OwnedEnv::new();
@@ -152,7 +146,7 @@ pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
     let success = atoms::success() == args[1];
     let results = args[2].decode::<ListIterator>()?;
 
-    let return_types = token_resource.token.3.clone();
+    let return_types = token_resource.token.2.clone();
     let results = match decode_function_param_terms(&return_types, results.collect()) {
         Ok(v) => v,
         Err(_reason) => {
