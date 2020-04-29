@@ -15,8 +15,8 @@ pub struct CallbackTokenResource {
     pub token: (
         Mutex<Option<(bool, Vec<runtime::Value>)>>,
         Condvar,
-        Vec<String>,
-        Vec<String>,
+        Vec<Type>,
+        Vec<Type>,
     ),
 }
 
@@ -83,17 +83,7 @@ fn create_imported_function(
         .map(|term| term_to_arg_type(term))
         .collect::<Result<Vec<Type>, _>>()?;
 
-    let params_definition = param_term
-        .decode::<ListIterator>()?
-        .map(|term| term.atom_to_string())
-        .collect::<Result<Vec<String>, _>>()?;
-
-    let results_definition = results_term
-        .decode::<ListIterator>()?
-        .map(|term| term.atom_to_string())
-        .collect::<Result<Vec<String>, _>>()?;
-
-    let signature = Arc::new(FuncSig::new(params_signature, results_signature));
+    let signature = Arc::new(FuncSig::new(params_signature.clone(), results_signature.clone()));
 
     Ok(DynamicFunc::new(
         signature,
@@ -102,8 +92,8 @@ fn create_imported_function(
                 token: (
                            Mutex::new(None),
                            Condvar::new(),
-                           params_definition.clone(),
-                           results_definition.clone(),
+                           params_signature.clone(),
+                           results_signature.clone(),
                        ),
             });
 
