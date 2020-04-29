@@ -162,7 +162,7 @@ pub fn decode_function_param_terms(
                     return Err(format!(
                         "Cannot convert argument #{} to a WebAssembly i32 value.",
                         nth + 1
-                    ))
+                    ));
                 }
             }),
             (Type::I64, TermType::Number) => runtime::Value::I64(match given_param.decode() {
@@ -171,7 +171,7 @@ pub fn decode_function_param_terms(
                     return Err(format!(
                         "Cannot convert argument #{} to a WebAssembly i64 value.",
                         nth + 1
-                    ))
+                    ));
                 }
             }),
             (Type::F32, TermType::Number) => {
@@ -190,7 +190,7 @@ pub fn decode_function_param_terms(
                         return Err(format!(
                             "Cannot convert argument #{} to a WebAssembly f32 value.",
                             nth + 1
-                        ))
+                        ));
                     }
                 })
             }
@@ -200,7 +200,7 @@ pub fn decode_function_param_terms(
                     return Err(format!(
                         "Cannot convert argument #{} to a WebAssembly f64 value.",
                         nth + 1
-                    ))
+                    ));
                 }
             }),
             (_, term_type) => {
@@ -208,7 +208,7 @@ pub fn decode_function_param_terms(
                     "Cannot convert argument #{} to a WebAssembly value. Given `{:?}`.",
                     nth + 1,
                     PrintableTermType::PrintTerm(term_type)
-                ))
+                ));
             }
         };
         function_params.push(value);
