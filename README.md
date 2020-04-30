@@ -92,6 +92,46 @@ You can pass arbitrary data to WebAssembly, though, by writing this data into it
 
 See below for more information.
 
+## Imports
+
+Wasmex currently supports importing functions only.
+We wish to support globals and tables in the future and appreciate any contributions in that direction.
+
+To pass a function into a WASM module, an `imports map` must be provided:
+
+```elixir
+imports = %{
+  env: %{
+    sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
+  }
+}
+instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+
+{:ok, [6]} = Wasmex.call_function(instance, "use_the_imported_sum_fn", [1, 2, 3])
+```
+
+The imports object is a map of namespaces.
+In the example above, we import the `"env"` namespace.
+Each namespace is, again, a map listing imports.
+Under the name `sum3`, we imported a function which is represented with a tuple of:
+
+1. the import type: `:fn` (a function),
+1. the functions parameter types: `[:i32, :i32, :i32]`,
+1. the functions return types: `[:i32]`, and
+1. a function reference: `fn (_context, a, b, c) -> a + b + c end`
+
+When the WASM code executes the `sum3` imported function, the execution context is forwarded to
+the given function reference.
+The first param is always the call context (containing e.g. the instances memory).
+All other params are regular parameters as specified by the parameter type list.
+
+Valid parameter/return types are:
+
+- `i32` a 32 bit integer
+- `i64` a 64 bit integer
+- `f32` a 32 bit float
+- `f64` a 64 bit float
+
 ## The `Memory` module
 
 A WebAssembly instance has its own memory, represented by the `Memory` struct.
