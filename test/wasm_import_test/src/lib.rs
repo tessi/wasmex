@@ -1,8 +1,14 @@
 extern "C" {
-    fn imported_sum(a: u32, b: u32) -> u32;
+    fn imported_sum3(a: u32, b: u32, c: u32) -> u32;
+    fn imported_sumf(a: f32, b: f32) -> f32;
 }
 
 #[no_mangle]
-pub extern "C" fn using_imported_sum(a: u32, b: u32) -> u32 {
-    unsafe { imported_sum(a, b) }
+pub extern "C" fn using_imported_sum3(a: u32, b: u32, c: u32) -> u32 {
+    unsafe { imported_sum3(a, b, c) }
+}
+
+#[no_mangle]
+pub extern "C" fn using_imported_sumf(a: f32, b: f32) -> f32 {
+    unsafe { imported_sumf(a, b) }
 }
