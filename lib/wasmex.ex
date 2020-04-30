@@ -28,23 +28,30 @@ defmodule Wasmex do
   # Client
 
   def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
-    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: imports})
+    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
   end
   def start_link(bytes) when is_binary(bytes) do
     start_link(%{bytes: bytes, imports: %{}})
   end
 
   def function_exists(pid, name) do
-    GenServer.call(pid, {:exported_function_exists, name})
+    GenServer.call(pid, {:exported_function_exists, stringify(name)})
   end
 
   def call_function(pid, name, params) do
-    GenServer.call(pid, {:call_function, name, params})
+    GenServer.call(pid, {:call_function, stringify(name), params})
   end
 
   def memory(pid, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     GenServer.call(pid, {:memory, size, offset})
   end
+
+  def stringify_keys(atom_key_map) when is_map(atom_key_map) do
+    for {key, val} <- atom_key_map, into: %{}, do: {stringify(key), stringify_keys(val)} end
+  def stringify_keys(value), do: value
+
+  defp stringify(s) when is_binary(s), do: s
+  defp stringify(s) when is_atom(s), do: Atom.to_string(s)
 
   # Server
 
