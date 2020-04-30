@@ -131,10 +131,14 @@ fn create_imported_function(
                         }
                     })
                 }
+                // Callback context will contain memory, globals, tables etc later.
+                // This will allow Elixir callback to operate on these objects.
+                let callback_context = Term::map_new(env);
                 (
                     atoms::invoke_callback(),
                     namespace_name.clone(),
                     import_name.clone(),
+                    callback_context,
                     callback_params,
                     callback_token.clone(),
                 )

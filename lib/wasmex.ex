@@ -100,12 +100,12 @@ defmodule Wasmex do
   end
 
   @impl true
-  def handle_info({:invoke_callback, namespace_name, import_name, params, token}, %{imports: imports} = state) do
+  def handle_info({:invoke_callback, namespace_name, import_name, context, params, token}, %{imports: imports} = state) do
     {success, return_value} = try do
       {:fn, _params, _returns, callback} = imports
                                       |> Map.get(namespace_name, %{})
                                       |> Map.get(import_name)
-      {true, apply(callback, params)}
+      {true, apply(callback, [context | params])}
     rescue
       e in RuntimeError -> {false, e.message}
     end

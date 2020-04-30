@@ -120,8 +120,8 @@ defmodule WasmexTest do
     def create_instance_with_atom_imports(_context) do
       imports = %{
         env: %{
-          imported_sum3: {:fn, [:i32, :i32, :i32], [:i32], &(&1 + &2 + &3)},
-          imported_sumf: {:fn, [:f32, :f32], [:f32], &(&1 + &2)}
+          imported_sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
+          imported_sumf: {:fn, [:f32, :f32], [:f32], fn (_context, a, b) -> a + b end}
         }
       }
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
@@ -148,8 +148,8 @@ defmodule WasmexTest do
     def create_instance_with_string_imports(_context) do
       imports = %{
         "env" => %{
-          "imported_sum3" => {:fn, [:i32, :i32, :i32], [:i32], &(&1 + &2 + &3)},
-          "imported_sumf" => {:fn, [:f32, :f32], [:f32], &(&1 + &2)}
+          "imported_sum3" => {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
+          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn (_context, a, b) -> a + b end}
         }
       }
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
