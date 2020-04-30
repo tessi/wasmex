@@ -17,6 +17,8 @@ rustler::rustler_atoms! {
     atom f64;
     atom v128;
 
+    atom __fn__ = "fn";
+
     atom params;
     atom results;
 

@@ -95,7 +95,7 @@ defmodule Wasmex do
   @impl true
   def handle_info({:invoke_callback, namespace_name, import_name, params, token}, %{imports: imports} = state) do
     {success, return_value} = try do
-      {_params, _returns, callback} = imports
+      {:fn, _params, _returns, callback} = imports
                                       |> Map.get(namespace_name, %{})
                                       |> Map.get(import_name)
       {true, apply(callback, params)}

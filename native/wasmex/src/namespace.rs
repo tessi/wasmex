@@ -28,12 +28,33 @@ pub fn create_from_definition(
     let definition: MapIterator = definition.decode()?;
     for (name, import) in definition {
         let name = name.decode::<String>()?;
-        namespace.insert(
-            name.clone(),
-            create_imported_function(namespace_name.clone(), name, import)?,
-        );
+        create_import(&mut namespace, &namespace_name, &name, import)?;
     }
     Ok(namespace)
+}
+
+fn create_import(
+    namespace: &mut Namespace,
+    namespace_name: &String,
+    import_name: &String,
+    definition: Term,
+) -> Result<(), Error> {
+    let import_tuple = tuple::get_tuple(definition)?;
+
+    let import_type = import_tuple
+        .get(0)
+        .ok_or_else(|| Error::Atom("missing_import_type"))?;
+    let import_type =
+        Atom::from_term(*import_type).map_err(|_| Error::Atom("import type must be an atom"))?;
+
+    if atoms::__fn__().eq(&import_type) {
+        let import =
+            create_imported_function(namespace_name.clone(), import_name.clone(), definition)?;
+        namespace.insert(import_name, import);
+        return Ok(());
+    }
+
+    return Err(Error::Atom("unknown import type"));
 }
 
 fn term_to_arg_type(term: Term) -> Result<Type, Error> {
@@ -67,11 +88,11 @@ fn create_imported_function(
     let import_tuple = tuple::get_tuple(definition)?;
 
     let param_term = import_tuple
-        .get(0)
-        .ok_or_else(|| Error::Atom("missing_params"))?;
-    let results_term = import_tuple
         .get(1)
-        .ok_or_else(|| Error::Atom("missing_results"))?;
+        .ok_or_else(|| Error::Atom("missing_import_params"))?;
+    let results_term = import_tuple
+        .get(2)
+        .ok_or_else(|| Error::Atom("missing_import_results"))?;
 
     let params_signature = param_term
         .decode::<ListIterator>()?
