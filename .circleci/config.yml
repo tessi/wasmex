@@ -36,7 +36,7 @@ jobs:
             mix format --check-formatted
             cargo fmt --manifest-path native/wasmex/Cargo.toml  -- --check
             mix dialyzer --plt
-            mix dialyzer --halt-exit-status
+            mix dialyzer
             mix credo
             mix docs
 
