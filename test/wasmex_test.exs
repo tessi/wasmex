@@ -163,4 +163,24 @@ defmodule WasmexTest do
       assert {:ok, [6]} == Wasmex.call_function(instance, :using_imported_sum3, [1, 2, 3])
     end
   end
+
+  describe "when instantiating with imports that raise exceptions" do
+    def create_instance_with_imports_raising_exceptions(_context) do
+      imports = %{
+        env: %{
+          imported_sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, _a, _b, _c) -> raise("oops") end},
+          imported_sumf: {:fn, [:f32, :f32], [:f32], fn (_context, _a, _b) -> raise("oops") end}
+        }
+      }
+      instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+      %{instance: instance}
+    end
+
+    setup [:create_instance_with_imports_raising_exceptions]
+
+    test "call_function using_imported_sum3 with both, string and atom, identifiers", %{instance: instance} do
+      assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
+      assert reason =~ "error: \"the elixir callback threw an exception\""
+    end
+  end
 end

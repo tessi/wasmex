@@ -1,8 +1,8 @@
 //! Namespace API of an WebAssembly instance.
 
 use rustler::{
-    resource::ResourceArc, types::tuple, types::ListIterator, Atom, Encoder, Env, Error,
-    MapIterator, OwnedEnv, Term,
+    resource::ResourceArc, types::atom::is_truthy, types::tuple, types::ListIterator, Atom,
+    Encoder, Env, Error, MapIterator, OwnedEnv, Term,
 };
 use std::sync::{Arc, Condvar, Mutex};
 use wasmer_runtime::{self as runtime};
@@ -78,6 +78,16 @@ fn term_to_arg_type(term: Term) -> Result<Type, Error> {
     }
 }
 
+// Creates a wrapper function used in a WASM import object.
+// The `definition` term must contain a function signature matching the signature if the WASM import.
+// Once the imported function is called during WASM execution, the following happens:
+// 1. the rust wrapper we define here is called
+// 2. it creates a callback token containing a Mutex for storing the call result and a Condvar
+// 3. the rust wrapper sends an :invoke_callback message to elixir containing the token and call params
+// 4. the Wasmex module receive that call in elixir-land and executes the actual elixir callback
+// 5. after the callback finished execution, return values are send back to Rust via `receive_callback_result`
+// 6. `receive_callback_result` saves the return values in the callback tokens mutex and signals the condvar,
+//    so that the original wrapper function can continue code execution
 fn create_imported_function(
     namespace_name: String,
     import_name: String,
@@ -146,39 +156,47 @@ fn create_imported_function(
             });
 
             // Wait for the thread to start up.
+            //
             // let (lock, cvar) = callback_token.token;
             let mut result = callback_token.token.0.lock().unwrap();
             while result.is_none() {
                 result = callback_token.token.1.wait(result).unwrap();
             }
-            let result: Option<&(bool, Vec<runtime::Value>)> = result.as_ref();
+
+            let result: &(bool, Vec<runtime::Value>) = result
+                .as_ref()
+                .expect("expect callback token to contain a result");
             match result {
-                Some((true, v)) => v.to_vec(),
-                Some((false, v)) => v.to_vec(),
-                None => unreachable!(),
+                (true, v) => v.to_vec(),
+                (false, _) => panic!("the elixir callback threw an exception"),
             }
         },
     ))
 }
 
 // called from elixir, params
+// * callback_token
 // * success: :ok | :error
 //   indicates whether the call was successful or produced an elixir-error
 // * results: [number]
 //   return values of the elixir-callback - empty list when success-type is :error
 pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let token_resource: ResourceArc<CallbackTokenResource> = args[0].decode()?;
-    let success = atoms::success() == args[1];
-    let results = args[2].decode::<ListIterator>()?;
+    let success = is_truthy(args[1]);
 
-    let return_types = token_resource.token.2.clone();
-    let results = match decode_function_param_terms(&return_types, results.collect()) {
-        Ok(v) => v,
-        Err(_reason) => {
-            return Err(Error::Atom(
-                "could not convert callback result param to expected return signature",
-            ));
+    let results = if success {
+        let result_list = args[2].decode::<ListIterator>()?;
+        let return_types = token_resource.token.2.clone();
+        match decode_function_param_terms(&return_types, result_list.collect()) {
+            Ok(v) => v,
+            Err(_reason) => {
+                return Err(Error::Atom(
+                    "could not convert callback result param to expected return signature",
+                ));
+            }
         }
+    } else {
+        vec![]
     };
 
     let mut result = token_resource.token.0.lock().unwrap();
