@@ -67,6 +67,7 @@ defmodule Wasmex do
   def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
     GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
   end
+
   def start_link(bytes) when is_binary(bytes) do
     start_link(%{bytes: bytes, imports: %{}})
   end
@@ -84,7 +85,9 @@ defmodule Wasmex do
   end
 
   def stringify_keys(atom_key_map) when is_map(atom_key_map) do
-    for {key, val} <- atom_key_map, into: %{}, do: {stringify(key), stringify_keys(val)} end
+    for {key, val} <- atom_key_map, into: %{}, do: {stringify(key), stringify_keys(val)}
+  end
+
   def stringify_keys(value), do: value
 
   defp stringify(s) when is_binary(s), do: s
@@ -137,15 +140,21 @@ defmodule Wasmex do
   end
 
   @impl true
-  def handle_info({:invoke_callback, namespace_name, import_name, context, params, token}, %{imports: imports} = state) do
-    {success, return_value} = try do
-      {:fn, _params, _returns, callback} = imports
-                                      |> Map.get(namespace_name, %{})
-                                      |> Map.get(import_name)
-      {true, apply(callback, [context | params])}
-    rescue
-      e in RuntimeError -> {false, e.message}
-    end
+  def handle_info(
+        {:invoke_callback, namespace_name, import_name, context, params, token},
+        %{imports: imports} = state
+      ) do
+    {success, return_value} =
+      try do
+        {:fn, _params, _returns, callback} =
+          imports
+          |> Map.get(namespace_name, %{})
+          |> Map.get(import_name)
+
+        {true, apply(callback, [context | params])}
+      rescue
+        e in RuntimeError -> {false, e.message}
+      end
 
     :ok = Wasmex.Native.namespace_receive_callback_result(token, success, [return_value])
     {:noreply, state}

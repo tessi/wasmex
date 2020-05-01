@@ -40,7 +40,8 @@ defmodule Wasmex.Instance do
             # It also serves as a handy way to tell file handles apart.
             reference: nil
 
-  @spec from_bytes(binary(), %{optional(binary()) => (... -> any()) }) :: {:error, binary()} | {:ok, __MODULE__.t()}
+  @spec from_bytes(binary(), %{optional(binary()) => (... -> any())}) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
   def from_bytes(bytes, imports) when is_binary(bytes) and is_map(imports) do
     case Wasmex.Native.instance_new_from_bytes(bytes, imports) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}

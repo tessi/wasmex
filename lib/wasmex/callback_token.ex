@@ -20,7 +20,7 @@ defmodule Wasmex.CallbackToken do
   def wrap_resource(resource) do
     %__MODULE__{
       resource: resource,
-      reference: make_ref(),
+      reference: make_ref()
     }
   end
 end
