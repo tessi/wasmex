@@ -22,6 +22,43 @@ defmodule Wasmex do
   Wasmex.Memory.set(memory, index, value)
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
+
+  It is possible to supply the WASM module with "imported functions".
+  These are elixir callbacks provided in the imports map which the WASM module needs to function.
+
+  ```elixir
+  imports = %{
+    env: %{
+      add_ints: {:fn, [:i32, :i32], [:i32], fn (_context, a, b) -> a + b end},
+    }
+  }
+  {:ok, bytes } = File.read("wasmex_test.wasm")
+  {:ok, instance } = Wasmex.start_link.from_bytes(%{bytes: bytes, imports: imports})
+
+  {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
+  ```
+
+  The imports object is a map of namespaces.
+  In the example above, we import the `"env"` namespace.
+  Each namespace is, again, a map listing imports.
+  Under the name `add_ints`, we imported a function which is represented with a tuple of:
+
+  1. the import type: `:fn` (a function),
+  1. the functions parameter types: `[:i32, :i32]`,
+  1. the functions return types: `[:i32]`, and
+  1. a function reference: `fn (_context, a, b, c) -> a + b end`
+
+  When the WASM code executes the `add_ints` imported function, the execution context is forwarded to
+  the given function reference.
+  The first param is always the call context (containing e.g. the instances memory).
+  All other params are regular parameters as specified by the parameter type list.
+
+  Valid parameter/return types are:
+
+  - `i32` a 32 bit integer
+  - `i64` a 64 bit integer
+  - `f32` a 32 bit float
+  - `f64` a 64 bit float
   """
   use GenServer
 
@@ -61,8 +98,8 @@ defmodule Wasmex do
   * bytes (binary): the WASM bites defining the WASM module
   * imports (map): a map defining imports. Structure is:
                    %{
-                     "namespace_name": %{
-                       "import_name": {[:uint8, :uint8],[:uint8], callback}
+                     namespace_name: %{
+                       import_name: {:fn, [:i32, :i32], [:i32], function_reference}
                      }
                    }
   """

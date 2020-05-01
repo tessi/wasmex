@@ -155,9 +155,7 @@ fn create_imported_function(
                     .encode(env)
             });
 
-            // Wait for the thread to start up.
-            //
-            // let (lock, cvar) = callback_token.token;
+            // Wait for the thread to start up - `receive_callback_result` is responsible for that.
             let mut result = callback_token.token.0.lock().unwrap();
             while result.is_none() {
                 result = callback_token.token.1.wait(result).unwrap();
