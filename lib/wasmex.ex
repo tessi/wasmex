@@ -72,10 +72,17 @@ defmodule Wasmex do
     start_link(%{bytes: bytes, imports: %{}})
   end
 
+  @doc """
+  Returns whether a function export with the given `name` exists in the WebAssembly instance.
+  """
   def function_exists(pid, name) do
     GenServer.call(pid, {:exported_function_exists, stringify(name)})
   end
 
+  @doc """
+  Calls a function with the given `name` and `params` on
+  the WebAssembly instance and returns its results.
+  """
   def call_function(pid, name, params) do
     GenServer.call(pid, {:call_function, stringify(name), params})
   end
