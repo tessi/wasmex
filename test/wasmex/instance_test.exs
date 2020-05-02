@@ -20,6 +20,80 @@ defmodule Wasmex.InstanceTest do
               "Cannot Instantiate: LinkError([ImportNotFound { namespace: \"imports\", name: \"imported_func\" }])"} ==
                Wasmex.Instance.from_bytes(bytes, %{})
     end
+
+    test "instantiates an Instance with imports" do
+      bytes = File.read!(TestHelper.wasm_import_test_file_path())
+
+      imports = %{
+        "env" => %{
+          "imported_sum3" =>
+            {:fn, [:i32, :i32, :i32], [:i32], fn _context, a, b, c -> a + b + c end},
+          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
+        }
+      }
+
+      {:ok, _} = Wasmex.Instance.from_bytes(bytes, imports)
+    end
+
+    test "can not instantiate an Instance with imports having too few params" do
+      bytes = File.read!(TestHelper.wasm_import_test_file_path())
+
+      imports = %{
+        "env" => %{
+          "imported_sum3" => {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end},
+          "imported_sumf" => {:fn, [:f32], [:f32], fn _context, a -> a end}
+        }
+      }
+
+      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32], returns: [I32] } }"
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F32], returns: [F32] }"
+    end
+
+    test "can not instantiate an Instance with imports having too many params" do
+      bytes = File.read!(TestHelper.wasm_import_test_file_path())
+
+      imports = %{
+        "env" => %{
+          "imported_sum3" =>
+            {:fn, [:i32, :i32, :i32, :i32], [:i32], fn _context, a, b, c, d -> a + b + c + d end},
+          "imported_sumf" =>
+            {:fn, [:f32, :f32, :f32], [:f32], fn _context, a, b, c -> a + b + c end}
+        }
+      }
+
+      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32, I32, I32], returns: [I32] } }"
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F32, F32, F32], returns: [F32] }"
+    end
+
+    test "can not instantiate an Instance with imports having wrong params types" do
+      bytes = File.read!(TestHelper.wasm_import_test_file_path())
+
+      imports = %{
+        "env" => %{
+          "imported_sum3" =>
+            {:fn, [:i32, :i32, :i32], [:i64], fn _context, a, b, c -> a + b + c end},
+          "imported_sumf" => {:fn, [:f64, :f32], [:i32], fn _context, a, b -> a + b end}
+        }
+      }
+
+      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32, I32], returns: [I64] } }"
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F64, F32], returns: [I32] }"
+    end
   end
 
   describe "function_export_exists/2" do
@@ -69,6 +143,45 @@ defmodule Wasmex.InstanceTest do
       after
         100 ->
           nil
+      end
+    end
+
+    test "calling an imported function which returns the wrong type" do
+      bytes = File.read!(TestHelper.wasm_import_test_file_path())
+
+      imports = %{
+        "env" => %{
+          "imported_sum3" =>
+            {:fn, [:i32, :i32, :i32], [:i32], fn _context, _a, _b, _c -> 2.3 end},
+          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> 4 end}
+        }
+      }
+
+      {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
+
+      :ok =
+        Wasmex.Instance.call_exported_function(
+          instance,
+          "using_imported_sum3",
+          [1, 2, 3],
+          :fake_from
+        )
+
+      receive do
+        {:invoke_callback, "env", "imported_sum3", _context, [1, 2, 3], _token} -> nil
+        _ -> raise "should not be able to return results with the wrong type"
+      after
+        100 -> nil
+      end
+
+      :ok =
+        Wasmex.Instance.call_exported_function(instance, "imported_sumf", [1.1, 2.2], :fake_from)
+
+      receive do
+        {:invoke_callback, "env", "imported_sumf", _context, [1.1, 2.2], _token} -> nil
+        _ -> raise "should not be able to return results with the wrong type"
+      after
+        100 -> nil
       end
     end
   end
