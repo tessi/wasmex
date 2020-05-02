@@ -25,6 +25,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
             source $HOME/.cargo/env
             rustup component add rustfmt
+            rustup component add clippy
             rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
 
       - run:
@@ -35,6 +36,7 @@ jobs:
             mix test
             mix format --check-formatted
             cargo fmt --manifest-path native/wasmex/Cargo.toml  -- --check
+            touch ./native/wasmex/src/lib.rs  && cargo clippy --manifest-path native/wasmex/Cargo.toml --all-targets --all-features -- -D warnings
             mix dialyzer --plt
             mix dialyzer
             mix credo
