@@ -13,17 +13,16 @@ use wasmer_runtime_core::{
 use crate::{atoms, instance::decode_function_param_terms};
 
 pub struct CallbackTokenResource {
-    pub token: (
-        Mutex<Option<(bool, Vec<runtime::Value>)>>,
-        Condvar,
-        Vec<Type>,
-    ),
+    pub token: CallbackToken,
 }
 
-pub fn create_from_definition(
-    namespace_name: &String,
-    definition: Term,
-) -> Result<Namespace, Error> {
+pub struct CallbackToken {
+    pub continue_signal: Condvar,
+    pub return_types: Vec<Type>,
+    pub return_values: Mutex<Option<(bool, Vec<runtime::Value>)>>,
+}
+
+pub fn create_from_definition(namespace_name: &str, definition: Term) -> Result<Namespace, Error> {
     let mut namespace = Namespace::new();
     let definition: MapIterator = definition.decode()?;
     for (name, import) in definition {
@@ -35,8 +34,8 @@ pub fn create_from_definition(
 
 fn create_import(
     namespace: &mut Namespace,
-    namespace_name: &String,
-    import_name: &String,
+    namespace_name: &str,
+    import_name: &str,
     definition: Term,
 ) -> Result<(), Error> {
     let import_tuple = tuple::get_tuple(definition)?;
@@ -48,13 +47,16 @@ fn create_import(
         Atom::from_term(*import_type).map_err(|_| Error::Atom("import type must be an atom"))?;
 
     if atoms::__fn__().eq(&import_type) {
-        let import =
-            create_imported_function(namespace_name.clone(), import_name.clone(), definition)?;
+        let import = create_imported_function(
+            namespace_name.to_string(),
+            import_name.to_string(),
+            definition,
+        )?;
         namespace.insert(import_name, import);
         return Ok(());
     }
 
-    return Err(Error::Atom("unknown import type"));
+    Err(Error::Atom("unknown import type"))
 }
 
 fn term_to_arg_type(term: Term) -> Result<Type, Error> {
@@ -106,24 +108,25 @@ fn create_imported_function(
 
     let params_signature = param_term
         .decode::<ListIterator>()?
-        .map(|term| term_to_arg_type(term))
+        .map(term_to_arg_type)
         .collect::<Result<Vec<Type>, _>>()?;
 
     let results_signature = results_term
         .decode::<ListIterator>()?
-        .map(|term| term_to_arg_type(term))
+        .map(term_to_arg_type)
         .collect::<Result<Vec<Type>, _>>()?;
 
-    let signature = Arc::new(FuncSig::new(
-        params_signature.clone(),
-        results_signature.clone(),
-    ));
+    let signature = Arc::new(FuncSig::new(params_signature, results_signature.clone()));
 
     Ok(DynamicFunc::new(
         signature,
         move |_ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
-                token: (Mutex::new(None), Condvar::new(), results_signature.clone()),
+                token: CallbackToken {
+                    continue_signal: Condvar::new(),
+                    return_types: results_signature.clone(),
+                    return_values: Mutex::new(None),
+                },
             });
 
             let mut msg_env = OwnedEnv::new();
@@ -156,9 +159,9 @@ fn create_imported_function(
             });
 
             // Wait for the thread to start up - `receive_callback_result` is responsible for that.
-            let mut result = callback_token.token.0.lock().unwrap();
+            let mut result = callback_token.token.return_values.lock().unwrap();
             while result.is_none() {
-                result = callback_token.token.1.wait(result).unwrap();
+                result = callback_token.token.continue_signal.wait(result).unwrap();
             }
 
             let result: &(bool, Vec<runtime::Value>) = result
@@ -184,7 +187,7 @@ pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
 
     let results = if success {
         let result_list = args[2].decode::<ListIterator>()?;
-        let return_types = token_resource.token.2.clone();
+        let return_types = token_resource.token.return_types.clone();
         match decode_function_param_terms(&return_types, result_list.collect()) {
             Ok(v) => v,
             Err(_reason) => {
@@ -197,9 +200,9 @@ pub fn receive_callback_result<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
         vec![]
     };
 
-    let mut result = token_resource.token.0.lock().unwrap();
+    let mut result = token_resource.token.return_values.lock().unwrap();
     *result = Some((success, results));
-    token_resource.token.1.notify_one();
+    token_resource.token.continue_signal.notify_one();
 
     Ok(atoms::ok().encode(env))
 }

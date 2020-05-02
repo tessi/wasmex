@@ -82,7 +82,7 @@ fn execute_function<'a>(
     let from = from
         .load(thread_env)
         .decode::<Term>()
-        .unwrap_or("could not load 'from' param".encode(thread_env));
+        .unwrap_or_else(|_| "could not load 'from' param".encode(thread_env));
     let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
         Ok(vec) => vec,
         Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),

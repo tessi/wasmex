@@ -69,7 +69,7 @@ pub fn length<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let instance = resource.instance.instance.lock().unwrap();
     let memory = memory_from_instance(&instance)?;
-    let length = view_length(&memory, offset, &size);
+    let length = view_length(&memory, offset, size);
     Ok(length.encode(env))
 }
 
@@ -82,8 +82,8 @@ fn extract_params<'a>(
     Ok((resource, size, offset))
 }
 
-fn view_length(memory: &runtime::Memory, offset: usize, element_size: &ElementSize) -> usize {
-    match *element_size {
+fn view_length(memory: &runtime::Memory, offset: usize, element_size: ElementSize) -> usize {
+    match element_size {
         ElementSize::Uint8 => memory.view::<u8>()[offset..].len(),
         ElementSize::Int8 => memory.view::<i8>()[offset..].len(),
         ElementSize::Uint16 => memory.view::<u16>()[offset..].len(),
@@ -174,7 +174,7 @@ fn bounds_checked_index(
     offset: usize,
     index: usize,
 ) -> Result<usize, Error> {
-    let length = view_length(&memory, offset, &size);
+    let length = view_length(&memory, offset, size);
     if length <= index {
         return Err(Error::RaiseTerm(Box::new(format!(
             "Out of bound: Given index {} is larger than the memory size {}.",
