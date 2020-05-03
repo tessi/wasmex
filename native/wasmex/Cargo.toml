@@ -1,6 +1,6 @@
 [package]
 name = "wasmex"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Philipp Tessenow <philipp@tessenow.org>"]
 description = "Elixir extension to run WebAssembly binaries"
 readme = "README.md"
@@ -17,5 +17,5 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.21.0"
 lazy_static = "1.0"
-wasmer-runtime = "0.16.2"
-wasmer-runtime-core = "0.16.2"
+wasmer-runtime = { git = "https://github.com/wasmerio/wasmer", branch = "master" }
+wasmer-runtime-core = { git = "https://github.com/wasmerio/wasmer", branch = "master", features = ["dynamicfunc-fat-closures"] }

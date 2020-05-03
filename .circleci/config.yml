@@ -16,6 +16,10 @@ jobs:
           keys:
             - v1-dependency-cache-{{ checksum "mix.lock" }}
             - v1-dependency-cache
+      - restore_cache:
+          keys:
+            - v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
+            - v1-rust-dependency-cache
 
       - run: mix local.hex --force # install Hex locally (without prompt)
       - run: mix local.rebar --force # fetch a copy of rebar (without prompt)
@@ -25,6 +29,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
             source $HOME/.cargo/env
             rustup component add rustfmt
+            rustup component add clippy
             rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
 
       - run:
@@ -35,6 +40,8 @@ jobs:
             mix test
             mix format --check-formatted
             cargo fmt --manifest-path native/wasmex/Cargo.toml  -- --check
+            touch ./native/wasmex/src/lib.rs  && cargo clippy --manifest-path native/wasmex/Cargo.toml --all-targets --all-features -- -D warnings
+            mix dialyzer --plt
             mix dialyzer
             mix credo
             mix docs
@@ -45,6 +52,11 @@ jobs:
             - _build
             - deps
             - ~/.mix
+
+      - save_cache:
+          key: v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
+          paths:
+            - native/wasmex/target
 
       - store_test_results:
           path: _build/test/lib/wasmex

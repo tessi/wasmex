@@ -3,8 +3,8 @@ defmodule Wasmex.MemoryTest do
   doctest Wasmex.Memory
 
   defp build_wasm_instance do
-    bytes = File.read!(TestHelper.wasm_file_path())
-    Wasmex.Instance.from_bytes(bytes)
+    bytes = File.read!(TestHelper.wasm_test_file_path())
+    Wasmex.Instance.from_bytes(bytes, %{})
   end
 
   defp build_memory(size, offset) do

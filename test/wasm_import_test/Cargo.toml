@@ -1,0 +1,10 @@
+[package]
+name = "wasmex_test"
+version = "0.2.0"
+authors = ["Philipp Tessenow <philipp@tessenow.org>"]
+edition = "2018"
+
+[dependencies]
+
+[lib]
+crate-type =["cdylib"]

@@ -14,9 +14,32 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [Unreleased]
+## [0.3.0] - 2020-??-??
 
-- Put new changes here
+This release features support for "imported functions".
+
+### Added
+
+- added support for function imports
+
+```elixir
+imports = %{
+  env: %{
+    sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
+  }
+}
+instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+
+{:ok, [6]} = Wasmex.call_function(instance, "use_the_imported_sum_fn", [1, 2, 3])
+```
+
+Thanks to
+
+- @bamorim for helping me plan and architect,
+- @myobie for help in implementation, especially for implementing the function signature checks,
+- @rylev for a second eye on our Rust code,
+- the @wasmerio team for the recent addition of `DynFunc` which made this feature possible, and
+- @bitcrowd for sponsoring me to work on this feature
 
 ## [0.2.0] - 2020-04-14
 
