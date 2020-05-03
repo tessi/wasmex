@@ -22,9 +22,13 @@ defmodule Wasmex do
   Wasmex.Memory.set(memory, index, value)
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
+  """
+  use GenServer
 
-  It is possible to supply the WASM module with "imported functions".
-  These are elixir callbacks provided in the imports map which the WASM module needs to function.
+  # Client
+
+  @doc """
+  Starts a GenServer which compiles and instantiates a WASM module from the given bytes and imports map.
 
   ```elixir
   imports = %{
@@ -38,7 +42,7 @@ defmodule Wasmex do
   {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
 
-  The imports object is a map of namespaces.
+  The imports are given as a map of namespaces.
   In the example above, we import the `"env"` namespace.
   Each namespace is, again, a map listing imports.
   Under the name `add_ints`, we imported a function which is represented with a tuple of:
@@ -55,19 +59,21 @@ defmodule Wasmex do
 
   Valid parameter/return types are:
 
-  - `i32` a 32 bit integer
-  - `i64` a 64 bit integer
-  - `f32` a 32 bit float
-  - `f64` a 64 bit float
+  - `:i32` a 32 bit integer
+  - `:i64` a 64 bit integer
+  - `:f32` a 32 bit float
+  - `:f64` a 64 bit float
+
+  The return type must always be one value. (There are preparations to enable WASM to return multiple
+  values from a function call. We prepared the API for this future by specifying an array of return types.)
   """
-  use GenServer
-
-  # Client
-
   def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
     GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
   end
 
+  @doc """
+  Starts a GenServer which compiles and instantiates a WASM module from the given bytes.
+  """
   def start_link(bytes) when is_binary(bytes) do
     start_link(%{bytes: bytes, imports: %{}})
   end
@@ -87,15 +93,28 @@ defmodule Wasmex do
     GenServer.call(pid, {:call_function, stringify(name), params})
   end
 
-  def memory(pid, size, offset) when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
-    GenServer.call(pid, {:memory, size, offset})
+  @doc """
+  Finds the exported memory of the given WASM instance and returns it as a `Wasmex.Memory`.
+
+  The memory is a collection of bytes which can be viewed and interpreted as a sequence of different
+  (data-)`types`:
+
+  * uint8 / int8 - (un-)signed 8-bit integer values
+  * uint16 / int16 - (un-)signed 16-bit integer values
+  * uint32 / int32 - (un-)signed 32-bit integer values
+
+  We can think of it as a list of values of the above type (where each value may be larger than a byte).
+  The `offset` value can be used to start reading the memory from a chosen position.
+  """
+  def memory(pid, type, offset) when type in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
+    GenServer.call(pid, {:memory, type, offset})
   end
 
-  def stringify_keys(atom_key_map) when is_map(atom_key_map) do
+  defp stringify_keys(atom_key_map) when is_map(atom_key_map) do
     for {key, val} <- atom_key_map, into: %{}, do: {stringify(key), stringify_keys(val)}
   end
 
-  def stringify_keys(value), do: value
+  defp stringify_keys(value), do: value
 
   defp stringify(s) when is_binary(s), do: s
   defp stringify(s) when is_atom(s), do: Atom.to_string(s)
