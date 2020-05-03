@@ -52,6 +52,7 @@ jobs:
             - _build
             - deps
             - ~/.mix
+
       - save_cache:
           key: v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.toml" }}
           paths:
