@@ -18,7 +18,7 @@ jobs:
             - v1-dependency-cache
       - restore_cache:
           keys:
-            - v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.toml" }}
+            - v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
             - v1-rust-dependency-cache
 
       - run: mix local.hex --force # install Hex locally (without prompt)
@@ -54,7 +54,7 @@ jobs:
             - ~/.mix
 
       - save_cache:
-          key: v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.toml" }}
+          key: v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
           paths:
             - native/wasmex/target
 
