@@ -42,7 +42,7 @@ defmodule Wasmex do
   {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
 
-  The imports are given as a map of namespaces.
+  Imports are given as a map of namespaces.
   In the example above, we import the `"env"` namespace.
   Each namespace is, again, a map listing imports.
   Under the name `add_ints`, we imported a function which is represented with a tuple of:
@@ -52,7 +52,7 @@ defmodule Wasmex do
   1. the functions return types: `[:i32]`, and
   1. a function reference: `fn (_context, a, b, c) -> a + b end`
 
-  When the WASM code executes the `add_ints` imported function, the execution context is forwarded to
+  When the WASM runtime executes the `add_ints` imported function, the execution context is forwarded to
   the given function reference.
   The first param is always the call context (a Map containing e.g. the instances memory).
   All other params are regular parameters as specified by the parameter type list.
@@ -64,15 +64,23 @@ defmodule Wasmex do
   - `:f32` a 32 bit float
   - `:f64` a 64 bit float
 
-  The return type must always be one value. (There are preparations to enable WASM to return multiple
-  values from a function call. We prepared the API for this future by specifying an array of return types.)
+  The return type must always be one value.
   """
+  def start_link(%{bytes: bytes, imports: imports, wasi: wasi})
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
+    GenServer.start_link(__MODULE__, %{
+      bytes: bytes,
+      imports: stringify_keys(imports),
+      wasi: stringify_keys(wasi)
+    })
+  end
+
   def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
-    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
+    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports), wasi: %{}})
   end
 
   def start_link(bytes) when is_binary(bytes) do
-    start_link(%{bytes: bytes, imports: %{}})
+    start_link(%{bytes: bytes, imports: %{}, wasi: %{}})
   end
 
   @doc """
@@ -130,9 +138,17 @@ defmodule Wasmex do
                    }
   """
   @impl true
-  def init(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
+  def init(%{bytes: bytes, imports: imports, wasi: wasi})
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) and map_size(wasi) == 0 do
     {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
-    {:ok, %{instance: instance, imports: imports}}
+    {:ok, %{instance: instance, imports: imports, wasi: wasi}}
+  end
+
+  @impl true
+  def init(%{bytes: bytes, imports: imports, wasi: wasi})
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) and map_size(wasi) <= 2 do
+    {:ok, instance} = Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi)
+    {:ok, %{instance: instance, imports: imports, wasi: wasi}}
   end
 
   @impl true

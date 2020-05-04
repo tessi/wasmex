@@ -1,6 +1,7 @@
 defmodule TestHelper do
   @wasm_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_test"
   @wasm_import_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_import_test"
+  @wasi_test_source_dir "#{Path.dirname(__ENV__.file)}/wasi_test"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -8,9 +9,13 @@ defmodule TestHelper do
   def wasm_import_test_file_path,
     do: "#{@wasm_import_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
 
+  def wasi_test_file_path,
+    do: "#{@wasi_test_source_dir}/target/wasm32-wasi/debug/main.wasm"
+
   def compile_wasm_files do
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
+    {"", 0} = System.cmd("cargo", ["build"], cd: @wasi_test_source_dir)
   end
 
   def default_imported_functions_env do

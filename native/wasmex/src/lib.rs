@@ -16,6 +16,7 @@ rustler::init! {
     "Elixir.Wasmex.Native",
     [
         instance::new_from_bytes,
+        instance::new_wasi_from_bytes,
         instance::function_export_exists,
         instance::call_exported_function,
         namespace::receive_callback_result,

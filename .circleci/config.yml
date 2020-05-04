@@ -11,6 +11,7 @@ commands:
             rustup component add rustfmt
             rustup component add clippy
             rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
+            rustup target add wasm32-wasi # to compile our example WASM/WASI files for testing
 jobs:
   build:
     parallelism: 1

@@ -49,6 +49,38 @@ defmodule Wasmex.Instance do
     end
   end
 
+  @spec wasi_from_bytes(binary(), %{optional(binary()) => (... -> any())}, %{
+          optional(:args) => [String.t()],
+          optional(:env) => %{String.t() => String.t()}
+        }) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
+  def wasi_from_bytes(bytes, imports, wasi)
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
+    args = Map.get(wasi, "args")
+
+    unless Enum.all?(args, &Kernel.is_binary/1) do
+      raise ArgumentError, message: "wasi args must be a list of strings"
+    end
+
+    env =
+      wasi
+      |> Map.get("env")
+      |> Enum.map(fn {key, value} ->
+        if String.contains?(key, "=") or String.contains?(value, "=") do
+          raise ArgumentError,
+            message:
+              "wasi env must be a map of string keys to string values not containing the equals sign (=)"
+        end
+
+        "#{key}=#{value}"
+      end)
+
+    case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env) do
+      {:ok, resource} -> {:ok, wrap_resource(resource)}
+      {:error, err} -> {:error, err}
+    end
+  end
+
   defp wrap_resource(resource) do
     %__MODULE__{
       resource: resource,
