@@ -1,14 +1,16 @@
 //! Memory API of an WebAssembly instance.
 
+use std::sync::Mutex;
+
 use rustler::resource::ResourceArc;
 use rustler::{Encoder, Env, Error, Term};
-use wasmer_runtime::{self as runtime, Export};
+use wasmer_runtime::{self as runtime, Export, Memory};
 use wasmer_runtime_core::units::Pages;
 
 use crate::{atoms, instance};
 
 pub struct MemoryResource {
-    pub instance: ResourceArc<instance::InstanceResource>,
+    pub memory: Mutex<Memory>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -22,8 +24,12 @@ pub enum ElementSize {
 }
 
 pub fn from_instance<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let instance: ResourceArc<instance::InstanceResource> = args[0].decode()?;
-    let memory_resource = ResourceArc::new(MemoryResource { instance });
+    let instance_resource: ResourceArc<instance::InstanceResource> = args[0].decode()?;
+    let instance = instance_resource.instance.lock().unwrap();
+    let memory = memory_from_instance(&*instance)?;
+    let memory_resource = ResourceArc::new(MemoryResource {
+        memory: Mutex::new(memory),
+    });
 
     Ok((atoms::ok(), memory_resource).encode(env))
 }
@@ -67,8 +73,7 @@ fn byte_size(element_size: ElementSize) -> usize {
 
 pub fn length<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let length = view_length(&memory, offset, size);
     Ok(length.encode(env))
 }
@@ -97,8 +102,7 @@ pub fn grow<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, _size, _offset) = extract_params(args)?;
     let pages: u32 = args[3].decode()?;
 
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let old_pages = grow_by_pages(&memory, pages)?;
     Ok(old_pages.encode(env))
 }
@@ -113,8 +117,7 @@ fn grow_by_pages(memory: &runtime::Memory, number_of_pages: u32) -> Result<u32, 
 
 pub fn get<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
 
@@ -141,8 +144,7 @@ fn get_value<'a>(
 
 pub fn set<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
 
@@ -196,8 +198,7 @@ fn memory_from_instance(instance: &runtime::Instance) -> Result<runtime::Memory,
 
 pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
     let view = memory.view::<u8>();
@@ -221,8 +222,7 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
 
 pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
-    let instance = resource.instance.instance.lock().unwrap();
-    let memory = memory_from_instance(&instance)?;
+    let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
     let binary: String = args[4].decode()?;
