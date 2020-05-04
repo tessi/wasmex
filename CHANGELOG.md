@@ -20,6 +20,31 @@ This release features support for "imported functions".
 
 ### Added
 
+- added the instances first memory into the callback context
+
+```elixir
+imports = %{
+  env: %{
+    read_and_set_memory:
+      {:fn, [], [:i32],
+        fn context, a, b, c ->
+          memory = Map.get(context, :memory)
+          42 = Wasmex.Memory.get(memory, :uint8, 0, 0) # assert that the first byte in the memory was set to 42
+          Wasmex.Memory.set(memory, :uint8, 0, 0, 23)
+          0
+        end},
+  }
+}
+
+instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+Wasmex.Memory.set(memory, :uint8, 0, 0, 42)
+
+# asserts that the byte at memory[0] was set to 42 and then sets it to 23
+{:ok, _} = Wasmex.call_function(instance, :a_wasm_fn_that_calls_read_and_set_memory, [])
+
+assert 23 == Wasmex.Memory.get(memory, :uint8, 0, 0)
+```
+
 - added support for function imports
 
 ```elixir

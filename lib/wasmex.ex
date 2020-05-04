@@ -54,7 +54,7 @@ defmodule Wasmex do
 
   When the WASM code executes the `add_ints` imported function, the execution context is forwarded to
   the given function reference.
-  The first param is always the call context (containing e.g. the instances memory).
+  The first param is always the call context (a Map containing e.g. the instances memory).
   All other params are regular parameters as specified by the parameter type list.
 
   Valid parameter/return types are:
@@ -170,6 +170,13 @@ defmodule Wasmex do
         {:invoke_callback, namespace_name, import_name, context, params, token},
         %{imports: imports} = state
       ) do
+    context =
+      Map.put(
+        context,
+        :memory,
+        Wasmex.Memory.wrap_resource(Map.get(context, :memory), :uint8, 0)
+      )
+
     {success, return_value} =
       try do
         {:fn, _params, _returns, callback} =

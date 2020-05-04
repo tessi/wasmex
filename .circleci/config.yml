@@ -1,5 +1,16 @@
 # Check https://circleci.com/docs/2.0/language-elixir/ for more details on CircleCI configuration
-version: 2
+version: 2.1
+commands:
+  install-rust:
+    steps:
+      - run:
+          name: "Install Rust"
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+            source $HOME/.cargo/env
+            rustup component add rustfmt
+            rustup component add clippy
+            rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
 jobs:
   build:
     parallelism: 1
@@ -16,21 +27,10 @@ jobs:
           keys:
             - v1-dependency-cache-{{ checksum "mix.lock" }}
             - v1-dependency-cache
-      - restore_cache:
-          keys:
-            - v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
-            - v1-rust-dependency-cache
 
       - run: mix local.hex --force # install Hex locally (without prompt)
       - run: mix local.rebar --force # fetch a copy of rebar (without prompt)
-      - run:
-          name: "Install Rust"
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
-            source $HOME/.cargo/env
-            rustup component add rustfmt
-            rustup component add clippy
-            rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
+      - install-rust
 
       - run:
           name: "Run Checks (Tests, Formatters, ..)"
@@ -52,11 +52,6 @@ jobs:
             - _build
             - deps
             - ~/.mix
-
-      - save_cache:
-          key: v1-rust-dependency-cache-{{ checksum "native/wasmex/Cargo.lock" }}
-          paths:
-            - native/wasmex/target
 
       - store_test_results:
           path: _build/test/lib/wasmex

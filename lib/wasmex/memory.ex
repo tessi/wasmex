@@ -72,7 +72,7 @@ defmodule Wasmex.Memory do
     end
   end
 
-  defp wrap_resource(resource, size, offset) do
+  def wrap_resource(resource, size, offset) do
     %__MODULE__{
       resource: resource,
       reference: make_ref(),
