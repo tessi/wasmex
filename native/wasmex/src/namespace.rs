@@ -10,7 +10,7 @@ use wasmer_runtime_core::{
     import::Namespace, typed_func::DynamicFunc, types::FuncSig, types::Type, types::Value, vm::Ctx,
 };
 
-use crate::{atoms, instance::decode_function_param_terms};
+use crate::{atoms, instance::decode_function_param_terms, memory::MemoryResource};
 
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
@@ -120,7 +120,7 @@ fn create_imported_function(
 
     Ok(DynamicFunc::new(
         signature,
-        move |_ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
+        move |ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
                 token: CallbackToken {
                     continue_signal: Condvar::new(),
@@ -144,9 +144,21 @@ fn create_imported_function(
                         }
                     })
                 }
-                // Callback context will contain memory, globals, tables etc later.
+                // Callback context will contain memory (plus globals, tables etc later).
                 // This will allow Elixir callback to operate on these objects.
                 let callback_context = Term::map_new(env);
+
+                let memory_resource = ResourceArc::new(MemoryResource {
+                    memory: Mutex::new(ctx.memory(0).clone()),
+                });
+                let callback_context = match Term::map_put(
+                    callback_context,
+                    atoms::memory().encode(env),
+                    memory_resource.encode(env),
+                ) {
+                    Ok(map) => map,
+                    _ => unreachable!(),
+                };
                 (
                     atoms::invoke_callback(),
                     namespace_name.clone(),

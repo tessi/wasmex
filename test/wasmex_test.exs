@@ -116,6 +116,31 @@ defmodule WasmexTest do
     end
   end
 
+  test "read and manipulate memory in a callback" do
+    imports = %{
+      env: %{
+        imported_sum3:
+          {:fn, [:i32, :i32, :i32], [:i32],
+           fn context, a, b, c ->
+             memory = Map.get(context, :memory)
+             assert 42 == Wasmex.Memory.get(memory, :uint8, 0, 0)
+             Wasmex.Memory.set(memory, :uint8, 0, 0, 23)
+             a + b + c
+           end},
+        imported_sumf: {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
+      }
+    }
+
+    instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+    {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
+    Wasmex.Memory.set(memory, :uint8, 0, 0, 42)
+
+    # asserts that the byte at memory[0] was set to 42 and then sets it to 23
+    {:ok, _} = Wasmex.call_function(instance, :using_imported_sum3, [1, 2, 3])
+
+    assert 23 == Wasmex.Memory.get(memory, :uint8, 0, 0)
+  end
+
   describe "when instantiating with imports" do
     def create_instance_with_atom_imports(_context) do
       imports = %{

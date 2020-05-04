@@ -23,6 +23,9 @@ rustler::rustler_atoms! {
     atom params;
     atom results;
 
+    // callback context
+    atom memory;
+
     // calls to erlang processes
     atom returned_function_call;
     atom invoke_callback;
