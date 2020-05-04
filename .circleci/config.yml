@@ -1,34 +1,16 @@
 # Check https://circleci.com/docs/2.0/language-elixir/ for more details on CircleCI configuration
 version: 2.1
 commands:
-  setup-sccache:
+  install-rust:
     steps:
       - run:
-          name: Install sccache
+          name: "Install Rust"
           command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
             source $HOME/.cargo/env
-            cargo install sccache
-            # This configures Rust to use sccache.
-            echo 'export "RUSTC_WRAPPER"="sccache"' >> $BASH_ENV
-            # This is the maximum space sccache cache will use on disk.
-            echo 'export "SCCACHE_CACHE_SIZE"="1G"' >> $BASH_ENV
-            sccache --version
-  restore-sccache-cache:
-    steps:
-      - restore_cache:
-          name: Restore sccache cache
-          key: sccache-cache-stable-{{ arch }}-{{ .Environment.CIRCLE_JOB }}
-  save-sccache-cache:
-    steps:
-      - save_cache:
-          name: Save sccache cache
-          # We use {{ epoch }} to always upload a fresh cache:
-          # Of course, restore_cache will not find this exact key,
-          # but it will fall back to the closest key (aka the most recent).
-          # See https://discuss.circleci.com/t/add-mechanism-to-update-existing-cache-key/9014/13
-          key: sccache-cache-stable-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ epoch }}
-          paths:
-            - "~/.cache/sccache"
+            rustup component add rustfmt
+            rustup component add clippy
+            rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
 jobs:
   build:
     parallelism: 1
@@ -48,16 +30,7 @@ jobs:
 
       - run: mix local.hex --force # install Hex locally (without prompt)
       - run: mix local.rebar --force # fetch a copy of rebar (without prompt)
-      - run:
-          name: "Install Rust"
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
-            source $HOME/.cargo/env
-            rustup component add rustfmt
-            rustup component add clippy
-            rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
-      - setup-sccache
-      - restore-sccache-cache
+      - install-rust
 
       - run:
           name: "Run Checks (Tests, Formatters, ..)"
@@ -79,8 +52,6 @@ jobs:
             - _build
             - deps
             - ~/.mix
-
-      - save-sccache-cache
 
       - store_test_results:
           path: _build/test/lib/wasmex
