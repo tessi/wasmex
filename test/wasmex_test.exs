@@ -101,7 +101,7 @@ defmodule WasmexTest do
     test "call_function: string() -> string function", %{instance: instance} do
       {:ok, [pointer]} = Wasmex.call_function(instance, :string, [])
       {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
-      returned_string = Wasmex.Memory.read_binary(memory, pointer)
+      returned_string = Wasmex.Memory.read_binary(memory, pointer, 13) |> to_string()
       assert returned_string == "Hello, World!"
     end
 

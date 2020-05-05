@@ -190,21 +190,26 @@ defmodule Wasmex.Memory do
           :ok
   def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str)
       when is_binary(str) do
-    # strings a null-byte terminated in C-land
-    str = str <> "\0"
     Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
   end
 
-  @spec read_binary(__MODULE__.t(), non_neg_integer()) :: binary()
-  def read_binary(%Wasmex.Memory{} = memory, index) do
-    read_binary(memory, memory.size, memory.offset, index)
+  @spec read_binary(__MODULE__.t(), non_neg_integer(), non_neg_integer()) :: binary()
+  def read_binary(%Wasmex.Memory{} = memory, index, length) do
+    read_binary(memory, memory.size, memory.offset, index, length)
   end
 
-  @spec read_binary(__MODULE__.t(), atom(), non_neg_integer(), non_neg_integer()) :: binary()
-  def read_binary(%Wasmex.Memory{resource: resource}, size, offset, index) do
-    Wasmex.Native.memory_read_binary(resource, size, offset, index)
-    |> to_string
-    |> String.trim_trailing("\0")
+  def read_binary(_memory, _size, _offset, _index, 0), do: <<>>
+
+  @spec read_binary(
+          __MODULE__.t(),
+          atom(),
+          non_neg_integer(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
+          binary()
+  def read_binary(%Wasmex.Memory{resource: resource}, size, offset, index, length) do
+    Wasmex.Native.memory_read_binary(resource, size, offset, index, length)
   end
 end
 
