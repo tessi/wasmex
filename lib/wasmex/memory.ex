@@ -193,7 +193,7 @@ defmodule Wasmex.Memory do
     Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
   end
 
-  @spec read_binary(__MODULE__.t(), non_neg_integer(), non_neg_integer()) :: binary()
+  @spec read_binary(t, non_neg_integer(), non_neg_integer()) :: binary()
   def read_binary(%Wasmex.Memory{} = memory, index, length) do
     read_binary(memory, memory.size, memory.offset, index, length)
   end
@@ -206,8 +206,27 @@ defmodule Wasmex.Memory do
           non_neg_integer()
         ) ::
           binary()
-  def read_binary(%Wasmex.Memory{resource: resource}, size, offset, index, length) do
+  def read_binary(%__MODULE__{resource: resource}, size, offset, index, length) do
     Wasmex.Native.memory_read_binary(resource, size, offset, index, length)
+  end
+
+  @spec read_string(t, non_neg_integer(), non_neg_integer()) :: String.t()
+  def read_string(memory, index, length) do
+    read_binary(memory, index, length)
+    |> to_string()
+  end
+
+  @spec read_string(
+          t,
+          atom(),
+          non_neg_integer(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
+          String.t()
+  def read_string(memory, size, offset, index, length) do
+    read_binary(memory, size, offset, index, length)
+    |> to_string()
   end
 end
 

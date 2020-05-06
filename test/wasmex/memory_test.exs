@@ -125,7 +125,7 @@ defmodule Wasmex.MemoryTest do
   end
 
   describe "read_binary/2" do
-    test "reads a string from memory" do
+    test "reads a binary from memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       # h
       Wasmex.Memory.set(memory, 0, 104)
@@ -140,7 +140,27 @@ defmodule Wasmex.MemoryTest do
 
       assert Wasmex.Memory.read_binary(memory, 0, 5) == 'hello'
       assert Wasmex.Memory.read_binary(memory, 3, 2) == 'lo'
-      assert Wasmex.Memory.read_binary(memory, 8, 0) == <<>>
+      assert Wasmex.Memory.read_binary(memory, 8, 0) == ''
+    end
+  end
+
+  describe "read_string/2" do
+    test "reads a string from memory" do
+      {:ok, memory} = build_memory(:uint8, 0)
+      # h
+      Wasmex.Memory.set(memory, 0, 104)
+      # e
+      Wasmex.Memory.set(memory, 1, 101)
+      # l
+      Wasmex.Memory.set(memory, 2, 108)
+      # l
+      Wasmex.Memory.set(memory, 3, 108)
+      # o
+      Wasmex.Memory.set(memory, 4, 111)
+
+      assert Wasmex.Memory.read_string(memory, 0, 5) == "hello"
+      assert Wasmex.Memory.read_string(memory, 3, 2) == "lo"
+      assert Wasmex.Memory.read_string(memory, 8, 0) == ""
     end
   end
 end
