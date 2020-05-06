@@ -57,13 +57,13 @@ defmodule Wasmex.Memory do
             size: nil,
             offset: nil
 
-  @spec from_instance(Wasmex.Instance.t()) :: {:error, binary()} | {:ok, __MODULE__.t()}
+  @spec from_instance(Wasmex.Instance.t()) :: {:error, binary()} | {:ok, t}
   def from_instance(%Wasmex.Instance{} = instance) do
     from_instance(instance, :uint8, 0)
   end
 
   @spec from_instance(Wasmex.Instance.t(), atom(), non_neg_integer()) ::
-          {:error, binary()} | {:ok, __MODULE__.t()}
+          {:error, binary()} | {:ok, t}
   def from_instance(%Wasmex.Instance{resource: resource}, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Native.memory_from_instance(resource) do
@@ -100,8 +100,8 @@ defmodule Wasmex.Memory do
   Wasmex.Memory.bytes_per_element(memory) # 2
   ```
   """
-  @spec bytes_per_element(__MODULE__.t()) :: pos_integer()
-  def bytes_per_element(%Wasmex.Memory{} = memory) do
+  @spec bytes_per_element(t) :: pos_integer()
+  def bytes_per_element(%__MODULE__{} = memory) do
     bytes_per_element(memory, memory.size, memory.offset)
   end
 
@@ -113,8 +113,8 @@ defmodule Wasmex.Memory do
   Wasmex.Memory.bytes_per_element(memory, :uint32, 0) # 4
   ```
   """
-  @spec bytes_per_element(__MODULE__.t(), atom(), non_neg_integer()) :: pos_integer()
-  def bytes_per_element(%Wasmex.Memory{resource: resource}, size, offset) do
+  @spec bytes_per_element(t, atom(), non_neg_integer()) :: pos_integer()
+  def bytes_per_element(%__MODULE__{resource: resource}, size, offset) do
     Wasmex.Native.memory_bytes_per_element(resource, size, offset)
   end
 
@@ -129,8 +129,8 @@ defmodule Wasmex.Memory do
   Wasmex.Memory.length(memory) # 1114112 (17 * 65_536)
   ```
   """
-  @spec length(__MODULE__.t()) :: pos_integer()
-  def length(%Wasmex.Memory{} = memory) do
+  @spec length(t) :: pos_integer()
+  def length(%__MODULE__{} = memory) do
     length(memory, memory.size, memory.offset)
   end
 
@@ -142,8 +142,8 @@ defmodule Wasmex.Memory do
   Wasmex.Memory.length(memory, :uint8, 0) # 1114112 (17 * 65_536)
   ```
   """
-  @spec length(__MODULE__.t(), atom(), non_neg_integer()) :: pos_integer()
-  def length(%Wasmex.Memory{resource: resource}, size, offset) do
+  @spec length(t, atom(), non_neg_integer()) :: pos_integer()
+  def length(%__MODULE__{resource: resource}, size, offset) do
     Wasmex.Native.memory_length(resource, size, offset)
   end
 
@@ -151,44 +151,44 @@ defmodule Wasmex.Memory do
   Grows the amount of available memory by the given number of pages and returns the number of previously available pages.
   Note that the maximum number of pages is `65_536`
   """
-  @spec grow(__MODULE__.t(), pos_integer()) :: pos_integer()
-  def grow(%Wasmex.Memory{} = memory, pages) do
+  @spec grow(t, pos_integer()) :: pos_integer()
+  def grow(%__MODULE__{} = memory, pages) do
     grow(memory, memory.size, memory.offset, pages)
   end
 
-  @spec grow(__MODULE__.t(), atom(), non_neg_integer(), pos_integer()) :: pos_integer()
-  def grow(%Wasmex.Memory{resource: resource}, size, offset, pages) do
+  @spec grow(t, atom(), non_neg_integer(), pos_integer()) :: pos_integer()
+  def grow(%__MODULE__{resource: resource}, size, offset, pages) do
     Wasmex.Native.memory_grow(resource, size, offset, pages)
   end
 
-  @spec get(__MODULE__.t(), pos_integer()) :: number()
-  def get(%Wasmex.Memory{} = memory, index) do
+  @spec get(t, pos_integer()) :: number()
+  def get(%__MODULE__{} = memory, index) do
     get(memory, memory.size, memory.offset, index)
   end
 
-  @spec get(__MODULE__.t(), atom(), non_neg_integer(), pos_integer()) :: number()
-  def get(%Wasmex.Memory{resource: resource}, size, offset, index) do
+  @spec get(t, atom(), non_neg_integer(), pos_integer()) :: number()
+  def get(%__MODULE__{resource: resource}, size, offset, index) do
     Wasmex.Native.memory_get(resource, size, offset, index)
   end
 
-  @spec set(__MODULE__.t(), non_neg_integer(), number()) :: number()
-  def set(%Wasmex.Memory{} = memory, index, value) do
+  @spec set(t, non_neg_integer(), number()) :: number()
+  def set(%__MODULE__{} = memory, index, value) do
     set(memory, memory.size, memory.offset, index, value)
   end
 
-  @spec set(__MODULE__.t(), atom(), non_neg_integer(), non_neg_integer(), number()) :: number()
-  def set(%Wasmex.Memory{resource: resource}, size, offset, index, value) do
+  @spec set(t, atom(), non_neg_integer(), non_neg_integer(), number()) :: number()
+  def set(%__MODULE__{resource: resource}, size, offset, index, value) do
     Wasmex.Native.memory_set(resource, size, offset, index, value)
   end
 
-  @spec write_binary(__MODULE__.t(), non_neg_integer(), binary()) :: :ok
-  def write_binary(%Wasmex.Memory{} = memory, index, str) when is_binary(str) do
+  @spec write_binary(t, non_neg_integer(), binary()) :: :ok
+  def write_binary(%__MODULE__{} = memory, index, str) when is_binary(str) do
     write_binary(memory, memory.size, memory.offset, index, str)
   end
 
-  @spec write_binary(__MODULE__.t(), atom(), non_neg_integer(), non_neg_integer(), binary()) ::
+  @spec write_binary(t, atom(), non_neg_integer(), non_neg_integer(), binary()) ::
           :ok
-  def write_binary(%Wasmex.Memory{resource: resource}, size, offset, index, str)
+  def write_binary(%__MODULE__{resource: resource}, size, offset, index, str)
       when is_binary(str) do
     Wasmex.Native.memory_write_binary(resource, size, offset, index, str)
   end
