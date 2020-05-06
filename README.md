@@ -260,7 +260,7 @@ Given we have the following Rust function in our WebAssembly (copied from our te
 ```rust
 #[no_mangle]
 pub extern "C" fn string() -> *const u8 {
-    b"Hello, World!\0".as_ptr()
+    b"Hello, World!".as_ptr()
 }
 ```
 
@@ -275,7 +275,7 @@ bytes = File.read!(TestHelper.wasm_test_file_path)
 {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 
 {:ok, [pointer]} = Wasmex.call_function(instance, "string", [])
-returned_string = Wasmex.Memory.read_binary(memory, pointer) # "Hello, World!"
+returned_string = Wasmex.Memory.read_string(memory, pointer, 13) # "Hello, World!"
 ```
 
 # Endianness of WASM Values
