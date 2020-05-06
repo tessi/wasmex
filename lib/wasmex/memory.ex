@@ -198,8 +198,6 @@ defmodule Wasmex.Memory do
     read_binary(memory, memory.size, memory.offset, index, length)
   end
 
-  def read_binary(_memory, _size, _offset, _index, 0), do: <<>>
-
   @spec read_binary(
           __MODULE__.t(),
           atom(),
