@@ -200,17 +200,21 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
+    let length: usize = args[4].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
     let view = memory.view::<u8>();
 
-    if offset + index >= view.len() {
+    let start = offset + index;
+    let end = offset + index + length;
+
+    if end > view.len() {
         return Err(Error::RaiseTerm(Box::new(
             "Out of bound: The given binary will write out of memory",
         )));
     }
 
     let mut binary: Vec<u8> = Vec::new();
-    for i in (offset + index)..view.len() {
+    for i in start..end {
         let value = view[i].get();
         binary.push(value);
         if value == 0 {
