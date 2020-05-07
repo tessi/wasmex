@@ -124,7 +124,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "read_binary/2" do
+  describe "read_binary/3" do
     test "reads a binary from memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       # h
@@ -144,7 +144,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "read_string/2" do
+  describe "read_string/3" do
     test "reads a string from memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       # h
