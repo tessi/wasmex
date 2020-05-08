@@ -66,6 +66,12 @@ Thanks to
 - the @wasmerio team for the recent addition of `DynFunc` which made this feature possible, and
 - @bitcrowd for sponsoring me to work on this feature
 
+### Changed
+
+- Changed writing and reading strings from/to memory to be based on string length and not expect null-byte terminated strings.
+  This allows for a more flexible memory handling when writing arbitrary data or strings containing null bytes to/from memory.
+  Thanks @myobie for implementing this feature
+
 ## [0.2.0] - 2020-04-14
 
 This release brings is closer to a production-ready experience.
