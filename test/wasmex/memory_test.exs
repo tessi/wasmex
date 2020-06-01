@@ -97,7 +97,7 @@ defmodule Wasmex.MemoryTest do
   end
 
   describe "write_binary/3" do
-    test "writes a string into memory" do
+    test "writes a binary into memory" do
       {:ok, memory} = build_memory(:uint8, 0)
       :ok = Wasmex.Memory.write_binary(memory, 0, "hello")
       # h
@@ -121,6 +121,12 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.get(memory, 2) == 98
       # c
       assert Wasmex.Memory.get(memory, 3) == 99
+
+      random_bytes = :crypto.strong_rand_bytes(24)
+      # writing random bytes is fine as well
+      :ok = Wasmex.Memory.write_binary(memory, 0, random_bytes)
+      # should also be able to read it back
+      assert Wasmex.Memory.read_binary(memory, 0, 24) == random_bytes
     end
   end
 
