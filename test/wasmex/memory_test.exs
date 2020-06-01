@@ -144,9 +144,9 @@ defmodule Wasmex.MemoryTest do
       # o
       Wasmex.Memory.set(memory, 4, 111)
 
-      assert Wasmex.Memory.read_binary(memory, 0, 5) == 'hello'
-      assert Wasmex.Memory.read_binary(memory, 3, 2) == 'lo'
-      assert Wasmex.Memory.read_binary(memory, 8, 0) == ''
+      assert Wasmex.Memory.read_binary(memory, 0, 5) == "hello"
+      assert Wasmex.Memory.read_binary(memory, 3, 2) == "lo"
+      assert Wasmex.Memory.read_binary(memory, 8, 0) == ""
     end
   end
 

@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use rustler::resource::ResourceArc;
-use rustler::{Encoder, Env, Error, Term};
+use rustler::{Encoder, Env, Error, Term, Binary, OwnedBinary};
 use wasmer_runtime::{self as runtime, Export, Memory};
 use wasmer_runtime_core::units::Pages;
 
@@ -209,19 +209,20 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
 
     if end > view.len() {
         return Err(Error::RaiseTerm(Box::new(
-            "Out of bound: The given binary will write out of memory",
+            "Out of bound: The given binary will read out of memory",
         )));
     }
 
-    let mut binary: Vec<u8> = Vec::new();
+    let mut binary: OwnedBinary = OwnedBinary::new(length).unwrap();
+
     for i in start..end {
         let value = view[i].get();
-        binary.push(value);
-        if value == 0 {
-            break;
-        }
+        binary[i - start] = value;
     }
-    Ok(binary.encode(env))
+
+    let final_binary: Binary = Binary::from_owned(binary, env);
+
+    Ok(final_binary.encode(env))
 }
 
 pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
@@ -229,7 +230,7 @@ pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Err
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
-    let binary: String = args[4].decode()?;
+    let binary: Binary = args[4].decode()?;
     let view = memory.view::<u8>();
 
     if offset + index + binary.len() > view.len() {
@@ -238,8 +239,8 @@ pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Err
         )));
     }
 
-    for (i, byte) in binary.into_bytes().into_iter().enumerate() {
-        view[offset + index + i].set(byte)
+    for (i, byte) in binary.into_iter().enumerate() {
+        view[offset + index + i].set(*byte)
     }
     Ok(atoms::ok().encode(env))
 }
