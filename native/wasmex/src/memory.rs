@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use rustler::resource::ResourceArc;
-use rustler::{Encoder, Env, Error, Term, Binary, OwnedBinary};
+use rustler::{Binary, Encoder, Env, Error, OwnedBinary, Term};
 use wasmer_runtime::{self as runtime, Export, Memory};
 use wasmer_runtime_core::units::Pages;
 
