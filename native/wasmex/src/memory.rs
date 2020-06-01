@@ -239,7 +239,7 @@ pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Err
         )));
     }
 
-    for (i, byte) in binary.into_iter().enumerate() {
+    for (i, byte) in binary.iter().enumerate() {
         view[offset + index + i].set(*byte)
     }
     Ok(atoms::ok().encode(env))
