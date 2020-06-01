@@ -37,7 +37,7 @@ defmodule Wasmex do
     }
   }
   {:ok, bytes } = File.read("wasmex_test.wasm")
-  {:ok, instance } = Wasmex.start_link.from_bytes(%{bytes: bytes, imports: imports})
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes, imports: imports})
 
   {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
