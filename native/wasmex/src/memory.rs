@@ -216,7 +216,7 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
     let mut binary: OwnedBinary = OwnedBinary::new(length).unwrap();
 
     let data = view[start..end]
-        .into_iter()
+        .iter()
         .map(|cell| cell.get())
         .collect::<Vec<u8>>();
 
