@@ -215,10 +215,12 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
 
     let mut binary: OwnedBinary = OwnedBinary::new(length).unwrap();
 
-    for i in start..end {
-        let value = view[i].get();
-        binary[i - start] = value;
-    }
+    let data = view[start..end]
+        .into_iter()
+        .map(|cell| cell.get())
+        .collect::<Vec<u8>>();
+
+    binary.copy_from_slice(&data);
 
     let final_binary: Binary = Binary::from_owned(binary, env);
 
