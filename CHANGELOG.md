@@ -71,6 +71,8 @@ Thanks to
 - Changed writing and reading strings from/to memory to be based on string length and not expect null-byte terminated strings.
   This allows for a more flexible memory handling when writing arbitrary data or strings containing null bytes to/from memory.
   Thanks @myobie for implementing this feature
+- Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
+  Thanks again, @myobie, for implementing this feature
 
 ## [0.2.0] - 2020-04-14
 
