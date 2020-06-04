@@ -191,7 +191,7 @@ defmodule Wasmex do
       
     params = case return_value do
       nil -> []
-      params -> [return_value]
+      _ -> [return_value]
     end
 
     :ok = Wasmex.Native.namespace_receive_callback_result(token, success, params)
