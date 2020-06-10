@@ -188,13 +188,14 @@ defmodule Wasmex do
       rescue
         e in RuntimeError -> {false, e.message}
       end
-      
-    params = case return_value do
-      nil -> []
-      _ -> [return_value]
-    end
 
-    :ok = Wasmex.Native.namespace_receive_callback_result(token, success, params)
+    return_values =
+      case return_value do
+        nil -> []
+        _ -> [return_value]
+      end
+
+    :ok = Wasmex.Native.namespace_receive_callback_result(token, success, return_values)
     {:noreply, state}
   end
 end
