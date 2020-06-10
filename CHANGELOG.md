@@ -74,6 +74,10 @@ Thanks to
 - Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
   Thanks again, @myobie, for implementing this feature
 
+### Fixed
+
+- `could not convert callback result param to expected return signature` error for a void callback.
+
 ## [0.2.0] - 2020-04-14
 
 This release brings is closer to a production-ready experience.
