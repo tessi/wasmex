@@ -72,6 +72,10 @@ Thanks to
   This allows for a more flexible memory handling when writing arbitrary data or strings containing null bytes to/from memory.
   Thanks @myobie for implementing this feature
 
+### Fixed
+
+- `could not convert callback result param to expected return signature` error for a void callback.
+
 ## [0.2.0] - 2020-04-14
 
 This release brings is closer to a production-ready experience.

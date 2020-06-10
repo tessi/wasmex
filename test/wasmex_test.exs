@@ -117,17 +117,18 @@ defmodule WasmexTest do
 
   test "read and manipulate memory in a callback" do
     imports = %{
-      env: %{
-        imported_sum3:
+      env:
+        TestHelper.default_imported_functions_env()
+        |> Map.put(
+          :imported_sum3,
           {:fn, [:i32, :i32, :i32], [:i32],
            fn context, a, b, c ->
              memory = Map.get(context, :memory)
              assert 42 == Wasmex.Memory.get(memory, :uint8, 0, 0)
              Wasmex.Memory.set(memory, :uint8, 0, 0, 23)
              a + b + c
-           end},
-        imported_sumf: {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
-      }
+           end}
+        )
     }
 
     instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
@@ -143,10 +144,7 @@ defmodule WasmexTest do
   describe "when instantiating with imports" do
     def create_instance_with_atom_imports(_context) do
       imports = %{
-        env: %{
-          imported_sum3: {:fn, [:i32, :i32, :i32], [:i32], fn _context, a, b, c -> a + b + c end},
-          imported_sumf: {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
-        }
+        env: TestHelper.default_imported_functions_env()
       }
 
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
@@ -154,6 +152,10 @@ defmodule WasmexTest do
     end
 
     setup [:create_instance_with_atom_imports]
+
+    test "call_function using_imported_void for void() -> () callback", %{instance: instance} do
+      assert {:ok, []} == Wasmex.call_function(instance, :using_imported_void, [])
+    end
 
     test "call_function using_imported_sum3", %{instance: instance} do
       assert {:ok, [44]} == Wasmex.call_function(instance, :using_imported_sum3, [23, 19, 2])
@@ -172,11 +174,7 @@ defmodule WasmexTest do
   describe "when instantiating with imports using string keys for the imports object" do
     def create_instance_with_string_imports(_context) do
       imports = %{
-        "env" => %{
-          "imported_sum3" =>
-            {:fn, [:i32, :i32, :i32], [:i32], fn _context, a, b, c -> a + b + c end},
-          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
-        }
+        "env" => TestHelper.default_imported_functions_env_stringified()
       }
 
       instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
@@ -199,7 +197,8 @@ defmodule WasmexTest do
         env: %{
           imported_sum3:
             {:fn, [:i32, :i32, :i32], [:i32], fn _context, _a, _b, _c -> raise("oops") end},
-          imported_sumf: {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> raise("oops") end}
+          imported_sumf: {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> raise("oops") end},
+          imported_void: {:fn, [], [], fn _context -> raise("oops") end}
         }
       }
 

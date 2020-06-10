@@ -25,11 +25,7 @@ defmodule Wasmex.InstanceTest do
       bytes = File.read!(TestHelper.wasm_import_test_file_path())
 
       imports = %{
-        "env" => %{
-          "imported_sum3" =>
-            {:fn, [:i32, :i32, :i32], [:i32], fn _context, a, b, c -> a + b + c end},
-          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end}
-        }
+        "env" => TestHelper.default_imported_functions_env_stringified()
       }
 
       {:ok, _} = Wasmex.Instance.from_bytes(bytes, imports)
@@ -39,10 +35,12 @@ defmodule Wasmex.InstanceTest do
       bytes = File.read!(TestHelper.wasm_import_test_file_path())
 
       imports = %{
-        "env" => %{
-          "imported_sum3" => {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end},
-          "imported_sumf" => {:fn, [:f32], [:f32], fn _context, a -> a end}
-        }
+        "env" =>
+          TestHelper.default_imported_functions_env_stringified()
+          |> Map.merge(%{
+            "imported_sum3" => {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end},
+            "imported_sumf" => {:fn, [:f32], [:f32], fn _context, a -> a end}
+          })
       }
 
       {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
@@ -62,7 +60,8 @@ defmodule Wasmex.InstanceTest do
           "imported_sum3" =>
             {:fn, [:i32, :i32, :i32, :i32], [:i32], fn _context, a, b, c, d -> a + b + c + d end},
           "imported_sumf" =>
-            {:fn, [:f32, :f32, :f32], [:f32], fn _context, a, b, c -> a + b + c end}
+            {:fn, [:f32, :f32, :f32], [:f32], fn _context, a, b, c -> a + b + c end},
+          "imported_void" => {:fn, [:i32], [:i32], fn _context, a -> a end}
         }
       }
 
@@ -73,17 +72,22 @@ defmodule Wasmex.InstanceTest do
 
       assert reason =~
                "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F32, F32, F32], returns: [F32] }"
+
+      assert reason =~
+               "IncorrectImportSignature { namespace: \"env\", name: \"imported_void\", expected: FuncSig { params: [], returns: [] }, found: FuncSig { params: [I32], returns: [I32] }"
     end
 
     test "can not instantiate an Instance with imports having wrong params types" do
       bytes = File.read!(TestHelper.wasm_import_test_file_path())
 
       imports = %{
-        "env" => %{
-          "imported_sum3" =>
-            {:fn, [:i32, :i32, :i32], [:i64], fn _context, a, b, c -> a + b + c end},
-          "imported_sumf" => {:fn, [:f64, :f32], [:i32], fn _context, a, b -> a + b end}
-        }
+        "env" =>
+          TestHelper.default_imported_functions_env_stringified()
+          |> Map.merge(%{
+            "imported_sum3" =>
+              {:fn, [:i32, :i32, :i32], [:i64], fn _context, a, b, c -> a + b + c end},
+            "imported_sumf" => {:fn, [:f64, :f32], [:i32], fn _context, a, b -> a + b end}
+          })
       }
 
       {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
@@ -150,11 +154,13 @@ defmodule Wasmex.InstanceTest do
       bytes = File.read!(TestHelper.wasm_import_test_file_path())
 
       imports = %{
-        "env" => %{
-          "imported_sum3" =>
-            {:fn, [:i32, :i32, :i32], [:i32], fn _context, _a, _b, _c -> 2.3 end},
-          "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> 4 end}
-        }
+        "env" =>
+          TestHelper.default_imported_functions_env_stringified()
+          |> Map.merge(%{
+            "imported_sum3" =>
+              {:fn, [:i32, :i32, :i32], [:i32], fn _context, _a, _b, _c -> 2.3 end},
+            "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> 4 end}
+          })
       }
 
       {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
