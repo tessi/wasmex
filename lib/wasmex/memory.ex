@@ -161,12 +161,12 @@ defmodule Wasmex.Memory do
     Wasmex.Native.memory_grow(resource, size, offset, pages)
   end
 
-  @spec get(t, pos_integer()) :: number()
+  @spec get(t, non_neg_integer()) :: number()
   def get(%__MODULE__{} = memory, index) do
     get(memory, memory.size, memory.offset, index)
   end
 
-  @spec get(t, atom(), non_neg_integer(), pos_integer()) :: number()
+  @spec get(t, atom(), non_neg_integer(), non_neg_integer()) :: number()
   def get(%__MODULE__{resource: resource}, size, offset, index) do
     Wasmex.Native.memory_get(resource, size, offset, index)
   end
