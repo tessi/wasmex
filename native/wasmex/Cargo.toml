@@ -17,5 +17,5 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.21.1"
 lazy_static = "1.0"
-wasmer-runtime = { git = "https://github.com/wasmerio/wasmer", branch = "master" }
-wasmer-runtime-core = { git = "https://github.com/wasmerio/wasmer", branch = "master", features = ["dynamicfunc-fat-closures"] }
+wasmer = { git = "ssh://git@github.com/wasmerio/wasmer-reborn.git" }
+wasmer-runtime = { git = "ssh://git@github.com/wasmerio/wasmer-reborn.git" }
