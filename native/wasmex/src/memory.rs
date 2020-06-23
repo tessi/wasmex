@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 use rustler::resource::ResourceArc;
 use rustler::{Binary, Encoder, Env, Error, OwnedBinary, Term};
-use wasmer_runtime::{self as runtime, Export, Memory};
-use wasmer_runtime_core::units::Pages;
+
+use wasmer::{ExternType, Instance, Memory, Pages};
 
 use crate::{atoms, instance};
 
@@ -87,7 +87,7 @@ fn extract_params<'a>(
     Ok((resource, size, offset))
 }
 
-fn view_length(memory: &runtime::Memory, offset: usize, element_size: ElementSize) -> usize {
+fn view_length(memory: &Memory, offset: usize, element_size: ElementSize) -> usize {
     match element_size {
         ElementSize::Uint8 => memory.view::<u8>()[offset..].len(),
         ElementSize::Int8 => memory.view::<i8>()[offset..].len(),
@@ -108,7 +108,7 @@ pub fn grow<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
 }
 
 /// Grows the memory by the given amount of pages. Returns the old page count.
-fn grow_by_pages(memory: &runtime::Memory, number_of_pages: u32) -> Result<u32, Error> {
+fn grow_by_pages(memory: &Memory, number_of_pages: u32) -> Result<u32, Error> {
     memory
         .grow(Pages(number_of_pages))
         .map(|previous_pages| previous_pages.0)
@@ -126,7 +126,7 @@ pub fn get<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
 
 fn get_value<'a>(
     env: &Env<'a>,
-    memory: &runtime::Memory,
+    memory: &Memory,
     offset: usize,
     index: usize,
     element_size: ElementSize,
@@ -153,7 +153,7 @@ pub fn set<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
 }
 
 fn set_value<'a>(
-    memory: &runtime::Memory,
+    memory: &Memory,
     offset: usize,
     index: usize,
     element_size: ElementSize,
@@ -171,7 +171,7 @@ fn set_value<'a>(
 }
 
 fn bounds_checked_index(
-    memory: &runtime::Memory,
+    memory: &Memory,
     size: ElementSize,
     offset: usize,
     index: usize,
@@ -186,11 +186,11 @@ fn bounds_checked_index(
     Ok(index)
 }
 
-fn memory_from_instance(instance: &runtime::Instance) -> Result<runtime::Memory, Error> {
+fn memory_from_instance(instance: &Instance) -> Result<Memory, Error> {
     instance
         .exports()
         .find_map(|(_, export)| match export {
-            Export::Memory(memory) => Some(memory),
+            ExternType::Memory(memory) => Ok(memory),
             _ => None,
         })
         .ok_or_else(|| Error::RaiseTerm(Box::new("The WebAssembly module has no exported memory.")))

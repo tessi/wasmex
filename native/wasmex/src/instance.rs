@@ -8,13 +8,14 @@ use rustler::{
 };
 use std::sync::Mutex;
 use std::thread;
-use wasmer_runtime::{self as runtime, imports};
-use wasmer_runtime_core::{import::Namespace, types::Type};
+
+use wasmer::imports;
+use wasmer::{Instance, LikeNamespace, Module, Store, Type, Val};
 
 use crate::{atoms, functions, namespace, printable_term_type::PrintableTermType};
 
 pub struct InstanceResource {
-    pub instance: Mutex<runtime::Instance>,
+    pub instance: Mutex<Instance>,
 }
 
 // creates a new instance from the given WASM bytes
@@ -31,10 +32,13 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let mut import_object = imports! {};
     for (name, namespace_definition) in imports {
         let name = name.decode::<String>()?;
-        let namespace: Namespace = namespace::create_from_definition(&name, namespace_definition)?;
+        let namespace: dyn LikeNamespace =
+            namespace::create_from_definition(&name, namespace_definition)?;
         import_object.register(name, namespace);
     }
-    let instance = match runtime::instantiate(bytes, &import_object) {
+    let store = Store::default();
+    let module = Module::new(&store, &bytes);
+    let instance = match Instance::new(module, import_object) {
         Ok(instance) => instance,
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
     };
@@ -111,12 +115,12 @@ fn execute_function<'a>(
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
     for value in results {
         return_values.push(match value {
-            runtime::Value::I32(i) => i.encode(thread_env),
-            runtime::Value::I64(i) => i.encode(thread_env),
-            runtime::Value::F32(i) => i.encode(thread_env),
-            runtime::Value::F64(i) => i.encode(thread_env),
+            Val::I32(i) => i.encode(thread_env),
+            Val::I64(i) => i.encode(thread_env),
+            Val::F32(i) => i.encode(thread_env),
+            Val::F64(i) => i.encode(thread_env),
             // encoding V128 is not yet supported by rustler
-            runtime::Value::V128(_) => {
+            Val::V128(_) => {
                 return make_error_tuple(&thread_env, &"unable_to_return_v128_type", from)
             }
         })
@@ -140,7 +144,7 @@ fn execute_function<'a>(
 pub fn decode_function_param_terms(
     params: &[Type],
     function_param_terms: Vec<Term>,
-) -> Result<Vec<runtime::Value>, String> {
+) -> Result<Vec<Val>, String> {
     if 0 != params.len() as isize - function_param_terms.len() as isize {
         return Err(format!(
             "number of params does not match. expected {}, got {}",
@@ -149,14 +153,14 @@ pub fn decode_function_param_terms(
         ));
     }
 
-    let mut function_params = Vec::<runtime::Value>::with_capacity(params.len() as usize);
+    let mut function_params = Vec::<Val>::with_capacity(params.len() as usize);
     for (nth, (param, given_param)) in params
         .iter()
         .zip(function_param_terms.into_iter())
         .enumerate()
     {
         let value = match (param, given_param.get_type()) {
-            (Type::I32, TermType::Number) => runtime::Value::I32(match given_param.decode() {
+            (Type::I32, TermType::Number) => Val::I32(match given_param.decode() {
                 Ok(value) => value,
                 Err(_) => {
                     return Err(format!(
@@ -165,7 +169,7 @@ pub fn decode_function_param_terms(
                     ));
                 }
             }),
-            (Type::I64, TermType::Number) => runtime::Value::I64(match given_param.decode() {
+            (Type::I64, TermType::Number) => Val::I64(match given_param.decode() {
                 Ok(value) => value,
                 Err(_) => {
                     return Err(format!(
@@ -174,27 +178,25 @@ pub fn decode_function_param_terms(
                     ));
                 }
             }),
-            (Type::F32, TermType::Number) => {
-                runtime::Value::F32(match given_param.decode::<f32>() {
-                    Ok(value) => {
-                        if value.is_finite() {
-                            value
-                        } else {
-                            return Err(format!(
-                                "Cannot convert argument #{} to a WebAssembly f32 value.",
-                                nth + 1
-                            ));
-                        }
-                    }
-                    Err(_) => {
+            (Type::F32, TermType::Number) => Val::F32(match given_param.decode::<f32>() {
+                Ok(value) => {
+                    if value.is_finite() {
+                        value
+                    } else {
                         return Err(format!(
                             "Cannot convert argument #{} to a WebAssembly f32 value.",
                             nth + 1
                         ));
                     }
-                })
-            }
-            (Type::F64, TermType::Number) => runtime::Value::F64(match given_param.decode() {
+                }
+                Err(_) => {
+                    return Err(format!(
+                        "Cannot convert argument #{} to a WebAssembly f32 value.",
+                        nth + 1
+                    ));
+                }
+            }),
+            (Type::F64, TermType::Number) => Val::F64(match given_param.decode() {
                 Ok(value) => value,
                 Err(_) => {
                     return Err(format!(

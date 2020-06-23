@@ -4,13 +4,10 @@ use rustler::{
     resource::ResourceArc, types::atom::is_truthy, types::tuple, types::ListIterator, Atom,
     Encoder, Env, Error, MapIterator, OwnedEnv, Term,
 };
-use std::sync::{Arc, Condvar, Mutex};
-use wasmer_runtime::{self as runtime};
-use wasmer_runtime_core::{
-    import::Namespace, typed_func::DynamicFunc, types::FuncSig, types::Type, types::Value, vm::Ctx,
-};
+use std::sync::{Condvar, Mutex};
+use wasmer::{namespace, Exports, Function, FunctionType, RuntimeError, Store, Type, Val};
 
-use crate::{atoms, instance::decode_function_param_terms, memory::MemoryResource};
+use crate::{atoms, instance::decode_function_param_terms};
 
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
@@ -19,11 +16,11 @@ pub struct CallbackTokenResource {
 pub struct CallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<Type>,
-    pub return_values: Mutex<Option<(bool, Vec<runtime::Value>)>>,
+    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
 }
 
-pub fn create_from_definition(namespace_name: &str, definition: Term) -> Result<Namespace, Error> {
-    let mut namespace = Namespace::new();
+pub fn create_from_definition(namespace_name: &str, definition: Term) -> Result<Exports, Error> {
+    let mut namespace = namespace!();
     let definition: MapIterator = definition.decode()?;
     for (name, import) in definition {
         let name = name.decode::<String>()?;
@@ -33,7 +30,7 @@ pub fn create_from_definition(namespace_name: &str, definition: Term) -> Result<
 }
 
 fn create_import(
-    namespace: &mut Namespace,
+    namespace: &mut Exports,
     namespace_name: &str,
     import_name: &str,
     definition: Term,
@@ -94,7 +91,7 @@ fn create_imported_function(
     namespace_name: String,
     import_name: String,
     definition: Term,
-) -> Result<DynamicFunc<'static>, Error> {
+) -> Result<Function, Error> {
     let pid = definition.get_env().pid();
 
     let import_tuple = tuple::get_tuple(definition)?;
@@ -116,11 +113,12 @@ fn create_imported_function(
         .map(term_to_arg_type)
         .collect::<Result<Vec<Type>, _>>()?;
 
-    let signature = Arc::new(FuncSig::new(params_signature, results_signature.clone()));
-
-    Ok(DynamicFunc::new(
+    let store = Store::default();
+    let signature = FunctionType::new(params_signature, results_signature);
+    let function = Function::new_dynamic(
+        store,
         signature,
-        move |ctx: &mut Ctx, params: &[Value]| -> Vec<runtime::Value> {
+        move |params: &[Val]| -> Result<Vec<Val>, RuntimeError> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
                 token: CallbackToken {
                     continue_signal: Condvar::new(),
@@ -134,31 +132,30 @@ fn create_imported_function(
                 let mut callback_params: Vec<Term> = Vec::with_capacity(params.len());
                 for value in params {
                     callback_params.push(match value {
-                        runtime::Value::I32(i) => i.encode(env),
-                        runtime::Value::I64(i) => i.encode(env),
-                        runtime::Value::F32(i) => i.encode(env),
-                        runtime::Value::F64(i) => i.encode(env),
+                        Val::I32(i) => i.encode(env),
+                        Val::I64(i) => i.encode(env),
+                        Val::F32(i) => i.encode(env),
+                        Val::F64(i) => i.encode(env),
                         // encoding V128 is not yet supported by rustler
-                        runtime::Value::V128(_) => {
-                            (atoms::error(), "unable_to_convert_v128_type").encode(env)
-                        }
+                        Val::V128(_) => (atoms::error(), "unable_to_convert_v128_type").encode(env),
                     })
                 }
                 // Callback context will contain memory (plus globals, tables etc later).
                 // This will allow Elixir callback to operate on these objects.
                 let callback_context = Term::map_new(env);
 
-                let memory_resource = ResourceArc::new(MemoryResource {
-                    memory: Mutex::new(ctx.memory(0).clone()),
-                });
-                let callback_context = match Term::map_put(
-                    callback_context,
-                    atoms::memory().encode(env),
-                    memory_resource.encode(env),
-                ) {
-                    Ok(map) => map,
-                    _ => unreachable!(),
-                };
+                // TODO: re-active the following block, after we get access to memory again
+                // let memory_resource = ResourceArc::new(MemoryResource {
+                //     memory: Mutex::new(ctx.memory(0).clone()),
+                // });
+                // let callback_context = match Term::map_put(
+                //     callback_context,
+                //     atoms::memory().encode(env),
+                //     memory_resource.encode(env),
+                // ) {
+                //     Ok(map) => map,
+                //     _ => unreachable!(),
+                // };
                 (
                     atoms::invoke_callback(),
                     namespace_name.clone(),
@@ -176,7 +173,7 @@ fn create_imported_function(
                 result = callback_token.token.continue_signal.wait(result).unwrap();
             }
 
-            let result: &(bool, Vec<runtime::Value>) = result
+            let result: &(bool, Vec<Val>) = result
                 .as_ref()
                 .expect("expect callback token to contain a result");
             match result {
@@ -184,7 +181,9 @@ fn create_imported_function(
                 (false, _) => panic!("the elixir callback threw an exception"),
             }
         },
-    ))
+    );
+
+    Ok(function)
 }
 
 // called from elixir, params
