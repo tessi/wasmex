@@ -18,4 +18,4 @@ crate-type = ["dylib"]
 rustler = "0.21.1"
 lazy_static = "1.0"
 wasmer = { git = "ssh://git@github.com/wasmerio/wasmer-reborn.git" }
-wasmer-runtime = { git = "ssh://git@github.com/wasmerio/wasmer-reborn.git" }
+wasmer-vm = { git = "ssh://git@github.com/wasmerio/wasmer-reborn.git" }
