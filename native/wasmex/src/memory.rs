@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use rustler::resource::ResourceArc;
-use rustler::{Binary, Encoder, Env, Error, OwnedBinary, Term};
+use rustler::{Binary, Encoder, Env as RustlerEnv, Error, OwnedBinary, Term};
 
 use wasmer::{Extern, Instance, Memory, Pages};
 
@@ -23,7 +23,7 @@ pub enum ElementSize {
     Int32,
 }
 
-pub fn from_instance<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn from_instance<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let instance_resource: ResourceArc<instance::InstanceResource> = args[0].decode()?;
     let instance = instance_resource.instance.lock().unwrap();
     let memory = memory_from_instance(&*instance)?;
@@ -54,7 +54,7 @@ fn size_from_term(term: &Term) -> Result<ElementSize, Error> {
     Ok(size)
 }
 
-pub fn bytes_per_element<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn bytes_per_element<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (_resource, size, _offset) = extract_params(args)?;
     let bytes_count = byte_size(size);
     Ok(bytes_count.encode(env))
@@ -71,7 +71,7 @@ fn byte_size(element_size: ElementSize) -> usize {
     }
 }
 
-pub fn length<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn length<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let length = view_length(&memory, offset, size);
@@ -98,7 +98,7 @@ fn view_length(memory: &Memory, offset: usize, element_size: ElementSize) -> usi
     }
 }
 
-pub fn grow<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn grow<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, _size, _offset) = extract_params(args)?;
     let pages: u32 = args[3].decode()?;
 
@@ -115,7 +115,7 @@ fn grow_by_pages(memory: &Memory, number_of_pages: u32) -> Result<u32, Error> {
         .map_err(|err| Error::RaiseTerm(Box::new(format!("Failed to grow the memory: {}.", err))))
 }
 
-pub fn get<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn get<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
@@ -125,7 +125,7 @@ pub fn get<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
 }
 
 fn get_value<'a>(
-    env: &Env<'a>,
+    env: &RustlerEnv<'a>,
     memory: &Memory,
     offset: usize,
     index: usize,
@@ -142,7 +142,7 @@ fn get_value<'a>(
     }
 }
 
-pub fn set<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn set<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
@@ -186,7 +186,7 @@ fn bounds_checked_index(
     Ok(index)
 }
 
-fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
+pub fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
     instance
         .exports
         .iter()
@@ -199,7 +199,7 @@ fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
         )))
 }
 
-pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn read_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;
@@ -230,7 +230,7 @@ pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
     Ok(final_binary.encode(env))
 }
 
-pub fn write_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn write_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let (resource, size, offset) = extract_params(args)?;
     let memory = resource.memory.lock().unwrap();
     let index: usize = args[3].decode()?;

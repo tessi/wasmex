@@ -4,15 +4,17 @@ use rustler::{
     resource::ResourceArc,
     types::binary::Binary,
     types::tuple::make_tuple,
-    {Encoder, Env, Error, MapIterator, Term},
+    {Encoder, Env as RustlerEnv, Error, MapIterator, Term},
 };
 use std::sync::Mutex;
 use std::thread;
 
-use wasmer::imports;
 use wasmer::{Instance, Module, Store, Type, Val};
 
-use crate::{atoms, functions, namespace, printable_term_type::PrintableTermType};
+use crate::{
+    atoms, environment::Environment, functions, memory::memory_from_instance,
+    printable_term_type::PrintableTermType,
+};
 
 pub struct InstanceResource {
     pub instance: Mutex<Instance>,
@@ -24,17 +26,13 @@ pub struct InstanceResource {
 // * bytes (binary): the bytes of the WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {TODO: signature}}}
-pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn new_from_bytes<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let binary: Binary = args[0].decode()?;
     let imports: MapIterator = args[1].decode()?;
     let bytes = binary.as_slice();
 
-    let mut import_object = imports! {};
-    for (name, namespace_definition) in imports {
-        let name = name.decode::<String>()?;
-        let namespace = namespace::create_from_definition(&name, namespace_definition)?;
-        import_object.register(name, namespace);
-    }
+    let mut environment = Environment::new();
+    let import_object = environment.import_object(imports)?;
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
         Ok(module) => module,
@@ -46,6 +44,8 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
         Ok(instance) => instance,
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
     };
+    let memory = memory_from_instance(&instance)?.clone();
+    environment.set_memory(memory);
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
@@ -53,7 +53,10 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     Ok((atoms::ok(), resource).encode(env))
 }
 
-pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn function_export_exists<'a>(
+    env: RustlerEnv<'a>,
+    args: &[Term<'a>],
+) -> Result<Term<'a>, Error> {
     let resource: ResourceArc<InstanceResource> = args[0].decode()?;
     let function_name: String = args[1].decode()?;
     let instance = resource.instance.lock().unwrap();
@@ -61,7 +64,10 @@ pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     Ok(functions::exists(&instance, &function_name).encode(env))
 }
 
-pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn call_exported_function<'a>(
+    env: RustlerEnv<'a>,
+    args: &[Term<'a>],
+) -> Result<Term<'a>, Error> {
     let pid = env.pid();
     // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
@@ -81,7 +87,7 @@ pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
 }
 
 fn execute_function<'a>(
-    thread_env: Env<'a>,
+    thread_env: RustlerEnv<'a>,
     resource: ResourceArc<InstanceResource>,
     function_name: String,
     function_params: SavedTerm,
@@ -113,7 +119,13 @@ fn execute_function<'a>(
 
     let results = match function.call(function_params.as_slice()) {
         Ok(results) => results,
-        Err(e) => return make_error_tuple(&thread_env, &format!("Runtime Error `{}`.", e), from),
+        Err(e) => {
+            return make_error_tuple(
+                &thread_env,
+                &format!("Error during function excecution: `{}`.", e),
+                from,
+            )
+        }
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
     for value in results.to_vec() {
@@ -295,7 +307,7 @@ pub fn map_to_wasmer_values(values: Vec<RustValue>) -> Vec<Val> {
         .collect()
 }
 
-fn make_error_tuple<'a>(env: &Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
+fn make_error_tuple<'a>(env: &RustlerEnv<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
     make_tuple(
         *env,
         &[

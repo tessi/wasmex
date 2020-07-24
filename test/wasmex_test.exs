@@ -212,7 +212,9 @@ defmodule WasmexTest do
       instance: instance
     } do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
-      assert reason =~ "error: \"the elixir callback threw an exception\""
+
+      assert reason =~
+               "Error during function excecution: `RuntimeError: the elixir callback threw an exception`."
     end
   end
 end

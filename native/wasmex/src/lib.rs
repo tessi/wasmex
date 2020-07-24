@@ -1,4 +1,5 @@
 pub mod atoms;
+pub mod environment;
 pub mod functions;
 pub mod instance;
 pub mod memory;
@@ -33,6 +34,6 @@ rustler::rustler_export_nifs! {
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(instance::InstanceResource, env);
     resource_struct_init!(memory::MemoryResource, env);
-    resource_struct_init!(namespace::CallbackTokenResource, env);
+    resource_struct_init!(environment::CallbackTokenResource, env);
     true
 }
