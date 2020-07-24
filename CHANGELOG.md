@@ -73,6 +73,7 @@ Thanks to
   Thanks @myobie for implementing this feature
 - Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
   Thanks again, @myobie, for implementing this feature
+- Updated the wasmer version, now supporting their full rewrite.
 
 ### Fixed
 
