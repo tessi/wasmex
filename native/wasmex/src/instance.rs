@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::thread;
 
 use wasmer::imports;
-use wasmer::{Instance, LikeNamespace, Module, Store, Type, Val};
+use wasmer::{Instance, Module, Store, Type, Val};
 
 use crate::{atoms, functions, namespace, printable_term_type::PrintableTermType};
 
@@ -32,13 +32,17 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let mut import_object = imports! {};
     for (name, namespace_definition) in imports {
         let name = name.decode::<String>()?;
-        let namespace: dyn LikeNamespace =
-            namespace::create_from_definition(&name, namespace_definition)?;
+        let namespace = namespace::create_from_definition(&name, namespace_definition)?;
         import_object.register(name, namespace);
     }
     let store = Store::default();
-    let module = Module::new(&store, &bytes);
-    let instance = match Instance::new(module, import_object) {
+    let module = match Module::new(&store, &bytes) {
+        Ok(module) => module,
+        Err(e) => {
+            return Ok((atoms::error(), format!("Could not compule module: {:?}", e)).encode(env))
+        }
+    };
+    let instance = match Instance::new(&module, &import_object) {
         Ok(instance) => instance,
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
     };
@@ -102,18 +106,17 @@ fn execute_function<'a>(
             )
         }
     };
-    let function_params =
-        match decode_function_param_terms(&function.signature().params(), given_params) {
-            Ok(vec) => vec,
-            Err(reason) => return make_error_tuple(&thread_env, &reason, from),
-        };
+    let function_params = match decode_function_param_terms(&function.ty().params(), given_params) {
+        Ok(vec) => map_to_wasmer_values(vec),
+        Err(reason) => return make_error_tuple(&thread_env, &reason, from),
+    };
 
     let results = match function.call(function_params.as_slice()) {
         Ok(results) => results,
         Err(e) => return make_error_tuple(&thread_env, &format!("Runtime Error `{}`.", e), from),
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
-    for value in results {
+    for value in results.to_vec() {
         return_values.push(match value {
             Val::I32(i) => i.encode(thread_env),
             Val::I64(i) => i.encode(thread_env),
@@ -122,6 +125,12 @@ fn execute_function<'a>(
             // encoding V128 is not yet supported by rustler
             Val::V128(_) => {
                 return make_error_tuple(&thread_env, &"unable_to_return_v128_type", from)
+            }
+            Val::FuncRef(_) => {
+                return make_error_tuple(&thread_env, &"unable_to_return_func_ref_type", from)
+            }
+            Val::ExternRef(_) => {
+                return make_error_tuple(&thread_env, &"unable_to_return_extern_ref_type", from)
             }
         })
     }
@@ -141,10 +150,32 @@ fn execute_function<'a>(
     )
 }
 
+#[derive(Clone, Copy)]
+union RustValueStore {
+    i32: i32,
+    i64: i64,
+    f32: f32,
+    f64: f64,
+}
+
+#[derive(Clone)]
+enum RustValueTag {
+    I32,
+    I64,
+    F32,
+    F64,
+}
+
+#[derive(Clone)]
+pub struct RustValue {
+    tag: RustValueTag,
+    store: RustValueStore,
+}
+
 pub fn decode_function_param_terms(
     params: &[Type],
     function_param_terms: Vec<Term>,
-) -> Result<Vec<Val>, String> {
+) -> Result<Vec<RustValue>, String> {
     if 0 != params.len() as isize - function_param_terms.len() as isize {
         return Err(format!(
             "number of params does not match. expected {}, got {}",
@@ -153,58 +184,78 @@ pub fn decode_function_param_terms(
         ));
     }
 
-    let mut function_params = Vec::<Val>::with_capacity(params.len() as usize);
+    let mut function_params = Vec::<RustValue>::with_capacity(params.len() as usize);
     for (nth, (param, given_param)) in params
         .iter()
         .zip(function_param_terms.into_iter())
         .enumerate()
     {
         let value = match (param, given_param.get_type()) {
-            (Type::I32, TermType::Number) => Val::I32(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly i32 value.",
-                        nth + 1
-                    ));
-                }
-            }),
-            (Type::I64, TermType::Number) => Val::I64(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly i64 value.",
-                        nth + 1
-                    ));
-                }
-            }),
-            (Type::F32, TermType::Number) => Val::F32(match given_param.decode::<f32>() {
-                Ok(value) => {
-                    if value.is_finite() {
-                        value
-                    } else {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f32 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly f32 value.",
-                        nth + 1
-                    ));
-                }
-            }),
-            (Type::F64, TermType::Number) => Val::F64(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly f64 value.",
-                        nth + 1
-                    ));
-                }
-            }),
+            (Type::I32, TermType::Number) => RustValue {
+                tag: RustValueTag::I32,
+                store: RustValueStore {
+                    i32: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly i32 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
+            (Type::I64, TermType::Number) => RustValue {
+                tag: RustValueTag::I64,
+                store: RustValueStore {
+                    i64: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly i64 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
+            (Type::F32, TermType::Number) => RustValue {
+                tag: RustValueTag::F32,
+                store: RustValueStore {
+                    f32: (match given_param.decode::<f32>() {
+                        Ok(value) => {
+                            if value.is_finite() {
+                                value
+                            } else {
+                                return Err(format!(
+                                    "Cannot convert argument #{} to a WebAssembly f32 value.",
+                                    nth + 1
+                                ));
+                            }
+                        }
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly f32 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
+            (Type::F64, TermType::Number) => RustValue {
+                tag: RustValueTag::F64,
+                store: RustValueStore {
+                    f64: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly f64 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
             (_, term_type) => {
                 return Err(format!(
                     "Cannot convert argument #{} to a WebAssembly value. Given `{:?}`.",
@@ -216,6 +267,32 @@ pub fn decode_function_param_terms(
         function_params.push(value);
     }
     Ok(function_params)
+}
+
+pub fn map_to_wasmer_values(values: Vec<RustValue>) -> Vec<Val> {
+    // safety: We access union type fields which may be unsafe if the value is not initialized.
+    //         However, we only ever create tagges RustValues with a matching value - they are always initialized.
+    values
+        .into_iter()
+        .map(|value| match value {
+            RustValue {
+                tag: RustValueTag::I32,
+                store: s,
+            } => Val::I32(unsafe { s.i32 }),
+            RustValue {
+                tag: RustValueTag::I64,
+                store: s,
+            } => Val::I64(unsafe { s.i64 }),
+            RustValue {
+                tag: RustValueTag::F32,
+                store: s,
+            } => Val::F32(unsafe { s.f32 }),
+            RustValue {
+                tag: RustValueTag::F64,
+                store: s,
+            } => Val::F64(unsafe { s.f64 }),
+        })
+        .collect()
 }
 
 fn make_error_tuple<'a>(env: &Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {

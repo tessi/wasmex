@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use rustler::resource::ResourceArc;
 use rustler::{Binary, Encoder, Env, Error, OwnedBinary, Term};
 
-use wasmer::{ExternType, Instance, Memory, Pages};
+use wasmer::{Extern, Instance, Memory, Pages};
 
 use crate::{atoms, instance};
 
@@ -28,7 +28,7 @@ pub fn from_instance<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     let instance = instance_resource.instance.lock().unwrap();
     let memory = memory_from_instance(&*instance)?;
     let memory_resource = ResourceArc::new(MemoryResource {
-        memory: Mutex::new(memory),
+        memory: Mutex::new(memory.to_owned()),
     });
 
     Ok((atoms::ok(), memory_resource).encode(env))
@@ -186,14 +186,17 @@ fn bounds_checked_index(
     Ok(index)
 }
 
-fn memory_from_instance(instance: &Instance) -> Result<Memory, Error> {
+fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
     instance
-        .exports()
+        .exports
+        .iter()
         .find_map(|(_, export)| match export {
-            ExternType::Memory(memory) => Ok(memory),
+            Extern::Memory(memory) => Some(memory),
             _ => None,
         })
-        .ok_or_else(|| Error::RaiseTerm(Box::new("The WebAssembly module has no exported memory.")))
+        .ok_or(Error::RaiseTerm(Box::new(
+            "The WebAssembly module has no exported memory.",
+        )))
 }
 
 pub fn read_binary<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {

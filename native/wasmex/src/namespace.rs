@@ -7,7 +7,10 @@ use rustler::{
 use std::sync::{Condvar, Mutex};
 use wasmer::{namespace, Exports, Function, FunctionType, RuntimeError, Store, Type, Val};
 
-use crate::{atoms, instance::decode_function_param_terms};
+use crate::{
+    atoms,
+    instance::{decode_function_param_terms, map_to_wasmer_values, RustValue},
+};
 
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
@@ -16,7 +19,7 @@ pub struct CallbackTokenResource {
 pub struct CallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<Type>,
-    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
+    pub return_values: Mutex<Option<(bool, Vec<RustValue>)>>,
 }
 
 pub fn create_from_definition(namespace_name: &str, definition: Term) -> Result<Exports, Error> {
@@ -114,10 +117,10 @@ fn create_imported_function(
         .collect::<Result<Vec<Type>, _>>()?;
 
     let store = Store::default();
-    let signature = FunctionType::new(params_signature, results_signature);
-    let function = Function::new_dynamic(
-        store,
-        signature,
+    let signature = FunctionType::new(params_signature, results_signature.clone());
+    let function = Function::new(
+        &store,
+        &signature,
         move |params: &[Val]| -> Result<Vec<Val>, RuntimeError> {
             let callback_token = ResourceArc::new(CallbackTokenResource {
                 token: CallbackToken {
@@ -138,6 +141,12 @@ fn create_imported_function(
                         Val::F64(i) => i.encode(env),
                         // encoding V128 is not yet supported by rustler
                         Val::V128(_) => (atoms::error(), "unable_to_convert_v128_type").encode(env),
+                        Val::ExternRef(_) => {
+                            (atoms::error(), "unable_to_convert_extern_ref_type").encode(env)
+                        }
+                        Val::FuncRef(_) => {
+                            (atoms::error(), "unable_to_convert_func_ref_type").encode(env)
+                        }
                     })
                 }
                 // Callback context will contain memory (plus globals, tables etc later).
@@ -173,11 +182,11 @@ fn create_imported_function(
                 result = callback_token.token.continue_signal.wait(result).unwrap();
             }
 
-            let result: &(bool, Vec<Val>) = result
+            let result: &(bool, Vec<RustValue>) = result
                 .as_ref()
                 .expect("expect callback token to contain a result");
             match result {
-                (true, v) => v.to_vec(),
+                (true, v) => Ok(map_to_wasmer_values(v.to_vec())),
                 (false, _) => panic!("the elixir callback threw an exception"),
             }
         },
