@@ -870,30 +870,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
-name = "wasm-common"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
-dependencies = [
- "cranelift-entity",
- "serde",
-]
-
-[[package]]
 name = "wasmer"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "cfg-if",
  "indexmap",
  "more-asserts",
  "target-lexicon",
  "thiserror",
- "wasm-common",
  "wasmer-compiler",
  "wasmer-compiler-cranelift",
  "wasmer-engine",
  "wasmer-engine-jit",
  "wasmer-engine-native",
+ "wasmer-types",
  "wasmer-vm",
  "wat",
  "winapi",
@@ -901,8 +892,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "enumset",
  "raw-cpuid",
@@ -911,15 +902,15 @@ dependencies = [
  "smallvec",
  "target-lexicon",
  "thiserror",
- "wasm-common",
+ "wasmer-types",
  "wasmer-vm",
  "wasmparser",
 ]
 
 [[package]]
 name = "wasmer-compiler-cranelift"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -928,15 +919,15 @@ dependencies = [
  "rayon",
  "serde",
  "tracing",
- "wasm-common",
  "wasmer-compiler",
+ "wasmer-types",
  "wasmer-vm",
 ]
 
 [[package]]
 name = "wasmer-engine"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "backtrace",
  "bincode",
@@ -947,32 +938,32 @@ dependencies = [
  "serde_bytes",
  "target-lexicon",
  "thiserror",
- "wasm-common",
  "wasmer-compiler",
+ "wasmer-types",
  "wasmer-vm",
 ]
 
 [[package]]
 name = "wasmer-engine-jit"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "bincode",
  "cfg-if",
  "region",
  "serde",
  "serde_bytes",
- "wasm-common",
  "wasmer-compiler",
  "wasmer-engine",
+ "wasmer-types",
  "wasmer-vm",
  "winapi",
 ]
 
 [[package]]
 name = "wasmer-engine-native"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -981,28 +972,37 @@ dependencies = [
  "serde",
  "tempfile",
  "tracing",
- "wasm-common",
  "wasmer-compiler",
  "wasmer-engine",
  "wasmer-object",
+ "wasmer-types",
  "wasmer-vm",
 ]
 
 [[package]]
 name = "wasmer-object"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "object 0.19.0",
  "thiserror",
- "wasm-common",
  "wasmer-compiler",
+ "wasmer-types",
+]
+
+[[package]]
+name = "wasmer-types"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
+dependencies = [
+ "cranelift-entity",
+ "serde",
 ]
 
 [[package]]
 name = "wasmer-vm"
-version = "1.0.0-alpha.1"
-source = "git+ssh://git@github.com/wasmerio/wasmer-reborn.git#a162b40a6de770259f70b4a0bec09e2024f3ff0e"
+version = "1.0.0-alpha01.0"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#7fac0555eb1d7ed924a3a5533e1ee516a9384cba"
 dependencies = [
  "backtrace",
  "cc",
@@ -1014,7 +1014,7 @@ dependencies = [
  "region",
  "serde",
  "thiserror",
- "wasm-common",
+ "wasmer-types",
  "winapi",
 ]
 
