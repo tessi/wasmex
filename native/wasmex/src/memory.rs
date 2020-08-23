@@ -194,9 +194,7 @@ pub fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
             Extern::Memory(memory) => Some(memory),
             _ => None,
         })
-        .ok_or_else(|| Error::RaiseTerm(Box::new(
-            "The WebAssembly module has no exported memory.",
-        )))
+        .ok_or_else(|| Error::RaiseTerm(Box::new("The WebAssembly module has no exported memory.")))
 }
 
 pub fn read_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
