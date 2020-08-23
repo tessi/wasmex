@@ -24,6 +24,12 @@ pub struct Environment {
     memory: Arc<LazilyInitializedMemory>,
 }
 
+impl Default for Environment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Wrapper type around `Memory` used to delay initialization of the memory.
 ///
 /// The `initialized` field is used to indicate if it's safe to read `memory` as `Memory`.
