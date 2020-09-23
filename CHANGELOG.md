@@ -17,6 +17,7 @@ Types of changes
 ## [0.3.0] - 2020-??-??
 
 This release features support for "imported functions".
+It also supports the latest wasmer v 1.0 🎉
 
 ### Added
 
@@ -73,7 +74,7 @@ Thanks to
   Thanks @myobie for implementing this feature
 - Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
   Thanks again, @myobie, for implementing this feature
-- Updated the wasmer version, now supporting their full rewrite.
+- Updated the wasmer version, now supporting wasmer 1.0.
 
 ### Fixed
 
