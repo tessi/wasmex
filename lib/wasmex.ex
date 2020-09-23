@@ -71,9 +71,6 @@ defmodule Wasmex do
     GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
   end
 
-  @doc """
-  Starts a GenServer which compiles and instantiates a WASM module from the given bytes.
-  """
   def start_link(bytes) when is_binary(bytes) do
     start_link(%{bytes: bytes, imports: %{}})
   end
