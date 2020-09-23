@@ -4,17 +4,20 @@ use rustler::{
     resource::ResourceArc,
     types::binary::Binary,
     types::tuple::make_tuple,
-    {Encoder, Env, Error, MapIterator, Term},
+    {Encoder, Env as RustlerEnv, Error, MapIterator, Term},
 };
 use std::sync::Mutex;
 use std::thread;
-use wasmer_runtime::{self as runtime, imports};
-use wasmer_runtime_core::{import::Namespace, types::Type};
 
-use crate::{atoms, functions, namespace, printable_term_type::PrintableTermType};
+use wasmer::{Instance, Module, Store, Type, Val};
+
+use crate::{
+    atoms, environment::Environment, functions, memory::memory_from_instance,
+    printable_term_type::PrintableTermType,
+};
 
 pub struct InstanceResource {
-    pub instance: Mutex<runtime::Instance>,
+    pub instance: Mutex<Instance>,
 }
 
 // creates a new instance from the given WASM bytes
@@ -23,21 +26,26 @@ pub struct InstanceResource {
 // * bytes (binary): the bytes of the WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {TODO: signature}}}
-pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn new_from_bytes<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let binary: Binary = args[0].decode()?;
     let imports: MapIterator = args[1].decode()?;
     let bytes = binary.as_slice();
 
-    let mut import_object = imports! {};
-    for (name, namespace_definition) in imports {
-        let name = name.decode::<String>()?;
-        let namespace: Namespace = namespace::create_from_definition(&name, namespace_definition)?;
-        import_object.register(name, namespace);
-    }
-    let instance = match runtime::instantiate(bytes, &import_object) {
+    let mut environment = Environment::new();
+    let import_object = environment.import_object(imports)?;
+    let store = Store::default();
+    let module = match Module::new(&store, &bytes) {
+        Ok(module) => module,
+        Err(e) => {
+            return Ok((atoms::error(), format!("Could not compule module: {:?}", e)).encode(env))
+        }
+    };
+    let instance = match Instance::new(&module, &import_object) {
         Ok(instance) => instance,
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
     };
+    let memory = memory_from_instance(&instance)?.clone();
+    environment.set_memory(memory);
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
@@ -45,7 +53,10 @@ pub fn new_from_bytes<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     Ok((atoms::ok(), resource).encode(env))
 }
 
-pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn function_export_exists<'a>(
+    env: RustlerEnv<'a>,
+    args: &[Term<'a>],
+) -> Result<Term<'a>, Error> {
     let resource: ResourceArc<InstanceResource> = args[0].decode()?;
     let function_name: String = args[1].decode()?;
     let instance = resource.instance.lock().unwrap();
@@ -53,7 +64,10 @@ pub fn function_export_exists<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     Ok(functions::exists(&instance, &function_name).encode(env))
 }
 
-pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+pub fn call_exported_function<'a>(
+    env: RustlerEnv<'a>,
+    args: &[Term<'a>],
+) -> Result<Term<'a>, Error> {
     let pid = env.pid();
     // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
@@ -73,7 +87,7 @@ pub fn call_exported_function<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
 }
 
 fn execute_function<'a>(
-    thread_env: Env<'a>,
+    thread_env: RustlerEnv<'a>,
     resource: ResourceArc<InstanceResource>,
     function_name: String,
     function_params: SavedTerm,
@@ -98,26 +112,37 @@ fn execute_function<'a>(
             )
         }
     };
-    let function_params =
-        match decode_function_param_terms(&function.signature().params(), given_params) {
-            Ok(vec) => vec,
-            Err(reason) => return make_error_tuple(&thread_env, &reason, from),
-        };
+    let function_params = match decode_function_param_terms(&function.ty().params(), given_params) {
+        Ok(vec) => map_to_wasmer_values(vec),
+        Err(reason) => return make_error_tuple(&thread_env, &reason, from),
+    };
 
     let results = match function.call(function_params.as_slice()) {
         Ok(results) => results,
-        Err(e) => return make_error_tuple(&thread_env, &format!("Runtime Error `{}`.", e), from),
+        Err(e) => {
+            return make_error_tuple(
+                &thread_env,
+                &format!("Error during function excecution: `{}`.", e),
+                from,
+            )
+        }
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
-    for value in results {
+    for value in results.to_vec() {
         return_values.push(match value {
-            runtime::Value::I32(i) => i.encode(thread_env),
-            runtime::Value::I64(i) => i.encode(thread_env),
-            runtime::Value::F32(i) => i.encode(thread_env),
-            runtime::Value::F64(i) => i.encode(thread_env),
+            Val::I32(i) => i.encode(thread_env),
+            Val::I64(i) => i.encode(thread_env),
+            Val::F32(i) => i.encode(thread_env),
+            Val::F64(i) => i.encode(thread_env),
             // encoding V128 is not yet supported by rustler
-            runtime::Value::V128(_) => {
+            Val::V128(_) => {
                 return make_error_tuple(&thread_env, &"unable_to_return_v128_type", from)
+            }
+            Val::FuncRef(_) => {
+                return make_error_tuple(&thread_env, &"unable_to_return_func_ref_type", from)
+            }
+            Val::ExternRef(_) => {
+                return make_error_tuple(&thread_env, &"unable_to_return_extern_ref_type", from)
             }
         })
     }
@@ -137,10 +162,32 @@ fn execute_function<'a>(
     )
 }
 
+#[derive(Clone, Copy)]
+union RustValueStore {
+    i32: i32,
+    i64: i64,
+    f32: f32,
+    f64: f64,
+}
+
+#[derive(Clone)]
+enum RustValueTag {
+    I32,
+    I64,
+    F32,
+    F64,
+}
+
+#[derive(Clone)]
+pub struct RustValue {
+    tag: RustValueTag,
+    store: RustValueStore,
+}
+
 pub fn decode_function_param_terms(
     params: &[Type],
     function_param_terms: Vec<Term>,
-) -> Result<Vec<runtime::Value>, String> {
+) -> Result<Vec<RustValue>, String> {
     if 0 != params.len() as isize - function_param_terms.len() as isize {
         return Err(format!(
             "number of params does not match. expected {}, got {}",
@@ -149,60 +196,78 @@ pub fn decode_function_param_terms(
         ));
     }
 
-    let mut function_params = Vec::<runtime::Value>::with_capacity(params.len() as usize);
+    let mut function_params = Vec::<RustValue>::with_capacity(params.len() as usize);
     for (nth, (param, given_param)) in params
         .iter()
         .zip(function_param_terms.into_iter())
         .enumerate()
     {
         let value = match (param, given_param.get_type()) {
-            (Type::I32, TermType::Number) => runtime::Value::I32(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly i32 value.",
-                        nth + 1
-                    ));
-                }
-            }),
-            (Type::I64, TermType::Number) => runtime::Value::I64(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly i64 value.",
-                        nth + 1
-                    ));
-                }
-            }),
-            (Type::F32, TermType::Number) => {
-                runtime::Value::F32(match given_param.decode::<f32>() {
-                    Ok(value) => {
-                        if value.is_finite() {
-                            value
-                        } else {
+            (Type::I32, TermType::Number) => RustValue {
+                tag: RustValueTag::I32,
+                store: RustValueStore {
+                    i32: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly i32 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
+            (Type::I64, TermType::Number) => RustValue {
+                tag: RustValueTag::I64,
+                store: RustValueStore {
+                    i64: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly i64 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
+            (Type::F32, TermType::Number) => RustValue {
+                tag: RustValueTag::F32,
+                store: RustValueStore {
+                    f32: (match given_param.decode::<f32>() {
+                        Ok(value) => {
+                            if value.is_finite() {
+                                value
+                            } else {
+                                return Err(format!(
+                                    "Cannot convert argument #{} to a WebAssembly f32 value.",
+                                    nth + 1
+                                ));
+                            }
+                        }
+                        Err(_) => {
                             return Err(format!(
                                 "Cannot convert argument #{} to a WebAssembly f32 value.",
                                 nth + 1
                             ));
                         }
-                    }
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f32 value.",
-                            nth + 1
-                        ));
-                    }
-                })
-            }
-            (Type::F64, TermType::Number) => runtime::Value::F64(match given_param.decode() {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(format!(
-                        "Cannot convert argument #{} to a WebAssembly f64 value.",
-                        nth + 1
-                    ));
-                }
-            }),
+                    }),
+                },
+            },
+            (Type::F64, TermType::Number) => RustValue {
+                tag: RustValueTag::F64,
+                store: RustValueStore {
+                    f64: (match given_param.decode() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return Err(format!(
+                                "Cannot convert argument #{} to a WebAssembly f64 value.",
+                                nth + 1
+                            ));
+                        }
+                    }),
+                },
+            },
             (_, term_type) => {
                 return Err(format!(
                     "Cannot convert argument #{} to a WebAssembly value. Given `{:?}`.",
@@ -216,7 +281,33 @@ pub fn decode_function_param_terms(
     Ok(function_params)
 }
 
-fn make_error_tuple<'a>(env: &Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
+pub fn map_to_wasmer_values(values: Vec<RustValue>) -> Vec<Val> {
+    // safety: We access union type fields which may be unsafe if the value is not initialized.
+    //         However, we only ever create tagges RustValues with a matching value - they are always initialized.
+    values
+        .into_iter()
+        .map(|value| match value {
+            RustValue {
+                tag: RustValueTag::I32,
+                store: s,
+            } => Val::I32(unsafe { s.i32 }),
+            RustValue {
+                tag: RustValueTag::I64,
+                store: s,
+            } => Val::I64(unsafe { s.i64 }),
+            RustValue {
+                tag: RustValueTag::F32,
+                store: s,
+            } => Val::F32(unsafe { s.f32 }),
+            RustValue {
+                tag: RustValueTag::F64,
+                store: s,
+            } => Val::F64(unsafe { s.f64 }),
+        })
+        .collect()
+}
+
+fn make_error_tuple<'a>(env: &RustlerEnv<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
     make_tuple(
         *env,
         &[

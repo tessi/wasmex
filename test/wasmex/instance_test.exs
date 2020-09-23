@@ -17,7 +17,7 @@ defmodule Wasmex.InstanceTest do
       bytes = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/simple.wasm")
 
       assert {:error,
-              "Cannot Instantiate: LinkError([ImportNotFound { namespace: \"imports\", name: \"imported_func\" }])"} ==
+              "Cannot Instantiate: Link(Import(\"imports\", \"imported_func\", UnknownImport(Function(FunctionType { params: [I32], results: [] }))))"} ==
                Wasmex.Instance.from_bytes(bytes, %{})
     end
 
@@ -38,18 +38,14 @@ defmodule Wasmex.InstanceTest do
         "env" =>
           TestHelper.default_imported_functions_env_stringified()
           |> Map.merge(%{
-            "imported_sum3" => {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end},
-            "imported_sumf" => {:fn, [:f32], [:f32], fn _context, a -> a end}
+            "imported_sum3" => {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end}
           })
       }
 
       {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
 
       assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32], returns: [I32] } }"
-
-      assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F32], returns: [F32] }"
+               "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32], results: [I32] }))))"
     end
 
     test "can not instantiate an Instance with imports having too many params" do
@@ -58,23 +54,14 @@ defmodule Wasmex.InstanceTest do
       imports = %{
         "env" => %{
           "imported_sum3" =>
-            {:fn, [:i32, :i32, :i32, :i32], [:i32], fn _context, a, b, c, d -> a + b + c + d end},
-          "imported_sumf" =>
-            {:fn, [:f32, :f32, :f32], [:f32], fn _context, a, b, c -> a + b + c end},
-          "imported_void" => {:fn, [:i32], [:i32], fn _context, a -> a end}
+            {:fn, [:i32, :i32, :i32, :i32], [:i32], fn _context, a, b, c, d -> a + b + c + d end}
         }
       }
 
       {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
 
       assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32, I32, I32], returns: [I32] } }"
-
-      assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F32, F32, F32], returns: [F32] }"
-
-      assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_void\", expected: FuncSig { params: [], returns: [] }, found: FuncSig { params: [I32], returns: [I32] }"
+               "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32, I32, I32], results: [I32] }))))"
     end
 
     test "can not instantiate an Instance with imports having wrong params types" do
@@ -85,18 +72,14 @@ defmodule Wasmex.InstanceTest do
           TestHelper.default_imported_functions_env_stringified()
           |> Map.merge(%{
             "imported_sum3" =>
-              {:fn, [:i32, :i32, :i32], [:i64], fn _context, a, b, c -> a + b + c end},
-            "imported_sumf" => {:fn, [:f64, :f32], [:i32], fn _context, a, b -> a + b end}
+              {:fn, [:i32, :i32, :i32], [:i64], fn _context, a, b, c -> a + b + c end}
           })
       }
 
       {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
 
       assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sum3\", expected: FuncSig { params: [I32, I32, I32], returns: [I32] }, found: FuncSig { params: [I32, I32, I32], returns: [I64] } }"
-
-      assert reason =~
-               "IncorrectImportSignature { namespace: \"env\", name: \"imported_sumf\", expected: FuncSig { params: [F32, F32], returns: [F32] }, found: FuncSig { params: [F64, F32], returns: [I32] }"
+               "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32, I32], results: [I64] }))))"
     end
   end
 

@@ -1,12 +1,9 @@
-use wasmer_runtime::{self as runtime};
+use wasmer::{ExportError, Function, Instance};
 
-pub fn exists(instance: &runtime::Instance, name: &str) -> bool {
+pub fn exists(instance: &Instance, name: &str) -> bool {
     find(instance, &name).is_ok()
 }
 
-pub fn find<'a>(
-    instance: &'a runtime::Instance,
-    name: &str,
-) -> Result<wasmer_runtime_core::instance::DynFunc<'a>, wasmer_runtime_core::error::ResolveError> {
+pub fn find<'a>(instance: &'a Instance, name: &str) -> Result<&'a Function, ExportError> {
     instance.exports.get(name)
 }
