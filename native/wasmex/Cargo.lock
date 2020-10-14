@@ -869,8 +869,8 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasmer"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "cfg-if",
  "indexmap",
@@ -890,8 +890,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "enumset",
  "raw-cpuid",
@@ -907,8 +907,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler-cranelift"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -924,8 +924,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "backtrace",
  "bincode",
@@ -943,8 +943,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-jit"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -960,8 +960,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-native"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -980,8 +980,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-object"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "object 0.19.0",
  "thiserror",
@@ -991,8 +991,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-types"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "cranelift-entity",
  "serde",
@@ -1000,8 +1000,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-vm"
-version = "1.0.0-alpha3"
-source = "git+ssh://git@github.com/wasmerio/wasmer.git#e5b3273b77767ebbdbb03f7cf0f3dc893e098a5b"
+version = "1.0.0-alpha4"
+source = "git+ssh://git@github.com/wasmerio/wasmer.git#38ebdb94ef3ef2a5156ae2d18851335425dac55c"
 dependencies = [
  "backtrace",
  "cc",
