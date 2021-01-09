@@ -21,7 +21,7 @@ Types of changes
 This release features support for elixir function that can be exported to WASM.
 
 It also supports [the latest wasmer v 1.0](https://medium.com/wasmer/wasmer-1-0-3f86ca18c043) 🎉.
-Wasmer 1.0 is a partial rewrite of the WASM engine we use that promises to be up to 9 times faster.
+Wasmer 1.0 is a partial rewrite of the WASM engine we use that promises to be up to 9 times faster module compilation.
 
 ### Added
 

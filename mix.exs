@@ -5,7 +5,7 @@ defmodule Wasmex.MixProject do
     [
       app: :wasmex,
       version: "0.2.0",
-      elixir: "~> 1.9",
+      elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
       compilers: [:rustler] ++ Mix.compilers(),
       rustler_crates: [
