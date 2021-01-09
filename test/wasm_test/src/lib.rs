@@ -1,3 +1,5 @@
+use core::slice;
+
 #[no_mangle]
 pub extern "C" fn sum(x: i32, y: i32) -> i32 {
     x + y
@@ -47,9 +49,10 @@ pub extern "C" fn string() -> *const u8 {
 pub extern "C" fn void() {}
 
 #[no_mangle]
-pub extern "C" fn string_first_byte(s: &str) -> u8 {
-    match s.bytes().nth(0) {
-        Some(i) => i,
+pub extern "C" fn string_first_byte(bytes: *const u8, length: usize) -> u8 {
+    let slice = unsafe { slice::from_raw_parts(bytes, length) };
+    match slice.first() {
+        Some(&i) => i,
         None => 0,
     }
 }

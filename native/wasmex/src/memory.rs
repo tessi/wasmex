@@ -78,8 +78,8 @@ pub fn length<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     Ok(length.encode(env))
 }
 
-fn extract_params<'a>(
-    args: &[Term<'a>],
+fn extract_params(
+    args: &[Term],
 ) -> Result<(ResourceArc<MemoryResource>, ElementSize, usize), Error> {
     let resource: ResourceArc<MemoryResource> = args[0].decode()?;
     let size = size_from_term(&args[1])?;
@@ -152,12 +152,12 @@ pub fn set<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error
     Ok(atoms::ok().encode(env))
 }
 
-fn set_value<'a>(
+fn set_value(
     memory: &Memory,
     offset: usize,
     index: usize,
     element_size: ElementSize,
-    value: Term<'a>,
+    value: Term,
 ) -> Result<(), Error> {
     match element_size {
         ElementSize::Uint8 => memory.view::<u8>()[offset + index].set(value.decode::<u8>()?),

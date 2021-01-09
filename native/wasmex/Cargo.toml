@@ -17,5 +17,5 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.21.1"
 lazy_static = "1.0"
-wasmer = { git = "ssh://git@github.com/wasmerio/wasmer.git" }
-wasmer-vm = { git = "ssh://git@github.com/wasmerio/wasmer.git" }
+wasmer = "1.0"
+wasmer-vm = "1.0"

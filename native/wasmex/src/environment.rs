@@ -1,15 +1,12 @@
-use std::cell::UnsafeCell;
-use std::mem::MaybeUninit;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Condvar, Mutex};
 
 use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
     Term,
 };
 use wasmer::{
-    imports, namespace, Exports, Function, FunctionType, ImportObject, Memory, RuntimeError, Store,
-    Type, Val,
+    imports, namespace, Exports, Function, FunctionType, ImportObject, LazyInit, Memory,
+    RuntimeError, Store, Type, Val, WasmerEnv,
 };
 
 use crate::{
@@ -19,89 +16,10 @@ use crate::{
 };
 
 /// The environment provided to the WASI imports.
-#[derive(Clone)]
+#[derive(WasmerEnv, Clone, Default)]
 pub struct Environment {
-    memory: Arc<LazilyInitializedMemory>,
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Wrapper type around `Memory` used to delay initialization of the memory.
-///
-/// The `initialized` field is used to indicate if it's safe to read `memory` as `Memory`.
-///
-/// The `mutate_lock` is used to prevent access from multiple threads during initialization.
-struct LazilyInitializedMemory {
-    initialized: AtomicBool,
-    memory: UnsafeCell<MaybeUninit<Memory>>,
-    mutate_lock: Mutex<()>,
-}
-
-impl LazilyInitializedMemory {
-    fn new() -> Self {
-        Self {
-            initialized: AtomicBool::new(false),
-            memory: UnsafeCell::new(MaybeUninit::zeroed()),
-            mutate_lock: Mutex::new(()),
-        }
-    }
-
-    /// Initialize the memory, making it safe to read from.
-    ///
-    /// Returns whether or not the set was successful. If the set failed then
-    /// the memory has already been initialized.
-    fn set_memory(&self, memory: Memory) -> bool {
-        // synchronize it
-        let _guard = self.mutate_lock.lock();
-        if self.initialized.load(Ordering::Acquire) {
-            return false;
-        }
-
-        unsafe {
-            let ptr = self.memory.get();
-            let mem_inner: &mut MaybeUninit<Memory> = &mut *ptr;
-            mem_inner.as_mut_ptr().write(memory);
-        }
-        self.initialized.store(true, Ordering::Release);
-
-        true
-    }
-
-    /// Returns `None` if the memory has not been initialized yet.
-    /// Otherwise returns the memory that was used to initialize it.
-    fn get_memory(&self) -> Option<&Memory> {
-        // Based on normal usage, `Relaxed` is fine...
-        // TODO: investigate if it's possible to use the API in a way where `Relaxed`
-        //       is not fine
-        if self.initialized.load(Ordering::Relaxed) {
-            unsafe {
-                let maybe_mem = self.memory.get();
-                Some(&*(*maybe_mem).as_ptr())
-            }
-        } else {
-            None
-        }
-    }
-}
-
-impl Drop for LazilyInitializedMemory {
-    fn drop(&mut self) {
-        if self.initialized.load(Ordering::Acquire) {
-            unsafe {
-                // We want to get the internal value in memory, so we need to consume
-                // the `UnsafeCell` and assume the `MapbeInit` is initialized, but because
-                // we only have a `&mut self` we can't do this directly, so we swap the data
-                // out so we can drop it (via `assume_init`).
-                let mut maybe_uninit = UnsafeCell::new(MaybeUninit::zeroed());
-                std::mem::swap(&mut self.memory, &mut maybe_uninit);
-                maybe_uninit.into_inner().assume_init();
-            }
-        }
-    }
+    #[wasmer(export)]
+    pub memory: LazyInit<Memory>,
 }
 
 pub struct CallbackTokenResource {
@@ -117,7 +35,7 @@ pub struct CallbackToken {
 impl Environment {
     pub fn new() -> Self {
         Self {
-            memory: Arc::new(LazilyInitializedMemory::new()),
+            memory: LazyInit::default(),
         }
     }
 
@@ -129,16 +47,6 @@ impl Environment {
             object.register(name, namespace);
         }
         Ok(object)
-    }
-
-    /// Set the memory
-    pub fn set_memory(&mut self, memory: Memory) -> bool {
-        self.memory.set_memory(memory)
-    }
-
-    /// Get a reference to the memory
-    pub fn memory(&self) -> &Memory {
-        self.memory.get_memory().expect("The expected Memory is not attached to the `Environment`. Did you forgot to call environment.set_memory(...)?")
     }
 
     fn create_namespace(&self, name: &str, definition: Term) -> Result<Exports, Error> {
@@ -162,7 +70,7 @@ impl Environment {
 
         let import_type = import_tuple
             .get(0)
-            .ok_or_else(|| Error::Atom("missing_import_type"))?;
+            .ok_or(Error::Atom("missing_import_type"))?;
         let import_type = Atom::from_term(*import_type)
             .map_err(|_| Error::Atom("import type must be an atom"))?;
 
@@ -201,10 +109,10 @@ impl Environment {
 
         let param_term = import_tuple
             .get(1)
-            .ok_or_else(|| Error::Atom("missing_import_params"))?;
+            .ok_or(Error::Atom("missing_import_params"))?;
         let results_term = import_tuple
             .get(2)
-            .ok_or_else(|| Error::Atom("missing_import_results"))?;
+            .ok_or(Error::Atom("missing_import_results"))?;
 
         let params_signature = param_term
             .decode::<ListIterator>()?
@@ -222,7 +130,7 @@ impl Environment {
             &store,
             &signature,
             self.clone(),
-            move |ctx, params: &[Val]| -> Result<Vec<Val>, RuntimeError> {
+            move |wasmer_environment, params: &[Val]| -> Result<Vec<Val>, RuntimeError> {
                 let callback_token = ResourceArc::new(CallbackTokenResource {
                     token: CallbackToken {
                         continue_signal: Condvar::new(),
@@ -257,7 +165,13 @@ impl Environment {
                     let callback_context = Term::map_new(env);
 
                     let memory_resource = ResourceArc::new(MemoryResource {
-                        memory: Mutex::new(ctx.memory().clone()),
+                        memory: Mutex::new(
+                            wasmer_environment
+                                .memory
+                                .get_ref()
+                                .expect("wasm memory was not initialized")
+                                .clone(),
+                        ),
                     });
                     let callback_context = match Term::map_put(
                         callback_context,
