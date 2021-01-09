@@ -45,7 +45,7 @@ pub fn new_from_bytes<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term
         Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
     };
     let memory = memory_from_instance(&instance)?.clone();
-    environment.set_memory(memory);
+    environment.memory.initialize(memory);
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
@@ -86,13 +86,13 @@ pub fn call_exported_function<'a>(
     Ok(atoms::ok().encode(env))
 }
 
-fn execute_function<'a>(
-    thread_env: RustlerEnv<'a>,
+fn execute_function(
+    thread_env: RustlerEnv,
     resource: ResourceArc<InstanceResource>,
     function_name: String,
     function_params: SavedTerm,
     from: SavedTerm,
-) -> Term<'a> {
+) -> Term {
     let from = from
         .load(thread_env)
         .decode::<Term>()

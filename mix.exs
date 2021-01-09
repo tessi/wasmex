@@ -5,7 +5,7 @@ defmodule Wasmex.MixProject do
     [
       app: :wasmex,
       version: "0.2.0",
-      elixir: "~> 1.9",
+      elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
       compilers: [:rustler] ++ Mix.compilers(),
       rustler_crates: [
@@ -30,7 +30,7 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.21.0"},
+      {:rustler, "~> 0.21.1"},
       {:ex_doc, "~> 0.23.0", only: [:dev, :test]},
       {:dialyxir, "~> 1.0.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.3", only: [:dev, :test], runtime: false}

@@ -16,8 +16,12 @@ Types of changes
 
 ## [0.3.0] - 2020-??-??
 
-This release features support for "imported functions".
-It also supports the latest wasmer v 1.0 🎉
+## Notable Changes
+
+This release features support for elixir function that can be exported to WASM.
+
+It also supports [the latest wasmer v 1.0](https://medium.com/wasmer/wasmer-1-0-3f86ca18c043) 🎉.
+Wasmer 1.0 is a partial rewrite of the WASM engine we use that promises to be up to 9 times faster module compilation.
 
 ### Added
 
@@ -75,6 +79,7 @@ Thanks to
 - Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
   Thanks again, @myobie, for implementing this feature
 - Updated the wasmer version, now supporting wasmer 1.0.
+- Updated to elixir 1.11 and Erlang OTP 23.2. Older versions might work, but are not officially tested
 
 ### Fixed
 

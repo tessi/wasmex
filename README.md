@@ -224,19 +224,20 @@ But since Strings are just "a bunch of bytes" we can write these bytes into memo
 
 #### Strings as Function Parameters
 
-Given we have the following Rust function in our WebAssembly (copied from our test code):
+Given we have the following Rust function that returns the first byte of a given string
+in our WebAssembly (note: this is copied from our test code, have a look there if you're interested):
 
 ```rust
 #[no_mangle]
-pub extern "C" fn string_first_byte(s: &str) -> u8 {
-  match s.bytes().nth(0) {
-    Some(i) => i,
-    None => 0
-  }
+pub extern "C" fn string_first_byte(bytes: *const u8, length: usize) -> u8 {
+    let slice = unsafe { slice::from_raw_parts(bytes, length) };
+    match slice.first() {
+        Some(&i) => i,
+        None => 0,
+    }
 }
 ```
 
-This function returns the first byte of the given String.
 Let's see how we can call this function from Elixir:
 
 ```elixir
