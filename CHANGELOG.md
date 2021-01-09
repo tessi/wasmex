@@ -79,6 +79,7 @@ Thanks to
 - Support writing non-string binaries to memory. Before we could only write valid UTF-8 strings to WASM memory.
   Thanks again, @myobie, for implementing this feature
 - Updated the wasmer version, now supporting wasmer 1.0.
+- Updated to elixir 1.11 and Erlang OTP 23.2. Older versions might work, but are not officially tested
 
 ### Fixed
 
