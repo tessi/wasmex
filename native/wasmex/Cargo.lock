@@ -1050,9 +1050,9 @@ dependencies = [
 
 [[package]]
 name = "wasmer-types"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dbba7a95edb61b40daa43079979fc3212234e1645a15b8c527c36decad59fc6"
+checksum = "bf17a50d109b26155d0d13cbc333e1a3f2c7f2e67951f7736cbbd88c67bca414"
 dependencies = [
  "cranelift-entity",
  "serde",
@@ -1061,9 +1061,9 @@ dependencies = [
 
 [[package]]
 name = "wasmer-vm"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cd9acd4d53c004a11fcaff17f2a2528ae8f1748c6d5c4aea7d8bed2d9236f0f"
+checksum = "d7156e41a590030e8d9de473fad2d2f8d094e7d838471295ffa51138dffde201"
 dependencies = [
  "backtrace",
  "cc",
