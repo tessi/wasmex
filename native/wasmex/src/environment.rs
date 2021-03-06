@@ -11,7 +11,7 @@ use wasmer::{
 
 use crate::{
     atoms,
-    instance::{map_to_wasmer_values, RustValue},
+    instance::{map_to_wasmer_values, WasmValue},
     memory::MemoryResource,
 };
 
@@ -29,7 +29,7 @@ pub struct CallbackTokenResource {
 pub struct CallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<Type>,
-    pub return_values: Mutex<Option<(bool, Vec<RustValue>)>>,
+    pub return_values: Mutex<Option<(bool, Vec<WasmValue>)>>,
 }
 
 impl Environment {
@@ -198,11 +198,11 @@ impl Environment {
                     result = callback_token.token.continue_signal.wait(result).unwrap();
                 }
 
-                let result: &(bool, Vec<RustValue>) = result
+                let result: &(bool, Vec<WasmValue>) = result
                     .as_ref()
                     .expect("expect callback token to contain a result");
                 match result {
-                    (true, v) => Ok(map_to_wasmer_values(v.to_vec())),
+                    (true, v) => Ok(map_to_wasmer_values(v)),
                     (false, _) => Err(RuntimeError::new("the elixir callback threw an exception")),
                 }
             },
