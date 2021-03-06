@@ -9,7 +9,7 @@ use rustler::{
 use std::sync::Mutex;
 use std::thread;
 
-use wasmer::{Instance, Module, Store, Type, Value, Val};
+use wasmer::{Instance, Module, Store, Type, Val, Value};
 
 use crate::{
     atoms, environment::Environment, functions, memory::memory_from_instance,
@@ -217,7 +217,7 @@ pub fn decode_function_param_terms(
                             nth + 1
                         ));
                     }
-                },
+                }
                 Err(_) => {
                     return Err(format!(
                         "Cannot convert argument #{} to a WebAssembly f32 value.",
