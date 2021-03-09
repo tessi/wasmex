@@ -14,7 +14,13 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [0.3.0] - 2020-??-??
+## [unreleased changes]
+
+### Changed
+
+- removed use of `unsafe` from wasm<->elixir value conversion. Thanks @Virviil
+
+## [0.3.0] - 2021-01-09
 
 ## Notable Changes
 
