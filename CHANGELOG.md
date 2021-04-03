@@ -16,6 +16,14 @@ Types of changes
 
 ## [unreleased changes]
 
+* put new changes here
+
+## [0.3.1] - 2021-04-04
+
+### Added
+
+- added support for `aarch64-darwin` (apple silicon). Thanks @epellis
+
 ### Changed
 
 - removed use of `unsafe` from wasm<->elixir value conversion. Thanks @Virviil
