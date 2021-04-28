@@ -1,0 +1,20 @@
+version: 2
+updates:
+- package-ecosystem: mix
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "04:00"
+  open-pull-requests-limit: 10
+  reviewers:
+  - tessi
+- package-ecosystem: cargo
+  directory: "/native/wasmex"
+  schedule:
+    interval: daily
+    time: "04:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: wasmer-vm
+    versions:
+    - 1.0.2
