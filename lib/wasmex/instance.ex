@@ -51,31 +51,19 @@ defmodule Wasmex.Instance do
 
   @spec wasi_from_bytes(binary(), %{optional(binary()) => (... -> any())}, %{
           optional(:args) => [String.t()],
-          optional(:env) => %{String.t() => String.t()}
+          optional(:env) => %{String.t() => String.t()},
+          optional(:stdin) => Wasmex.Pipe.t(),
+          optional(:stdout) => Wasmex.Pipe.t(),
+          optional(:stderr) => Wasmex.Pipe.t()
         }) ::
           {:error, binary()} | {:ok, __MODULE__.t()}
   def wasi_from_bytes(bytes, imports, wasi)
       when is_binary(bytes) and is_map(imports) and is_map(wasi) do
     args = Map.get(wasi, "args")
+    env = Map.get(wasi, "env")
+    {opts, _} = Map.split(wasi, ["stdin", "stdout", "stderr"])
 
-    unless Enum.all?(args, &Kernel.is_binary/1) do
-      raise ArgumentError, message: "wasi args must be a list of strings"
-    end
-
-    env =
-      wasi
-      |> Map.get("env")
-      |> Enum.map(fn {key, value} ->
-        if String.contains?(key, "=") or String.contains?(value, "=") do
-          raise ArgumentError,
-            message:
-              "wasi env must be a map of string keys to string values not containing the equals sign (=)"
-        end
-
-        "#{key}=#{value}"
-      end)
-
-    case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env) do
+    case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env, opts) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
       {:error, err} -> {:error, err}
     end
@@ -105,7 +93,7 @@ defmodule Wasmex.Instance do
   containing a list of the results form the called WebAssembly function.
 
   Calling `call_exported_function` usually returns an `:ok` atom but may throw a BadArg exception when given
-  unexpected input data. 
+  unexpected input data.
   """
   @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)

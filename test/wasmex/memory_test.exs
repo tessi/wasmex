@@ -13,7 +13,7 @@ defmodule Wasmex.MemoryTest do
   end
 
   describe "from_instance/1" do
-    test "creates memory with defaults fir size and offset" do
+    test "creates memory with defaults for size and offset" do
       {:ok, instance} = build_wasm_instance()
       {:ok, memory} = Wasmex.Memory.from_instance(instance)
       assert memory.size == :uint8

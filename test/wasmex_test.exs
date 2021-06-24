@@ -219,93 +219,87 @@ defmodule WasmexTest do
     end
   end
 
-  test "runnung a WASM/WASI module" do
+  test "runnung a WASM/WASI module while overriding some WASI methods" do
     imports = %{
       wasi_snapshot_preview1: %{
-        proc_exit:
-          {:fn, [:i32], [],
-           fn _rval ->
+        clock_time_get:
+          {:fn, [:i32, :i64, :i32], [:i32],
+           fn %{memory: memory}, _clock_id, _precision, time_ptr ->
+             # writes a time struct into memory representing 42 seconds since the epoch
+
+             # 64-bit tv_sec
+             Wasmex.Memory.set(memory, time_ptr + 0, 0)
+             Wasmex.Memory.set(memory, time_ptr + 1, 0)
+             Wasmex.Memory.set(memory, time_ptr + 2, 0)
+             Wasmex.Memory.set(memory, time_ptr + 3, 0)
+             Wasmex.Memory.set(memory, time_ptr + 4, 10)
+             Wasmex.Memory.set(memory, time_ptr + 5, 0)
+             Wasmex.Memory.set(memory, time_ptr + 6, 0)
+             Wasmex.Memory.set(memory, time_ptr + 7, 0)
+
+             # 64-bit n_sec
+             Wasmex.Memory.set(memory, time_ptr + 8, 0)
+             Wasmex.Memory.set(memory, time_ptr + 9, 0)
+             Wasmex.Memory.set(memory, time_ptr + 10, 0)
+             Wasmex.Memory.set(memory, time_ptr + 11, 0)
+             Wasmex.Memory.set(memory, time_ptr + 12, 0)
+             Wasmex.Memory.set(memory, time_ptr + 13, 0)
+             Wasmex.Memory.set(memory, time_ptr + 14, 0)
+             Wasmex.Memory.set(memory, time_ptr + 15, 0)
+
              0
            end},
-        # "args_get"
-        # "args_sizes_get"
-        # "fd_prestat_get"
-        # "fd_prestat_dir_name"
-        # environ_sizes_get:
-        #   {:fn, [:i32, :i32], [:i32],
-        #    fn environCountPtr, environBufferSizePtr ->
-        #      42
-        #    end},
-        # "environ_get"
-        clock_time_get: {:fn, [:i32, :i64, :i32], [:i32], fn %{memory: memory}, clock_id, precision, time_ptr ->
-          # 64-bit tv_sec
-          Wasmex.Memory.set(memory, time_ptr +  0, 0)
-          Wasmex.Memory.set(memory, time_ptr +  1, 0)
-          Wasmex.Memory.set(memory, time_ptr +  2, 0)
-          Wasmex.Memory.set(memory, time_ptr +  3, 0)
-          Wasmex.Memory.set(memory, time_ptr +  4, 0)
-          Wasmex.Memory.set(memory, time_ptr +  5, 0)
-          Wasmex.Memory.set(memory, time_ptr +  6, 0)
-          Wasmex.Memory.set(memory, time_ptr +  7, 0)
-
-          # 64-bit n_sec
-          Wasmex.Memory.set(memory, time_ptr +  8, 0)
-          Wasmex.Memory.set(memory, time_ptr +  9, 0)
-          Wasmex.Memory.set(memory, time_ptr + 10, 0)
-          Wasmex.Memory.set(memory, time_ptr + 11, 0)
-          Wasmex.Memory.set(memory, time_ptr + 12, 0)
-          Wasmex.Memory.set(memory, time_ptr + 13, 0)
-          Wasmex.Memory.set(memory, time_ptr + 14, 0)
-          Wasmex.Memory.set(memory, time_ptr + 15, 0)
-
-          0
-        end},
         random_get:
           {:fn, [:i32, :i32], [:i32],
            fn %{memory: memory}, address, size ->
-             Enum.each(0..size, fn(index) ->
-               IO.puts("set 0 at #{address + index}")
+             Enum.each(0..size, fn index ->
                Wasmex.Memory.set(memory, address + index, 0)
              end)
+
+             # randomly selected `4` with a fair dice roll
+             Wasmex.Memory.set(memory, address, 4)
+
              0
            end}
-        #
-        #
-        # Params:
-        # fd: __wasi_fd_t,
-        # iovs: WasmPtr<__wasi_ciovec_t, Array>,
-        # iovs_len: u32,
-        # nwritten: WasmPtr<u32>,
-        #
-        # Returns:
-        # __wasi_errno_t
-        #
-        # See: https://github.com/WebAssembly/WASI/blob/d6eec8647fa819f5d44ac8e7e0d8a3205deedccb/phases/snapshot/docs.md#-fd_writefd-fd-iovs-ciovec_array---errno-size
-        # fd_write:
-        #   {:fn, [:i32, :i32, :i32, :i32], [:i32],
-        #    fn context, fd, iovs, iovs_len, nwritten ->
-        #     #  memory = Map.get(context, :memory)
-        #     #  IO.puts({:fd, fd})
-        #     #  IO.puts({:iovs, iovs})
-        #     #  IO.puts({:iovs_len, iovs_len})
-        #     #  IO.puts({:nwritten, nwritten})
-        #     #  Wasmex.Memory.set(memory, :uint8, 0, nwritten, 23)
-        #      0
-        #    end},
       }
     }
+
+    {:ok, pipe} = Wasmex.Pipe.create()
 
     wasi = %{
       args: ["hello", "from elixir"],
       env: %{
         "A_NAME_MAPS" => "TO_A_VALUE",
         "THE_TEST_WASI_FILE" => "PRINTS_ALL_ENVS"
-      }
+      },
+      stdin: pipe,
+      stdout: pipe,
+      stderr: pipe
     }
 
     instance =
       start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, imports: imports, wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
+
+    assert Wasmex.Pipe.read(pipe) ==
+             """
+             Hello from the WASI test program!
+
+             Arguments:
+             wasmex
+             hello
+             from elixir
+
+             Environment:
+             A_NAME_MAPS=TO_A_VALUE
+             THE_TEST_WASI_FILE=PRINTS_ALL_ENVS
+
+             Current Time (Since Unix Epoch):
+             42
+
+             Random Number: 4
+
+             """
   end
 end

@@ -115,8 +115,10 @@ defmodule Wasmex do
     GenServer.call(pid, {:memory, type, offset})
   end
 
-  defp stringify_keys(atom_key_map) when is_map(atom_key_map) do
-    for {key, val} <- atom_key_map, into: %{}, do: {stringify(key), stringify_keys(val)}
+  defp stringify_keys(struct) when is_struct(struct), do: struct
+
+  defp stringify_keys(map) when is_map(map) do
+    for {key, val} <- map, into: %{}, do: {stringify(key), stringify_keys(val)}
   end
 
   defp stringify_keys(value), do: value
@@ -146,7 +148,7 @@ defmodule Wasmex do
 
   @impl true
   def init(%{bytes: bytes, imports: imports, wasi: wasi})
-      when is_binary(bytes) and is_map(imports) and is_map(wasi) and map_size(wasi) <= 2 do
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
     {:ok, instance} = Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi)
     {:ok, %{instance: instance, imports: imports, wasi: wasi}}
   end

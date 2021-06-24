@@ -4,6 +4,7 @@ pub mod functions;
 pub mod instance;
 pub mod memory;
 pub mod namespace;
+pub mod pipe;
 pub mod printable_term_type;
 
 extern crate lazy_static;
@@ -28,6 +29,11 @@ rustler::init! {
         memory::set,
         memory::read_binary,
         memory::write_binary,
+        pipe::create,
+        pipe::size,
+        pipe::set_len,
+        pipe::read_binary,
+        pipe::write_binary
     ],
     load = on_load
 }
@@ -36,5 +42,6 @@ fn on_load(env: Env, _info: Term) -> bool {
     rustler::resource!(instance::InstanceResource, env);
     rustler::resource!(memory::MemoryResource, env);
     rustler::resource!(environment::CallbackTokenResource, env);
+    rustler::resource!(pipe::PipeResource, env);
     true
 }

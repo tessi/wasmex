@@ -22,6 +22,9 @@ rustler::atoms! {
     __fn__ = "fn",
     params,
     results,
+    
+    // wasi import options
+    resource,
 
     // callback context
     memory,
