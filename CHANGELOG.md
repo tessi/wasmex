@@ -32,7 +32,7 @@ Types of changes
 - changed the default development branch from `master` to `main`
 - targeting and testing on elixir 1.12 and OTP 24.0 now - older versions are likely still working, but will not be tested anymore.
 
-#### Removed
+### Removed
 
 - `Wasmex.Memory.grow/4` was removed. Instead `Wasmex.Memory.grow/2` can be used interchangeably.
 
