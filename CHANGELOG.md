@@ -29,6 +29,8 @@ Types of changes
 - Wasmex.Memory.bytes_per_element changed its signature from
   `Wasmex.Memory.bytes_per_element(memory, :uint32, 0)` to `Wasmex.Memory.bytes_per_element(:uint32)`.
   The existing signature `Wasmex.Memory.bytes_per_element(memory)` still works as before.
+- changed the default development branch from `master` to `main`
+- targeting and testing on elixir 1.12 and OTP 24.0 now - older versions are likely still working, but will not be tested anymore.
 
 #### Removed
 

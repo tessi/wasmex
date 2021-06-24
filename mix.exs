@@ -4,8 +4,8 @@ defmodule Wasmex.MixProject do
   def project do
     [
       app: :wasmex,
-      version: "0.3.1",
-      elixir: "~> 1.11",
+      version: "0.4.0",
+      elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       name: "Wasmex",
       description: description(),
