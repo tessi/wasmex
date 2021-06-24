@@ -1,32 +1,32 @@
-rustler::rustler_atoms! {
-    atom ok;
-    atom error;
-    atom __nil__ = "nil";
+rustler::atoms! {
+    ok,
+    error,
+    __nil__ = "nil",
 
     // memory types
-    atom uint8;
-    atom int8;
-    atom uint16;
-    atom int16;
-    atom uint32;
-    atom int32;
+    uint8,
+    int8,
+    uint16,
+    int16,
+    uint32,
+    int32,
 
     // imported function param/return types
-    atom i32;
-    atom i64;
-    atom f32;
-    atom f64;
-    atom v128;
+    i32,
+    i64,
+    f32,
+    f64,
+    v128,
 
     // import objects
-    atom __fn__ = "fn";
-    atom params;
-    atom results;
+    __fn__ = "fn",
+    params,
+    results,
 
     // callback context
-    atom memory;
+    memory,
 
     // calls to erlang processes
-    atom returned_function_call;
-    atom invoke_callback;
+    returned_function_call,
+    invoke_callback,
 }

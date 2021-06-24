@@ -4,7 +4,7 @@ use rustler::{
     resource::ResourceArc,
     types::binary::Binary,
     types::tuple::make_tuple,
-    {Encoder, Env as RustlerEnv, Error, MapIterator, Term},
+    NifResult, {Encoder, Env as RustlerEnv, MapIterator, Term},
 };
 use std::sync::Mutex;
 use std::thread;
@@ -20,29 +20,42 @@ pub struct InstanceResource {
     pub instance: Mutex<Instance>,
 }
 
+#[derive(NifTuple)]
+pub struct InstanceResourceResponse {
+    ok: rustler::Atom,
+    resource: ResourceArc<InstanceResource>,
+}
+
 // creates a new instance from the given WASM bytes
 // expects the following elixir params
 //
 // * bytes (binary): the bytes of the WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {TODO: signature}}}
-pub fn new_from_bytes<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let binary: Binary = args[0].decode()?;
-    let imports: MapIterator = args[1].decode()?;
+#[rustler::nif(name = "instance_new_from_bytes")]
+pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<InstanceResourceResponse> {
     let bytes = binary.as_slice();
 
     let mut environment = Environment::new();
-    let import_object = environment.import_object(imports)?;
+    let import_object = environment.import_object(imports)?; // TODO: maybe we can improve this with a map type!
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
         Ok(module) => module,
         Err(e) => {
-            return Ok((atoms::error(), format!("Could not compule module: {:?}", e)).encode(env))
+            return Err(rustler::Error::Term(Box::new(format!(
+                "Could not compule module: {:?}",
+                e
+            ))))
         }
     };
     let instance = match Instance::new(&module, &import_object) {
         Ok(instance) => instance,
-        Err(e) => return Ok((atoms::error(), format!("Cannot Instantiate: {:?}", e)).encode(env)),
+        Err(e) => {
+            return Err(rustler::Error::Term(Box::new(format!(
+                "Cannot Instantiate: {:?}",
+                e
+            ))))
+        }
     };
     let memory = memory_from_instance(&instance)?.clone();
     environment.memory.initialize(memory);
@@ -50,40 +63,44 @@ pub fn new_from_bytes<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
     });
-    Ok((atoms::ok(), resource).encode(env))
+    Ok(InstanceResourceResponse {
+        ok: atoms::ok(),
+        resource,
+    })
 }
 
-pub fn function_export_exists<'a>(
-    env: RustlerEnv<'a>,
-    args: &[Term<'a>],
-) -> Result<Term<'a>, Error> {
-    let resource: ResourceArc<InstanceResource> = args[0].decode()?;
-    let function_name: String = args[1].decode()?;
+#[rustler::nif(name = "instance_function_export_exists")]
+pub fn function_export_exists(
+    resource: ResourceArc<InstanceResource>,
+    function_name: String,
+) -> bool {
     let instance = resource.instance.lock().unwrap();
 
-    Ok(functions::exists(&instance, &function_name).encode(env))
+    functions::exists(&instance, &function_name)
 }
 
+#[rustler::nif(name = "instance_call_exported_function", schedule = "DirtyCpu")]
 pub fn call_exported_function<'a>(
-    env: RustlerEnv<'a>,
-    args: &[Term<'a>],
-) -> Result<Term<'a>, Error> {
+    env: rustler::Env<'a>,
+    resource: ResourceArc<InstanceResource>,
+    function_name: String,
+    params: Term,
+    from: Term,
+) -> rustler::Atom {
     let pid = env.pid();
     // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
     // copy over params into the thread environment
-    let resource: ResourceArc<InstanceResource> = args[0].decode()?;
-    let function_name: String = args[1].decode()?;
-    let function_params = thread_env.save(args[2]);
-    let from = thread_env.save(args[3]);
-    args[3].decode::<Term>()?; // make sure the `from` param exists, as we cannot safely return errors without it in execute_function
+    let function_params = thread_env.save(params);
+    let from = thread_env.save(from);
+
     thread::spawn(move || {
         thread_env.send_and_clear(&pid, |thread_env| {
             execute_function(thread_env, resource, function_name, function_params, from)
         })
     });
 
-    Ok(atoms::ok().encode(env))
+    atoms::ok()
 }
 
 fn execute_function(
