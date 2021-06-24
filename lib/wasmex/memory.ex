@@ -99,23 +99,21 @@ defmodule Wasmex.Memory do
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint16, 0)
   Wasmex.Memory.bytes_per_element(memory) # 2
   ```
+
+  Alternatively, the size atom can be given directly:
+
+  ```elixir
+  Wasmex.Memory.bytes_per_element(:uint32) # 4
+  ```
   """
   @spec bytes_per_element(t) :: pos_integer()
   def bytes_per_element(%__MODULE__{} = memory) do
-    bytes_per_element(memory, memory.size, memory.offset)
+    bytes_per_element(memory.size)
   end
 
-  @doc """
-  Same as bytes_per_element/1 except the unit `size` and offset given at memory creation are overwritten by the given values.
-
-  ```elixir
-  {:ok, memory} = Wasmex.Instance.memory(instance)
-  Wasmex.Memory.bytes_per_element(memory, :uint32, 0) # 4
-  ```
-  """
-  @spec bytes_per_element(t, atom(), non_neg_integer()) :: pos_integer()
-  def bytes_per_element(%__MODULE__{resource: resource}, size, offset) do
-    Wasmex.Native.memory_bytes_per_element(resource, size, offset)
+  @spec bytes_per_element(atom()) :: pos_integer()
+  def bytes_per_element(size) do
+    Wasmex.Native.memory_bytes_per_element(size)
   end
 
   @doc """
@@ -152,13 +150,8 @@ defmodule Wasmex.Memory do
   Note that the maximum number of pages is `65_536`
   """
   @spec grow(t, pos_integer()) :: pos_integer()
-  def grow(%__MODULE__{} = memory, pages) do
-    grow(memory, memory.size, memory.offset, pages)
-  end
-
-  @spec grow(t, atom(), non_neg_integer(), pos_integer()) :: pos_integer()
-  def grow(%__MODULE__{resource: resource}, size, offset, pages) do
-    Wasmex.Native.memory_grow(resource, size, offset, pages)
+  def grow(%__MODULE__{resource: resource}, pages) do
+    Wasmex.Native.memory_grow(resource, pages)
   end
 
   @spec get(t, non_neg_integer()) :: number()

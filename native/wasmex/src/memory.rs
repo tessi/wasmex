@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use rustler::resource::ResourceArc;
-use rustler::{Binary, Encoder, Env as RustlerEnv, Error, OwnedBinary, Term};
+use rustler::{Atom, Binary, Encoder, Env as RustlerEnv, Error, NifResult, OwnedBinary, Term};
 
 use wasmer::{Extern, Instance, Memory, Pages};
 
@@ -23,19 +23,30 @@ pub enum ElementSize {
     Int32,
 }
 
-pub fn from_instance<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let instance_resource: ResourceArc<instance::InstanceResource> = args[0].decode()?;
+#[derive(NifTuple)]
+pub struct MemoryResourceResponse {
+    ok: rustler::Atom,
+    resource: ResourceArc<MemoryResource>,
+}
+
+#[rustler::nif(name = "memory_from_instance")]
+pub fn from_instance(
+    instance_resource: ResourceArc<instance::InstanceResource>,
+) -> rustler::NifResult<MemoryResourceResponse> {
     let instance = instance_resource.instance.lock().unwrap();
     let memory = memory_from_instance(&*instance)?;
-    let memory_resource = ResourceArc::new(MemoryResource {
+    let resource = ResourceArc::new(MemoryResource {
         memory: Mutex::new(memory.to_owned()),
     });
 
-    Ok((atoms::ok(), memory_resource).encode(env))
+    Ok(MemoryResourceResponse {
+        ok: atoms::ok(),
+        resource,
+    })
 }
 
-fn size_from_term(term: &Term) -> Result<ElementSize, Error> {
-    let size = term
+fn size_from_term(size: &Term) -> Result<ElementSize, Error> {
+    let size = size
         .atom_to_string()
         .map_err(|_| Error::RaiseTerm(Box::new("Must be given a valid size atom.")))?;
     let size = match size.as_str() {
@@ -54,10 +65,10 @@ fn size_from_term(term: &Term) -> Result<ElementSize, Error> {
     Ok(size)
 }
 
-pub fn bytes_per_element<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (_resource, size, _offset) = extract_params(args)?;
-    let bytes_count = byte_size(size);
-    Ok(bytes_count.encode(env))
+#[rustler::nif(name = "memory_bytes_per_element")]
+pub fn bytes_per_element(size: Term) -> NifResult<usize> {
+    let size = size_from_term(&size)?;
+    Ok(byte_size(size))
 }
 
 fn byte_size(element_size: ElementSize) -> usize {
@@ -71,20 +82,16 @@ fn byte_size(element_size: ElementSize) -> usize {
     }
 }
 
-pub fn length<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, size, offset) = extract_params(args)?;
+#[rustler::nif(name = "memory_length")]
+pub fn length(
+    resource: ResourceArc<MemoryResource>,
+    size: Term,
+    offset: usize,
+) -> NifResult<usize> {
+    let size = size_from_term(&size)?;
     let memory = resource.memory.lock().unwrap();
     let length = view_length(&memory, offset, size);
-    Ok(length.encode(env))
-}
-
-fn extract_params(
-    args: &[Term],
-) -> Result<(ResourceArc<MemoryResource>, ElementSize, usize), Error> {
-    let resource: ResourceArc<MemoryResource> = args[0].decode()?;
-    let size = size_from_term(&args[1])?;
-    let offset = args[2].decode()?;
-    Ok((resource, size, offset))
+    Ok(length)
 }
 
 fn view_length(memory: &Memory, offset: usize, element_size: ElementSize) -> usize {
@@ -98,13 +105,11 @@ fn view_length(memory: &Memory, offset: usize, element_size: ElementSize) -> usi
     }
 }
 
-pub fn grow<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, _size, _offset) = extract_params(args)?;
-    let pages: u32 = args[3].decode()?;
-
+#[rustler::nif(name = "memory_grow")]
+pub fn grow(resource: ResourceArc<MemoryResource>, pages: u32) -> NifResult<u32> {
     let memory = resource.memory.lock().unwrap();
     let old_pages = grow_by_pages(&memory, pages)?;
-    Ok(old_pages.encode(env))
+    Ok(old_pages)
 }
 
 /// Grows the memory by the given amount of pages. Returns the old page count.
@@ -115,10 +120,16 @@ fn grow_by_pages(memory: &Memory, number_of_pages: u32) -> Result<u32, Error> {
         .map_err(|err| Error::RaiseTerm(Box::new(format!("Failed to grow the memory: {}.", err))))
 }
 
-pub fn get<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, size, offset) = extract_params(args)?;
+#[rustler::nif(name = "memory_get")]
+pub fn get<'a>(
+    env: rustler::Env<'a>,
+    resource: ResourceArc<MemoryResource>,
+    size: Term<'a>,
+    offset: usize,
+    index: usize,
+) -> NifResult<Term<'a>> {
     let memory = resource.memory.lock().unwrap();
-    let index: usize = args[3].decode()?;
+    let size = size_from_term(&size)?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
 
     Ok(get_value(&env, &memory, offset, index, size))
@@ -142,14 +153,20 @@ fn get_value<'a>(
     }
 }
 
-pub fn set<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, size, offset) = extract_params(args)?;
+#[rustler::nif(name = "memory_set")]
+pub fn set<'a>(
+    resource: ResourceArc<MemoryResource>,
+    size: Term<'a>,
+    offset: usize,
+    index: usize,
+    value: Term<'a>,
+) -> NifResult<Atom> {
     let memory = resource.memory.lock().unwrap();
-    let index: usize = args[3].decode()?;
+    let size = size_from_term(&size)?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
 
-    set_value(&memory, offset, index, size, args[4])?;
-    Ok(atoms::ok().encode(env))
+    set_value(&memory, offset, index, size, value)?;
+    Ok(atoms::ok())
 }
 
 fn set_value(
@@ -176,11 +193,11 @@ fn bounds_checked_index(
     offset: usize,
     index: usize,
 ) -> Result<usize, Error> {
-    let length = view_length(&memory, offset, size);
-    if length <= index {
+    let len = view_length(&memory, offset, size);
+    if len <= index {
         return Err(Error::RaiseTerm(Box::new(format!(
             "Out of bound: Given index {} is larger than the memory size {}.",
-            index, length
+            index, len
         ))));
     }
     Ok(index)
@@ -197,16 +214,22 @@ pub fn memory_from_instance(instance: &Instance) -> Result<&Memory, Error> {
         .ok_or_else(|| Error::RaiseTerm(Box::new("The WebAssembly module has no exported memory.")))
 }
 
-pub fn read_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, size, offset) = extract_params(args)?;
+#[rustler::nif(name = "memory_read_binary")]
+pub fn read_binary<'a>(
+    env: rustler::Env<'a>,
+    resource: ResourceArc<MemoryResource>,
+    size: Term<'a>,
+    offset: usize,
+    index: usize,
+    len: usize,
+) -> NifResult<Binary<'a>> {
     let memory = resource.memory.lock().unwrap();
-    let index: usize = args[3].decode()?;
-    let length: usize = args[4].decode()?;
+    let size = size_from_term(&size)?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
     let view = memory.view::<u8>();
 
     let start = offset + index;
-    let end = offset + index + length;
+    let end = offset + index + len;
 
     if end > view.len() {
         return Err(Error::RaiseTerm(Box::new(
@@ -214,7 +237,7 @@ pub fn read_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a
         )));
     }
 
-    let mut binary: OwnedBinary = OwnedBinary::new(length).unwrap();
+    let mut binary: OwnedBinary = OwnedBinary::new(len).unwrap();
 
     let data = view[start..end]
         .iter()
@@ -222,18 +245,20 @@ pub fn read_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a
         .collect::<Vec<u8>>();
 
     binary.copy_from_slice(&data);
-
-    let final_binary: Binary = Binary::from_owned(binary, env);
-
-    Ok(final_binary.encode(env))
+    Ok(binary.release(env))
 }
 
-pub fn write_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let (resource, size, offset) = extract_params(args)?;
+#[rustler::nif(name = "memory_write_binary")]
+pub fn write_binary(
+    resource: ResourceArc<MemoryResource>,
+    size: Term,
+    offset: usize,
+    index: usize,
+    binary: Binary,
+) -> NifResult<Atom> {
     let memory = resource.memory.lock().unwrap();
-    let index: usize = args[3].decode()?;
+    let size = size_from_term(&size)?;
     let index = bounds_checked_index(&memory, size, offset, index)?;
-    let binary: Binary = args[4].decode()?;
     let view = memory.view::<u8>();
 
     if offset + index + binary.len() > view.len() {
@@ -245,5 +270,5 @@ pub fn write_binary<'a>(env: RustlerEnv<'a>, args: &[Term<'a>]) -> Result<Term<'
     for (i, byte) in binary.iter().enumerate() {
         view[offset + index + i].set(*byte)
     }
-    Ok(atoms::ok().encode(env))
+    Ok(atoms::ok())
 }

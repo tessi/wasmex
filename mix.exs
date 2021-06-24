@@ -7,12 +7,6 @@ defmodule Wasmex.MixProject do
       version: "0.3.1",
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
-      compilers: [:rustler] ++ Mix.compilers(),
-      rustler_crates: [
-        wasmex: [
-          mode: if(Mix.env() == :prod, do: :release, else: :debug)
-        ]
-      ],
       name: "Wasmex",
       description: description(),
       package: package(),

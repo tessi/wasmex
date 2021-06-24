@@ -16,7 +16,23 @@ Types of changes
 
 ## [unreleased changes]
 
-* put new changes here
+- put new changes here
+
+## [0.4.0] - 2021-06-24
+
+### Added
+
+- added support for OTP 24.0 (by updating rustler)
+
+### Changed
+
+- Wasmex.Memory.bytes_per_element changed its signature from
+  `Wasmex.Memory.bytes_per_element(memory, :uint32, 0)` to `Wasmex.Memory.bytes_per_element(:uint32)`.
+  The existing signature `Wasmex.Memory.bytes_per_element(memory)` still works as before.
+
+#### Removed
+
+- `Wasmex.Memory.grow/4` was removed. Instead `Wasmex.Memory.grow/2` can be used interchangeably.
 
 ## [0.3.1] - 2021-04-04
 
