@@ -22,7 +22,7 @@ rustler::atoms! {
     __fn__ = "fn",
     params,
     results,
-    
+
     // wasi import options
     resource,
 
