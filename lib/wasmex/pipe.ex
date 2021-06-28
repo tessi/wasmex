@@ -1,7 +1,7 @@
 defmodule Wasmex.Pipe do
   @moduledoc """
-  A Pipe is a memory buffer that can be used for a WASM file.
-  It can be used, for example, to capture stdout/stdin/stderr or a WASI program.
+  A Pipe is a memory buffer that can be used in exchange for a WASM file.
+  It can be used, for example, to capture stdout/stdin/stderr of a WASI program.
   """
 
   @type t :: %__MODULE__{
