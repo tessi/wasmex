@@ -56,7 +56,7 @@ This WASM file can be executed in Elixir:
 
 ```elixir
 {:ok, bytes } = File.read("wasmex_test.wasm")
-{:ok, instance } = Wasmex.start_link(bytes)
+{:ok, instance } = Wasmex.start_link(%{bytes: bytes})
 
 {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
 ```
@@ -72,7 +72,7 @@ Instantiates a WebAssembly module represented by bytes and allows calling export
 {:ok, bytes } = File.read("wasmex_test.wasm")
 
 # Instantiates the WASM module.
-{:ok, instance } = Wasmex.start_link(bytes)
+{:ok, instance } = Wasmex.start_link(%{bytes: bytes})
 
 # Call a function on it.
 {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
@@ -105,8 +105,7 @@ imports = %{
     sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
   }
 }
-instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
-
+instance = Wasmex.start_link(%{bytes: @import_test_bytes, imports: imports})
 {:ok, [6]} = Wasmex.call_function(instance, "use_the_imported_sum_fn", [1, 2, 3])
 ```
 
@@ -242,7 +241,7 @@ Let's see how we can call this function from Elixir:
 
 ```elixir
 bytes = File.read!(TestHelper.wasm_test_file_path)
-{:ok, instance} = Wasmex.start_link(bytes)
+{:ok, instance} = Wasmex.start_link(%{bytes: bytes})
 {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 index = 42
 string = "hello, world"
@@ -272,7 +271,7 @@ This is how we would receive this String in Elixir:
 
 ```elixir
 bytes = File.read!(TestHelper.wasm_test_file_path)
-{:ok, instance} = Wasmex.start_link(bytes)
+{:ok, instance} = Wasmex.start_link(%{bytes: bytes})
 {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
 
 {:ok, [pointer]} = Wasmex.call_function(instance, "string", [])

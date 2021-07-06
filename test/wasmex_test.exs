@@ -7,7 +7,7 @@ defmodule WasmexTest do
   @wasi_test_bytes File.read!(TestHelper.wasi_test_file_path())
 
   defp create_instance(_context) do
-    instance = start_supervised!({Wasmex, @bytes})
+    instance = start_supervised!({Wasmex, %{bytes: @bytes}})
     %{instance: instance}
   end
 
@@ -269,8 +269,8 @@ defmodule WasmexTest do
     wasi = %{
       args: ["hello", "from elixir"],
       env: %{
-        "A_NAME_MAPS" => "TO_A_VALUE",
-        "THE_TEST_WASI_FILE" => "PRINTS_ALL_ENVS"
+        "A_NAME_MAPS" => "to a value",
+        "THE_TEST_WASI_FILE" => "prints all environment variables"
       },
       stdin: pipe,
       stdout: pipe,
@@ -292,8 +292,8 @@ defmodule WasmexTest do
              from elixir
 
              Environment:
-             A_NAME_MAPS=TO_A_VALUE
-             THE_TEST_WASI_FILE=PRINTS_ALL_ENVS
+             A_NAME_MAPS=to a value
+             THE_TEST_WASI_FILE=prints all environment variables
 
              Current Time (Since Unix Epoch):
              42

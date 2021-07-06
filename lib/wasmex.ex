@@ -6,7 +6,7 @@ defmodule Wasmex do
 
   ```elixir
   {:ok, bytes } = File.read("wasmex_test.wasm")
-  {:ok, instance } = Wasmex.start_link.from_bytes(bytes)
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes})
 
   {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
@@ -22,13 +22,26 @@ defmodule Wasmex do
   Wasmex.Memory.set(memory, index, value)
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
+
+  See `start_link/1` for details.
   """
   use GenServer
 
   # Client
 
   @doc """
-  Starts a GenServer which compiles and instantiates a WASM module from the given bytes and imports map.
+  Starts a GenServer which compiles and instantiates a WASM module from the given bytes.
+
+  ```elixir
+  {:ok, bytes } = File.read("wasmex_test.wasm")
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes})
+
+  {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
+  ```
+
+  ### Imports
+
+  Imports are provided as a map of namespaces, each namespace being a nested map of imported functions:
 
   ```elixir
   imports = %{
@@ -36,25 +49,19 @@ defmodule Wasmex do
       add_ints: {:fn, [:i32, :i32], [:i32], fn (_context, a, b) -> a + b end},
     }
   }
-  {:ok, bytes } = File.read("wasmex_test.wasm")
   {:ok, instance } = Wasmex.start_link(%{bytes: bytes, imports: imports})
-
-  {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
 
-  Imports are given as a map of namespaces.
   In the example above, we import the `"env"` namespace.
-  Each namespace is, again, a map listing imports.
-  Under the name `add_ints`, we imported a function which is represented with a tuple of:
+  Each namespace is a map listing imports, e.g. the `add_ints` function
+  which is represented with a tuple of:
 
   1. the import type: `:fn` (a function),
   1. the functions parameter types: `[:i32, :i32]`,
   1. the functions return types: `[:i32]`, and
-  1. a function reference: `fn (_context, a, b, c) -> a + b end`
+  1. the function to be executed: `fn (_context, a, b, c) -> a + b end`
 
-  When the WASM runtime executes the `add_ints` imported function, the execution context is forwarded to
-  the given function reference.
-  The first param is always the call context (a Map containing e.g. the instances memory).
+  The first param the function receives is always the call context (a Map containing e.g. the instances memory).
   All other params are regular parameters as specified by the parameter type list.
 
   Valid parameter/return types are:
@@ -65,7 +72,54 @@ defmodule Wasmex do
   - `:f64` a 64 bit float
 
   The return type must always be one value.
+
+  ### WASI
+
+  Optionally, modules can be run with WebAssembly System Interface (WASI) support.
+  WASI functions are provided as native NIF code by default.
+
+  ```elixir
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: true})
+  ```
+
+  It is possible to overwrite the default WASI functions using imports as described above.
+
+  Oftentimes, WASI programs need additional input like environment variables or arguments.
+  These can be provided by giving a `wasi` map:
+
+  ```elixir
+  wasi = %{
+    args: ["hello", "from elixir"],
+    env: %{
+      "A_NAME_MAPS" => "to a value",
+      "THE_TEST_WASI_FILE" => "prints all environment variables"
+    }
+  }
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: wasi})
+  ```
+
+  It is also possible to capture stdout, stdin, or stderr of a WASI program using pipes:
+
+  ```elixir
+  {:ok, stdin} = Wasmex.Pipe.create()
+  {:ok, stdout} = Wasmex.Pipe.create()
+  {:ok, stderr} = Wasmex.Pipe.create()
+  wasi = %{
+    stdin: stdin,
+    stdout: stdout,
+    stderr: stderr
+  }
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: wasi})
+  Wasmex.Pipe.write(stdin, "Hey! It compiles! Ship it!")
+  {:ok, _} = Wasmex.call_function(instance, :_start, [])
+  Wasmex.Pipe.read(stdout)
+  ```
   """
+  def start_link(%{} = opts) when not is_map_key(opts, :imports),
+    do: start_link(Map.merge(opts, %{imports: %{}}))
+
+  def start_link(%{wasi: true} = opts), do: start_link(Map.merge(opts, %{wasi: %{}}))
+
   def start_link(%{bytes: bytes, imports: imports, wasi: wasi})
       when is_binary(bytes) and is_map(imports) and is_map(wasi) do
     GenServer.start_link(__MODULE__, %{
@@ -75,12 +129,8 @@ defmodule Wasmex do
     })
   end
 
-  def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) do
-    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports), wasi: %{}})
-  end
-
-  def start_link(bytes) when is_binary(bytes) do
-    start_link(%{bytes: bytes, imports: %{}, wasi: %{}})
+  def start_link(%{bytes: bytes, imports: imports}) when is_binary(bytes) and is_map(imports) do
+    GenServer.start_link(__MODULE__, %{bytes: bytes, imports: stringify_keys(imports)})
   end
 
   @doc """
@@ -141,16 +191,15 @@ defmodule Wasmex do
   """
   @impl true
   def init(%{bytes: bytes, imports: imports, wasi: wasi})
-      when is_binary(bytes) and is_map(imports) and is_map(wasi) and map_size(wasi) == 0 do
-    {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
+    {:ok, instance} = Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi)
     {:ok, %{instance: instance, imports: imports, wasi: wasi}}
   end
 
   @impl true
-  def init(%{bytes: bytes, imports: imports, wasi: wasi})
-      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
-    {:ok, instance} = Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi)
-    {:ok, %{instance: instance, imports: imports, wasi: wasi}}
+  def init(%{bytes: bytes, imports: imports}) when is_binary(bytes) and is_map(imports) do
+    {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
+    {:ok, %{instance: instance, imports: imports}}
   end
 
   @impl true

@@ -17,13 +17,13 @@ defmodule Wasmex.Instance do
   Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
+  You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory/3` function returns a `Wasmex.Memory` struct representing the memory of that particular instance, e.g.:
 
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
   ```
 
-  This module, especially `call_exported_function` is assumed to be called within a GenServer context.
+  This module, especially `call_exported_function/4` is assumed to be called within a GenServer context.
   """
 
   @type t :: %__MODULE__{
@@ -92,8 +92,7 @@ defmodule Wasmex.Instance do
   The result either is an `{:error, reason}` or `{:ok, results}` tuple with `results`
   containing a list of the results form the called WebAssembly function.
 
-  Calling `call_exported_function` usually returns an `:ok` atom but may throw a BadArg exception when given
-  unexpected input data.
+  A BadArg exception may be thrown when given unexpected input data.
   """
   @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)

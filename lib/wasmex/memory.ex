@@ -1,15 +1,15 @@
 defmodule Wasmex.Memory do
   @moduledoc """
-  A WebAssembly instance has its own memory, represented by the `Memory` struct.
-  It is accessible by the `Wasmex.Instance.memory` getter.
+  A WebAssembly instance has its own memory, represented by the `Wasmex.Memory` struct.
+  It is accessible by the `Wasmex.Instance.memory/3` getter.
 
-  The `Memory.grow` methods allows to grow the memory by a number of pages (of 65kb each).
+  The `grow/2` methods allows to grow the memory by a number of pages (of 65kb each).
 
   ```elixir
   Wasmex.Memory.grow(memory, 1)
   ```
 
-  The current size of the memory can be obtained with the `length` method:
+  The current size of the memory can be obtained with the `length/1` method:
 
   ```elixir
   Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
@@ -27,7 +27,7 @@ defmodule Wasmex.Memory do
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
 
-  The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
+  The `Wasmex.Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
   Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
   The underlying data is not changed when viewed in different types - its just its representation that changes.
 
