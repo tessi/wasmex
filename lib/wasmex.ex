@@ -1,8 +1,14 @@
 defmodule Wasmex do
   @moduledoc """
-  Wasmex is an Elixir library for executing WebAssembly binaries.
+  Wasmex is a fast and secure [WebAssembly](https://webassembly.org/) and [WASI](https://github.com/WebAssembly/WASI) runtime for Elixir.
+  It enables lightweight WebAssembly containers to be run in your Elixir backend.
 
-  WASM functions can be executed like this:
+  It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF. We use [Rust][https://www.rust-lang.org/] to implement the NIF to make it as safe as possible.
+
+  This is the main module, providing most of the needed API to run WASM binaries.
+
+  Each WASM module must be instantiated first from a `.wasm` file. A WASM instance is running in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).
+  To start the GenServer, `start_link/1` is used - it receives a variety of confiiguration options including function imports and optional WASI runtime options.
 
   ```elixir
   {:ok, bytes } = File.read("wasmex_test.wasm")
@@ -11,7 +17,7 @@ defmodule Wasmex do
   {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
   ```
 
-  Memory can be read/written using `Wasmex.Memory`:
+  Memory of a WASM instance can be read/written using `Wasmex.Memory`:
 
   ```elixir
   offset = 7
@@ -23,14 +29,14 @@ defmodule Wasmex do
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
 
-  See `start_link/1` for details.
+  See `start_link/1` for starting a WASM instance and `call_function/3` for details about calling WASM functions.
   """
   use GenServer
 
   # Client
 
   @doc """
-  Starts a GenServer which compiles and instantiates a WASM module from the given bytes.
+  Starts a GenServer which compiles and instantiates a WASM module from the given `.wasm` bytes.
 
   ```elixir
   {:ok, bytes } = File.read("wasmex_test.wasm")
@@ -46,15 +52,15 @@ defmodule Wasmex do
   ```elixir
   imports = %{
     env: %{
-      add_ints: {:fn, [:i32, :i32], [:i32], fn (_context, a, b) -> a + b end},
+      sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
     }
   }
-  {:ok, instance } = Wasmex.start_link(%{bytes: bytes, imports: imports})
+  instance = Wasmex.start_link(%{bytes: @import_test_bytes, imports: imports})
+  {:ok, [6]} = Wasmex.call_function(instance, "use_the_imported_sum_fn", [1, 2, 3])
   ```
 
   In the example above, we import the `"env"` namespace.
-  Each namespace is a map listing imports, e.g. the `add_ints` function
-  which is represented with a tuple of:
+  Each namespace is a map listing imports, e.g. the `sum3` function, which is represented with a tuple of:
 
   1. the import type: `:fn` (a function),
   1. the functions parameter types: `[:i32, :i32]`,
@@ -76,13 +82,13 @@ defmodule Wasmex do
   ### WASI
 
   Optionally, modules can be run with WebAssembly System Interface (WASI) support.
-  WASI functions are provided as native NIF code by default.
+  WASI functions are provided as native NIF functions by default.
 
   ```elixir
   {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: true})
   ```
 
-  It is possible to overwrite the default WASI functions using imports as described above.
+  It is possible to overwrite the default WASI functions using the imports map as described above.
 
   Oftentimes, WASI programs need additional input like environment variables or arguments.
   These can be provided by giving a `wasi` map:
@@ -143,6 +149,68 @@ defmodule Wasmex do
   @doc """
   Calls a function with the given `name` and `params` on
   the WebAssembly instance and returns its results.
+
+  ### Strings as Parameters and Return Values
+
+  Strings can not directly be used as parameters or return values when calling WebAssembly functions since WebAssembly only knows number data types.
+  But since Strings are just "a bunch of bytes" we can write these bytes into memory and give our WebAssembly function a pointer to that memory location.
+
+  #### Strings as Function Parameters
+
+  Given we have the following Rust function that returns the first byte of a given string
+  in our WebAssembly (note: this is copied from our test code, have a look there if you're interested):
+
+  ```rust
+  #[no_mangle]
+  pub extern "C" fn string_first_byte(bytes: *const u8, length: usize) -> u8 {
+      let slice = unsafe { slice::from_raw_parts(bytes, length) };
+      match slice.first() {
+          Some(&i) => i,
+          None => 0,
+      }
+  }
+  ```
+
+  Let's see how we can call this function from Elixir:
+
+  ```elixir
+  bytes = File.read!(TestHelper.wasm_test_file_path)
+  {:ok, instance} = Wasmex.start_link(%{bytes: bytes})
+  {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
+  index = 42
+  string = "hello, world"
+  Wasmex.Memory.write_binary(memory, index, string)
+
+  # 104 is the letter "h" in ASCII/UTF-8 encoding
+  {:ok, [104]} == Wasmex.call_function(instance, "string_first_byte", [index, String.length(string)])
+  ```
+
+  Please not that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
+
+  #### Strings as Function Return Values
+
+  Given we have the following Rust function in our WebAssembly (copied from our test code):
+
+  ```rust
+  #[no_mangle]
+  pub extern "C" fn string() -> *const u8 {
+      b"Hello, World!".as_ptr()
+  }
+  ```
+
+  This function returns a pointer to its memory.
+  This memory location contains the String "Hello, World!" (ending with a null-byte since in C-land all strings end with a null-byte to mark the end of the string).
+
+  This is how we would receive this String in Elixir:
+
+  ```elixir
+  bytes = File.read!(TestHelper.wasm_test_file_path)
+  {:ok, instance} = Wasmex.start_link(%{bytes: bytes})
+  {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
+
+  {:ok, [pointer]} = Wasmex.call_function(instance, "string", [])
+  returned_string = Wasmex.Memory.read_string(memory, pointer, 13) # "Hello, World!"
+  ```
   """
   def call_function(pid, name, params) do
     GenServer.call(pid, {:call_function, stringify(name), params})
@@ -159,7 +227,7 @@ defmodule Wasmex do
   * uint32 / int32 - (un-)signed 32-bit integer values
 
   We can think of it as a list of values of the above type (where each value may be larger than a byte).
-  The `offset` value can be used to start reading the memory from a chosen position.
+  The `offset` value can be used to start reading the memory starting from the chosen position.
   """
   def memory(pid, type, offset) when type in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     GenServer.call(pid, {:memory, type, offset})
@@ -188,6 +256,16 @@ defmodule Wasmex do
                        import_name: {:fn, [:i32, :i32], [:i32], function_reference}
                      }
                    }
+  * wasi (map): a map defining WASI support. Structure is:
+                %{
+                  args: ["string", "arguments"],
+                  env: %{
+                    "A_NAME_MAPS" => "to a value"
+                  },
+                  stdin: Pipe.create(),
+                  stdout: Pipe.create(),
+                  stderr: Pipe.create()
+                }
   """
   @impl true
   def init(%{bytes: bytes, imports: imports, wasi: wasi})

@@ -1,29 +1,32 @@
 defmodule Wasmex.Instance do
   @moduledoc """
-  Instantiates a WebAssembly module represented by bytes and allows calling exported functions on it.
+  Instantiates a WebAssembly module and allows calling exported functions on it.
 
   ```elixir
-  # Get the Wasm module as bytes.
+  # Get the WASM module as bytes.
   {:ok, bytes } = File.read("wasmex_test.wasm")
 
-  # Instantiates the Wasm module.
-  {:ok, instance } = Wasmex.Instance.from_bytes(bytes)
+  # Instantiates the WASM module.
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes})
 
-  # Test for existence of a function
-  true = Wasmex.Instance.function_export_exists(instance, "sum")
+  # Call a function on it.
+  {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
+
+  IO.puts result # 3
   ```
 
   All exported functions are accessible via `call_exported_function`.
   Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory/3` function returns a `Wasmex.Memory` struct representing the memory of that particular instance, e.g.:
+  You can pass arbitrary data to WebAssembly by writing data into an instances memory. The `memory/3` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
 
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
   ```
 
-  This module, especially `call_exported_function/4` is assumed to be called within a GenServer context.
+  This module, especially `call_exported_function/4`, is assumed to be called within a GenServer context.
+  Usually, functions definedd here are called through the `Wasmex` module API to satisfy this assumption.
   """
 
   @type t :: %__MODULE__{
