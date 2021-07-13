@@ -16,7 +16,9 @@ Types of changes
 
 ## [unreleased changes]
 
-- put new changes here
+### Added
+
+- Added WASI support. See [Wasmex.start_link/1](https://hexdocs.pm/wasmex/Wasmex.html#start_link/1) for usage instructions and examples.
 
 ## [0.4.0] - 2021-06-24
 
