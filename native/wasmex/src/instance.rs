@@ -39,7 +39,7 @@ pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<Instanc
     let bytes = binary.as_slice();
 
     let mut environment = Environment::new();
-    let import_object = environment.import_object(imports)?; // TODO: maybe we can improve this with a map type!
+    let import_object = environment.import_object(imports)?;
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
         Ok(module) => module,
@@ -138,9 +138,9 @@ pub fn new_wasi_from_bytes<'a>(
         state_builder.stderr(Box::new(pipe.clone()));
     }
 
-    let mut wasi_wasmer_env = state_builder
-        .finalize()
-        .map_err(|_e| rustler::Error::Atom("WasiStateCreationError"))?;
+    let mut wasi_wasmer_env = state_builder.finalize().map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
+    })?;
 
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
@@ -155,9 +155,9 @@ pub fn new_wasi_from_bytes<'a>(
 
     // creates as WASI import object and merges imports from elixir into them
     // this allows overwriting certain WASI functions from elixir
-    let import_object = wasi_wasmer_env
-        .import_object(&module)
-        .map_err(|_e| rustler::Error::Atom("could not create import object"))?;
+    let import_object = wasi_wasmer_env.import_object(&module).map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not create import object: {:?}", e)))
+    })?;
 
     let import_object_overwrites = environment.import_object(imports)?;
     let resolver = import_object.chain_front(import_object_overwrites);

@@ -219,7 +219,13 @@ defmodule WasmexTest do
     end
   end
 
-  test "runnung a WASM/WASI module while overriding some WASI methods" do
+  test "calling a normal WASM module with WASI enabled errors as no WASI version can be detected" do
+    assert {:error,
+            {{:bad_return_value, {:error, "Could not create import object: UnknownWasiVersion"}},
+             _}} = start_supervised({Wasmex, %{bytes: @bytes, imports: %{}, wasi: true}})
+  end
+
+  test "running a WASM/WASI module while overriding some WASI methods" do
     imports = %{
       wasi_snapshot_preview1: %{
         clock_time_get:

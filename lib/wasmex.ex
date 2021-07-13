@@ -270,14 +270,18 @@ defmodule Wasmex do
   @impl true
   def init(%{bytes: bytes, imports: imports, wasi: wasi})
       when is_binary(bytes) and is_map(imports) and is_map(wasi) do
-    {:ok, instance} = Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi)
-    {:ok, %{instance: instance, imports: imports, wasi: wasi}}
+    case Wasmex.Instance.wasi_from_bytes(bytes, imports, wasi) do
+      {:ok, instance} -> {:ok, %{instance: instance, imports: imports, wasi: wasi}}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @impl true
   def init(%{bytes: bytes, imports: imports}) when is_binary(bytes) and is_map(imports) do
-    {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
-    {:ok, %{instance: instance, imports: imports}}
+    case Wasmex.Instance.from_bytes(bytes, imports) do
+      {:ok, instance} -> {:ok, %{instance: instance, imports: imports}}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @impl true
