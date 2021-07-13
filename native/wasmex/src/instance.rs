@@ -14,7 +14,11 @@ use wasmer::{ChainableNamedResolver, Instance, Module, Store, Type, Val, Value};
 use wasmer_wasi::WasiState;
 
 use crate::{
-    atoms, environment::Environment, functions, memory::memory_from_instance, pipe::PipeResource,
+    atoms,
+    environment::Environment,
+    functions,
+    memory::memory_from_instance,
+    pipe::PipeResource,
     printable_term_type::PrintableTermType,
 };
 
@@ -111,30 +115,30 @@ pub fn new_wasi_from_bytes<'a>(
         state_builder.env(key, value);
     }
 
-    if let Ok(pipe_resource) = options
-        .map_get("stdin".encode(env))
-        .and_then(|pipe| pipe.map_get(atoms::resource().encode(env)))
-        .and_then(|term| term.decode::<ResourceArc<PipeResource>>())
-    {
-        let pipe = pipe_resource.pipe.lock().unwrap();
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdin", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
         state_builder.stdin(Box::new(pipe.clone()));
     }
 
-    if let Ok(pipe_resource) = options
-        .map_get("stdout".encode(env))
-        .and_then(|pipe| pipe.map_get(atoms::resource().encode(env)))
-        .and_then(|term| term.decode::<ResourceArc<PipeResource>>())
-    {
-        let pipe = pipe_resource.pipe.lock().unwrap();
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdout", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
         state_builder.stdout(Box::new(pipe.clone()));
     }
 
-    if let Ok(pipe_resource) = options
-        .map_get("stderr".encode(env))
-        .and_then(|pipe| pipe.map_get(atoms::resource().encode(env)))
-        .and_then(|term| term.decode::<ResourceArc<PipeResource>>())
-    {
-        let pipe = pipe_resource.pipe.lock().unwrap();
+    if let Ok(resource) = pipe_from_wasi_options(options, "stderr", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
         state_builder.stderr(Box::new(pipe.clone()));
     }
 
@@ -181,6 +185,17 @@ pub fn new_wasi_from_bytes<'a>(
         ok: atoms::ok(),
         resource,
     })
+}
+
+fn pipe_from_wasi_options(
+    options: Term,
+    key: &str,
+    env: &rustler::Env,
+) -> Result<ResourceArc<PipeResource>, rustler::Error> {
+    options
+        .map_get(key.encode(*env))
+        .and_then(|pipe_term| pipe_term.map_get(atoms::resource().encode(*env)))
+        .and_then(|term| term.decode::<ResourceArc<PipeResource>>())
 }
 
 #[rustler::nif(name = "instance_function_export_exists")]
