@@ -14,11 +14,7 @@ use wasmer::{ChainableNamedResolver, Instance, Module, Store, Type, Val, Value};
 use wasmer_wasi::WasiState;
 
 use crate::{
-    atoms,
-    environment::Environment,
-    functions,
-    memory::memory_from_instance,
-    pipe::PipeResource,
+    atoms, environment::Environment, functions, memory::memory_from_instance, pipe::PipeResource,
     printable_term_type::PrintableTermType,
 };
 
