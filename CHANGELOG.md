@@ -16,7 +16,9 @@ Types of changes
 
 ## [unreleased changes]
 
-- put new changes here
+### Added
+
+- Added WASI support. See [Wasmex.start_link/1](https://hexdocs.pm/wasmex/Wasmex.html#start_link/1) for usage instructions and examples.
 
 ## [0.4.0] - 2021-06-24
 
@@ -64,7 +66,7 @@ imports = %{
   env: %{
     read_and_set_memory:
       {:fn, [], [:i32],
-        fn context, a, b, c ->
+        fn context ->
           memory = Map.get(context, :memory)
           42 = Wasmex.Memory.get(memory, :uint8, 0, 0) # assert that the first byte in the memory was set to 42
           Wasmex.Memory.set(memory, :uint8, 0, 0, 23)

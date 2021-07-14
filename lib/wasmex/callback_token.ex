@@ -1,6 +1,6 @@
 defmodule Wasmex.CallbackToken do
   @moduledoc """
-  TBD
+  Used internally within Wasmex to help implement function imports.
   """
 
   @type t :: %__MODULE__{

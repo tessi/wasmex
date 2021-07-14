@@ -23,6 +23,9 @@ rustler::atoms! {
     params,
     results,
 
+    // wasi import options
+    resource,
+
     // callback context
     memory,
 
