@@ -1,15 +1,15 @@
 defmodule Wasmex.Memory do
   @moduledoc """
-  A WebAssembly instance has its own memory, represented by the `Memory` struct.
-  It is accessible by the `Wasmex.Instance.memory` getter.
+  A WebAssembly instance has its own memory, represented by the `Wasmex.Memory` struct.
+  It is accessible by the `Wasmex.Instance.memory/3` getter.
 
-  The `Memory.grow` methods allows to grow the memory by a number of pages (of 65kb each).
+  The `grow/2` method allows to grow the memory by a number of pages (of 65kb each).
 
   ```elixir
   Wasmex.Memory.grow(memory, 1)
   ```
 
-  The current size of the memory can be obtained with the `length` method:
+  The current size of the memory can be obtained with the `length/1` method:
 
   ```elixir
   Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
@@ -27,9 +27,11 @@ defmodule Wasmex.Memory do
   IO.puts Wasmex.Memory.get(memory, index) # 42
   ```
 
-  The `Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
+  ### Memory Buffer viewed in different Datatypes
+
+  The `Wasmex.Memory` struct views the WebAssembly memory of an instance as an array of values of different types.
   Possible types are: `uint8`, `int8`, `uint16`, `int16`, `uint32`, and `int32`.
-  The underlying data is not changed when viewed in different types - its just its representation that changes.
+  The underlying data is not changed when viewed in different types - it is just its representation that changes.
 
   | View memory buffer as a sequence of… | Bytes per element |
   |----------|---|
@@ -39,6 +41,47 @@ defmodule Wasmex.Memory do
   | `uint16` | 2 |
   | `int32`  | 4 |
   | `uint32` | 4 |
+
+  This can be resolved at runtime:
+
+  ```elixir
+  {:ok, memory} = Wasmex.memory(instance, :uint16, 0)
+  Wasmex.Memory.bytes_per_element(memory) # 2
+  ```
+
+  Since the same memory seen in different data types uses the same buffer internally. Let's have some fun:
+
+  ```elixir
+  int8 = Wasmex.memory(instance, :int8, 0)
+  int16 = Wasmex.memory(instance, :int16, 0)
+  int32 = Wasmex.memory(instance, :int32, 0)
+
+                          b₁
+                      ┌┬┬┬┬┬┬┐
+  Memory.set(int8, 0, 0b00000001)
+                          b₂
+                      ┌┬┬┬┬┬┬┐
+  Memory.set(int8, 1, 0b00000100)
+                          b₃
+                      ┌┬┬┬┬┬┬┐
+  Memory.set(int8, 2, 0b00010000)
+                          b₄
+                      ┌┬┬┬┬┬┬┐
+  Memory.set(int8, 3, 0b01000000)
+
+  # Viewed in `int16`, 2 bytes are read per value
+              b₂       b₁
+          ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+  assert 0b00000100_00000001 == Memory.get(int16, 0)
+              b₄       b₃
+          ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+  assert 0b01000000_00010000 == Memory.get(int16, 1)
+
+  # Viewed in `int32`, 4 bytes are read per value
+              b₄       b₃       b₂       b₁
+          ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐ ┌┬┬┬┬┬┬┐
+  assert 0b01000000_00010000_00000100_00000001 == Memory.get(int32, 0)
+  ```
   """
 
   @type t :: %__MODULE__{

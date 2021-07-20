@@ -4,15 +4,17 @@ use rustler::{
     resource::ResourceArc,
     types::binary::Binary,
     types::tuple::make_tuple,
-    NifResult, {Encoder, Env as RustlerEnv, MapIterator, Term},
+    types::ListIterator,
+    Encoder, Env as RustlerEnv, MapIterator, NifResult, Term,
 };
 use std::sync::Mutex;
 use std::thread;
 
-use wasmer::{Instance, Module, Store, Type, Val, Value};
+use wasmer::{ChainableNamedResolver, Instance, Module, Store, Type, Val, Value};
+use wasmer_wasi::WasiState;
 
 use crate::{
-    atoms, environment::Environment, functions, memory::memory_from_instance,
+    atoms, environment::Environment, functions, memory::memory_from_instance, pipe::PipeResource,
     printable_term_type::PrintableTermType,
 };
 
@@ -31,19 +33,19 @@ pub struct InstanceResourceResponse {
 //
 // * bytes (binary): the bytes of the WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
-//   structure: %{namespace_name: %{import_name: {TODO: signature}}}
+//   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
 #[rustler::nif(name = "instance_new_from_bytes")]
 pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<InstanceResourceResponse> {
     let bytes = binary.as_slice();
 
     let mut environment = Environment::new();
-    let import_object = environment.import_object(imports)?; // TODO: maybe we can improve this with a map type!
+    let import_object = environment.import_object(imports)?;
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
         Ok(module) => module,
         Err(e) => {
             return Err(rustler::Error::Term(Box::new(format!(
-                "Could not compule module: {:?}",
+                "Could not compile module: {:?}",
                 e
             ))))
         }
@@ -67,6 +69,209 @@ pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<Instanc
         ok: atoms::ok(),
         resource,
     })
+}
+
+// Creates a new instance from the given WASM bytes.
+// Expects the following elixir params:
+//
+// * bytes (binary): the bytes of the WASM module
+// * imports (map): a map defining eventual instance imports, may be empty if there are none.
+//   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
+// * wasi_args (list of Strings): a list of argument strings
+// * wasi_env: (map String->String): a map containing environment variable definitions, each of the type `"NAME" => "value"`
+// * options: A map allowing the following keys
+//   * stdin (optional): A pipe that will be passed as stdin to the WASM module
+//   * stdout (optional): A pipe that will be passed as stdout to the WASM module
+//   * stderr (optional): A pipe that will be passed as stderr to the WASM module
+#[rustler::nif(name = "instance_new_wasi_from_bytes")]
+pub fn new_wasi_from_bytes<'a>(
+    env: rustler::Env<'a>,
+    binary: Binary,
+    imports: MapIterator,
+    wasi_args: ListIterator,
+    wasi_env: MapIterator,
+    options: Term<'a>,
+) -> NifResult<InstanceResourceResponse> {
+    let wasi_args = wasi_args
+        .map(|term: Term| term.decode::<String>().map(|s| s.into_bytes()))
+        .collect::<Result<Vec<Vec<u8>>, _>>()?;
+    let wasi_env = wasi_env
+        .map(|(key, val)| {
+            key.decode::<String>()
+                .and_then(|key| val.decode::<String>().map(|val| (key, val)))
+        })
+        .collect::<Result<Vec<(String, String)>, _>>()?;
+    let bytes = binary.as_slice();
+
+    let mut environment = Environment::new();
+    let mut wasi_wasmer_env = create_wasi_env(wasi_args, wasi_env, options, env)?;
+
+    let store = Store::default();
+    let module = match Module::new(&store, &bytes) {
+        Ok(module) => module,
+        Err(e) => {
+            return Err(rustler::Error::Term(Box::new(format!(
+                "Could not compile module: {:?}",
+                e
+            ))))
+        }
+    };
+
+    // creates as WASI import object and merges imports from elixir into them
+    // this allows overwriting certain WASI functions from elixir
+    let import_object = wasi_wasmer_env.import_object(&module).map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not create import object: {:?}", e)))
+    })?;
+
+    let import_object_overwrites = environment.import_object(imports)?;
+    let resolver = import_object.chain_front(import_object_overwrites);
+
+    let instance = match Instance::new(&module, &resolver) {
+        Ok(instance) => instance,
+        Err(e) => {
+            return Err(rustler::Error::Term(Box::new(format!(
+                "Cannot instantiate: {:?}",
+                e
+            ))))
+        }
+    };
+    let memory = memory_from_instance(&instance)?.clone();
+    environment.memory.initialize(memory);
+
+    let resource = ResourceArc::new(InstanceResource {
+        instance: Mutex::new(instance),
+    });
+    Ok(InstanceResourceResponse {
+        ok: atoms::ok(),
+        resource,
+    })
+}
+
+fn create_wasi_env<'a>(
+    wasi_args: Vec<Vec<u8>>,
+    wasi_env: Vec<(String, String)>,
+    options: Term<'a>,
+    env: RustlerEnv<'a>,
+) -> Result<wasmer_wasi::WasiEnv, rustler::Error> {
+    let mut state_builder = WasiState::new("wasmex");
+    state_builder.args(wasi_args);
+    for (key, value) in wasi_env {
+        state_builder.env(key, value);
+    }
+    wasi_stdin(options, env, &mut state_builder)?;
+    wasi_stdout(options, env, &mut state_builder)?;
+    wasi_stderr(options, env, &mut state_builder)?;
+    wasi_preopen_directories(options, env, &mut state_builder)?;
+    state_builder.finalize().map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
+    })
+}
+
+fn wasi_preopen_directories<'a>(
+    options: Term<'a>,
+    env: RustlerEnv<'a>,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Some(preopen) = options
+        .map_get("preopen".encode(env))
+        .ok()
+        .and_then(MapIterator::new)
+    {
+        for (key, opts) in preopen {
+            let directory: &str = key.decode()?;
+            state_builder
+                .preopen(|builder| {
+                    let builder = builder.directory(directory);
+                    if let Ok(alias) = opts
+                        .map_get("alias".encode(env))
+                        .and_then(|term| term.decode())
+                    {
+                        builder.alias(alias);
+                    }
+
+                    if let Ok(flags) = opts
+                        .map_get("flags".encode(env))
+                        .and_then(|term| term.decode::<ListIterator>())
+                    {
+                        for flag in flags {
+                            if flag.eq(&atoms::read().to_term(env)) {
+                                builder.read(true);
+                            }
+                            if flag.eq(&atoms::write().to_term(env)) {
+                                builder.write(true);
+                            }
+                            if flag.eq(&atoms::create().to_term(env)) {
+                                builder.create(true);
+                            }
+                        }
+                    }
+                    builder
+                })
+                .map_err(|e| {
+                    rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
+                })?;
+        }
+    }
+    Ok(())
+}
+
+fn wasi_stderr(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stderr", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stderr(Box::new(pipe.clone()));
+    }
+    Ok(())
+}
+
+fn wasi_stdout(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdout", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stdout(Box::new(pipe.clone()));
+    }
+    Ok(())
+}
+
+fn wasi_stdin(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdin", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stdin(Box::new(pipe.clone()));
+    }
+    Ok(())
+}
+
+fn pipe_from_wasi_options(
+    options: Term,
+    key: &str,
+    env: &rustler::Env,
+) -> Result<ResourceArc<PipeResource>, rustler::Error> {
+    options
+        .map_get(key.encode(*env))
+        .and_then(|pipe_term| pipe_term.map_get(atoms::resource().encode(*env)))
+        .and_then(|term| term.decode::<ResourceArc<PipeResource>>())
 }
 
 #[rustler::nif(name = "instance_function_export_exists")]

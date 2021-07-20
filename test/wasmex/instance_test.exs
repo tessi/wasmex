@@ -114,7 +114,7 @@ defmodule Wasmex.InstanceTest do
          :fake_from} ->
           nil
       after
-        1000 ->
+        2000 ->
           raise "message_expected"
       end
     end

@@ -1,29 +1,32 @@
 defmodule Wasmex.Instance do
   @moduledoc """
-  Instantiates a WebAssembly module represented by bytes and allows calling exported functions on it.
+  Instantiates a WebAssembly module and allows calling exported functions on it.
 
   ```elixir
-  # Get the Wasm module as bytes.
+  # Get the WASM module as bytes.
   {:ok, bytes } = File.read("wasmex_test.wasm")
 
-  # Instantiates the Wasm module.
-  {:ok, instance } = Wasmex.Instance.from_bytes(bytes)
+  # Instantiates the WASM module.
+  {:ok, instance } = Wasmex.start_link(%{bytes: bytes})
 
-  # Test for existence of a function
-  true = Wasmex.Instance.function_export_exists(instance, "sum")
+  # Call a function on it.
+  {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
+
+  IO.puts result # 3
   ```
 
   All exported functions are accessible via `call_exported_function`.
   Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbitrary data to WebAssembly, though, by writing this data into its memory. The `memory` function returns a `Memory` struct representing the memory of that particular instance, e.g.:
+  You can pass arbitrary data to WebAssembly by writing data into an instances memory. The `memory/3` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
 
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
   ```
 
-  This module, especially `call_exported_function` is assumed to be called within a GenServer context.
+  This module, especially `call_exported_function/4`, is assumed to be called within a GenServer context.
+  Usually, functions definedd here are called through the `Wasmex` module API to satisfy this assumption.
   """
 
   @type t :: %__MODULE__{
@@ -44,6 +47,26 @@ defmodule Wasmex.Instance do
           {:error, binary()} | {:ok, __MODULE__.t()}
   def from_bytes(bytes, imports) when is_binary(bytes) and is_map(imports) do
     case Wasmex.Native.instance_new_from_bytes(bytes, imports) do
+      {:ok, resource} -> {:ok, wrap_resource(resource)}
+      {:error, err} -> {:error, err}
+    end
+  end
+
+  @spec wasi_from_bytes(binary(), %{optional(binary()) => (... -> any())}, %{
+          optional(:args) => [String.t()],
+          optional(:env) => %{String.t() => String.t()},
+          optional(:stdin) => Wasmex.Pipe.t(),
+          optional(:stdout) => Wasmex.Pipe.t(),
+          optional(:stderr) => Wasmex.Pipe.t()
+        }) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
+  def wasi_from_bytes(bytes, imports, wasi)
+      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
+    args = Map.get(wasi, "args", [])
+    env = Map.get(wasi, "env", %{})
+    {opts, _} = Map.split(wasi, ["stdin", "stdout", "stderr", "preopen"])
+
+    case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env, opts) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
       {:error, err} -> {:error, err}
     end
@@ -72,8 +95,7 @@ defmodule Wasmex.Instance do
   The result either is an `{:error, reason}` or `{:ok, results}` tuple with `results`
   containing a list of the results form the called WebAssembly function.
 
-  Calling `call_exported_function` usually returns an `:ok` atom but may throw a BadArg exception when given
-  unexpected input data. 
+  A BadArg exception may be thrown when given unexpected input data.
   """
   @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)

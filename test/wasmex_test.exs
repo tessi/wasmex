@@ -6,7 +6,7 @@ defmodule WasmexTest do
   @import_test_bytes File.read!(TestHelper.wasm_import_test_file_path())
 
   defp create_instance(_context) do
-    instance = start_supervised!({Wasmex, @bytes})
+    instance = start_supervised!({Wasmex, %{bytes: @bytes}})
     %{instance: instance}
   end
 
