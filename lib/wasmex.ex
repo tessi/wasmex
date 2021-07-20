@@ -90,7 +90,8 @@ defmodule Wasmex do
 
   It is possible to overwrite the default WASI functions using the imports map as described above.
 
-  Oftentimes, WASI programs need additional input like environment variables or arguments.
+  Oftentimes, WASI programs need additional input like environment variables, arguments,
+  or file system access.
   These can be provided by giving a `wasi` map:
 
   ```elixir
@@ -99,10 +100,15 @@ defmodule Wasmex do
     env: %{
       "A_NAME_MAPS" => "to a value",
       "THE_TEST_WASI_FILE" => "prints all environment variables"
-    }
+    },
+    preopen: %{"wasi_logfiles": %{flags: [:write, :create], alias: "log"}}
   }
   {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: wasi})
   ```
+
+  The `preopen` map takes directory paths as keys and settings map as values.
+  Settings must specify the access map with one or more of `:create`, `:read`, `:write`.
+  Optionally, the directory can be given another name in the WASI program using `alias`.
 
   It is also possible to capture stdout, stdin, or stderr of a WASI program using pipes:
 

@@ -90,7 +90,7 @@ pub fn new_wasi_from_bytes<'a>(
     imports: MapIterator,
     wasi_args: ListIterator,
     wasi_env: MapIterator,
-    options: Term,
+    options: Term<'a>,
 ) -> NifResult<InstanceResourceResponse> {
     let wasi_args = wasi_args
         .map(|term: Term| term.decode::<String>().map(|s| s.into_bytes()))
@@ -104,43 +104,7 @@ pub fn new_wasi_from_bytes<'a>(
     let bytes = binary.as_slice();
 
     let mut environment = Environment::new();
-    let mut state_builder = WasiState::new("wasmex");
-
-    state_builder.args(wasi_args);
-    for (key, value) in wasi_env {
-        state_builder.env(key, value);
-    }
-
-    if let Ok(resource) = pipe_from_wasi_options(options, "stdin", &env) {
-        let pipe = resource.pipe.lock().map_err(|_e| {
-            rustler::Error::Term(Box::new(
-                "Could not unlock resource as the mutex was poisoned.",
-            ))
-        })?;
-        state_builder.stdin(Box::new(pipe.clone()));
-    }
-
-    if let Ok(resource) = pipe_from_wasi_options(options, "stdout", &env) {
-        let pipe = resource.pipe.lock().map_err(|_e| {
-            rustler::Error::Term(Box::new(
-                "Could not unlock resource as the mutex was poisoned.",
-            ))
-        })?;
-        state_builder.stdout(Box::new(pipe.clone()));
-    }
-
-    if let Ok(resource) = pipe_from_wasi_options(options, "stderr", &env) {
-        let pipe = resource.pipe.lock().map_err(|_e| {
-            rustler::Error::Term(Box::new(
-                "Could not unlock resource as the mutex was poisoned.",
-            ))
-        })?;
-        state_builder.stderr(Box::new(pipe.clone()));
-    }
-
-    let mut wasi_wasmer_env = state_builder.finalize().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
-    })?;
+    let mut wasi_wasmer_env = create_wasi_env(wasi_args, wasi_env, options, env)?;
 
     let store = Store::default();
     let module = match Module::new(&store, &bytes) {
@@ -181,6 +145,122 @@ pub fn new_wasi_from_bytes<'a>(
         ok: atoms::ok(),
         resource,
     })
+}
+
+fn create_wasi_env<'a>(
+    wasi_args: Vec<Vec<u8>>,
+    wasi_env: Vec<(String, String)>,
+    options: Term<'a>,
+    env: RustlerEnv<'a>,
+) -> Result<wasmer_wasi::WasiEnv, rustler::Error> {
+    let mut state_builder = WasiState::new("wasmex");
+    state_builder.args(wasi_args);
+    for (key, value) in wasi_env {
+        state_builder.env(key, value);
+    }
+    wasi_stdin(options, env, &mut state_builder)?;
+    wasi_stdout(options, env, &mut state_builder)?;
+    wasi_stderr(options, env, &mut state_builder)?;
+    wasi_preopen_directories(options, env, &mut state_builder)?;
+    state_builder.finalize().map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
+    })
+}
+
+fn wasi_preopen_directories<'a>(
+    options: Term<'a>,
+    env: RustlerEnv<'a>,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Some(preopen) = options
+        .map_get("preopen".encode(env))
+        .ok()
+        .and_then(MapIterator::new)
+    {
+        for (key, opts) in preopen {
+            let directory: &str = key.decode()?;
+            state_builder
+                .preopen(|builder| {
+                    let builder = builder.directory(directory);
+                    if let Ok(alias) = opts
+                        .map_get("alias".encode(env))
+                        .and_then(|term| term.decode())
+                    {
+                        builder.alias(alias);
+                    }
+
+                    if let Ok(flags) = opts
+                        .map_get("flags".encode(env))
+                        .and_then(|term| term.decode::<ListIterator>())
+                    {
+                        for flag in flags {
+                            if flag.eq(&atoms::read().to_term(env)) {
+                                builder.read(true);
+                            }
+                            if flag.eq(&atoms::write().to_term(env)) {
+                                builder.write(true);
+                            }
+                            if flag.eq(&atoms::create().to_term(env)) {
+                                builder.create(true);
+                            }
+                        }
+                    }
+                    builder
+                })
+                .map_err(|e| {
+                    rustler::Error::Term(Box::new(format!("Could not create WASI state: {:?}", e)))
+                })?;
+        }
+    }
+    Ok(())
+}
+
+fn wasi_stderr(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stderr", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stderr(Box::new(pipe.clone()));
+    }
+    Ok(())
+}
+
+fn wasi_stdout(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdout", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stdout(Box::new(pipe.clone()));
+    }
+    Ok(())
+}
+
+fn wasi_stdin(
+    options: Term,
+    env: RustlerEnv,
+    state_builder: &mut wasmer_wasi::WasiStateBuilder,
+) -> Result<(), rustler::Error> {
+    if let Ok(resource) = pipe_from_wasi_options(options, "stdin", &env) {
+        let pipe = resource.pipe.lock().map_err(|_e| {
+            rustler::Error::Term(Box::new(
+                "Could not unlock resource as the mutex was poisoned.",
+            ))
+        })?;
+        state_builder.stdin(Box::new(pipe.clone()));
+    }
+    Ok(())
 }
 
 fn pipe_from_wasi_options(

@@ -64,7 +64,7 @@ defmodule Wasmex.Instance do
       when is_binary(bytes) and is_map(imports) and is_map(wasi) do
     args = Map.get(wasi, "args", [])
     env = Map.get(wasi, "env", %{})
-    {opts, _} = Map.split(wasi, ["stdin", "stdout", "stderr"])
+    {opts, _} = Map.split(wasi, ["stdin", "stdout", "stderr", "preopen"])
 
     case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env, opts) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
