@@ -32,7 +32,7 @@ end
 **Note**: [Rust](https://www.rust-lang.org/) is required to install the Elixir library (Cargo — the build tool for Rust — is used to compile the extension).
 See [how to install Rust](https://www.rust-lang.org/tools/install).
 
-The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
+The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex/Wasmex.html).
 
 # Example
 
