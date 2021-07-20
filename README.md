@@ -14,7 +14,7 @@ Wasmex is a fast and secure [WebAssembly](https://webassembly.org/) and [WASI](h
 It enables lightweight WebAssembly containers to be run in your Elixir backend.
 
 It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF.
-We use [Rust][https://www.rust-lang.org/] to implement the NIF to make it as safe as possible.
+We use [Rust](https://www.rust-lang.org/) to implement the NIF to make it as safe as possible.
 
 # Install
 
@@ -29,8 +29,8 @@ def deps do
 end
 ```
 
-**Note**: [Rust][https://www.rust-lang.org/] is required to install the Elixir library (Cargo — the build tool for Rust — is used to compile the extension).
-See [how to install Rust][https://www.rust-lang.org/tools/install].
+**Note**: [Rust](https://www.rust-lang.org/) is required to install the Elixir library (Cargo — the build tool for Rust — is used to compile the extension).
+See [how to install Rust](https://www.rust-lang.org/tools/install).
 
 The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex).
 
@@ -64,7 +64,7 @@ If a topic is not covered (in the needed depth) there, please open an issue.
 
 # What is WebAssembly?
 
-Quoting [the WebAssembly site][https://webassembly.org/]:
+Quoting [the WebAssembly site](https://webassembly.org/):
 
 > WebAssembly (abbreviated Wasm) is a binary instruction format for a
 > stack-based virtual machine. Wasm is designed as a portable target
@@ -85,4 +85,4 @@ About safety:
 
 # License
 
-The entire project is under the MIT License. Please read [the`LICENSE` file][https://github.com/tessi/wasmex/blob/master/LICENSE].
+The entire project is under the MIT License. Please read [the`LICENSE` file](https://github.com/tessi/wasmex/blob/master/LICENSE).
