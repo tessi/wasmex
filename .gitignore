@@ -28,3 +28,7 @@ test/wasm_source/target/*
 
 .mix_tasks
 **/.DS_Store
+
+# Wapm test files
+wapm_packages/*
+wapm.lock

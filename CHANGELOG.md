@@ -16,9 +16,35 @@ Types of changes
 
 ## [unreleased changes]
 
+-- add your changes here
+
+## [0.5.0] - 2021-07-22
+
 ### Added
 
 - Added WASI support. See [Wasmex.start_link/1](https://hexdocs.pm/wasmex/Wasmex.html#start_link/1) for usage instructions and examples.
+
+```elixir
+# after a `wapm install cowsay`
+{:ok, bytes } = File.read("wapm_packages/_/cowsay@0.2.0/target/wasm32-wasi/release/cowsay.wasm")
+{:ok, stdout} = Wasmex.Pipe.create()
+{:ok, stdin} = Wasmex.Pipe.create()
+{:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: %{stdout: stdout, stdin: stdin}})
+Wasmex.Pipe.write(stdin, "Why do you never see elephants hiding in trees? Because they're really good at it.")
+{:ok, _} = Wasmex.call_function(instance, :_start, [])
+IO.puts Wasmex.Pipe.read(stdout)
+  ________________________________________
+/ Why do you never see elephants hiding  \
+| in trees? Because they're really good  |
+\ at it.                                 /
+ ----------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+               ||----w |
+                ||     ||
+:ok
+```
 
 ## [0.4.0] - 2021-06-24
 
