@@ -16,8 +16,14 @@ Types of changes
 
 ## [unreleased changes]
 
--- add your changes here
+### Added
 
+* `Wasmex.Module.compile/1` which can take the bytes of a .wasm files and compiles the WASM module. This module can be given to the new methods `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3` allowing to re-used precompiled modules. This has a big potential speed-up if one wishes to run a WASI instance multiple times. For example, the wasmex test suite went from 14.5s to just 0.2s runtime.
+* `Wasmex.start_link` can now also be called with a precompiled module in addition to the .wasm file bytes.
+
+### Deprecated
+
+* `Instance.from_bytes/2` and `Instance.wasi_from_bytes/3` are deprecated in favor of `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3`. Both may be removed in any release after this one.
 ## [0.5.0] - 2021-07-22
 
 ### Added

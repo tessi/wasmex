@@ -2,11 +2,8 @@ defmodule WasmexTest do
   use ExUnit.Case, async: true
   doctest Wasmex
 
-  @bytes File.read!(TestHelper.wasm_test_file_path())
-  @import_test_bytes File.read!(TestHelper.wasm_import_test_file_path())
-
   defp create_instance(_context) do
-    instance = start_supervised!({Wasmex, %{bytes: @bytes}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasm_module()}})
     %{instance: instance}
   end
 
@@ -131,7 +128,9 @@ defmodule WasmexTest do
         )
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+    instance =
+      start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+
     {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
     Wasmex.Memory.set(memory, :uint8, 0, 0, 42)
 
@@ -147,7 +146,9 @@ defmodule WasmexTest do
         env: TestHelper.default_imported_functions_env()
       }
 
-      instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+      instance =
+        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+
       %{instance: instance}
     end
 
@@ -177,7 +178,9 @@ defmodule WasmexTest do
         "env" => TestHelper.default_imported_functions_env_stringified()
       }
 
-      instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+      instance =
+        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+
       %{instance: instance}
     end
 
@@ -202,7 +205,9 @@ defmodule WasmexTest do
         }
       }
 
-      instance = start_supervised!({Wasmex, %{bytes: @import_test_bytes, imports: imports}})
+      instance =
+        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+
       %{instance: instance}
     end
 

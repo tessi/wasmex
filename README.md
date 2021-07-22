@@ -52,7 +52,8 @@ This WASM file can be executed in Elixir:
 
 ```elixir
 {:ok, bytes } = File.read("wasmex_test.wasm")
-{:ok, instance } = Wasmex.start_link(%{bytes: bytes}) # starts a GenServer running this WASM instance
+{:ok, module} = Wasmex.Module.compile(bytes)
+{:ok, instance } = Wasmex.start_link(%{module: module}) # starts a GenServer running this WASM instance
 
 {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
 ```

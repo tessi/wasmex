@@ -2,9 +2,6 @@ defmodule WasiTest do
   use ExUnit.Case, async: true
   doctest Wasmex
 
-  @bytes File.read!(TestHelper.wasm_test_file_path())
-  @wasi_test_bytes File.read!(TestHelper.wasi_test_file_path())
-
   def tmp_file_path(suffix) do
     dir = System.tmp_dir!()
 
@@ -21,7 +18,10 @@ defmodule WasiTest do
   test "calling a normal WASM module with WASI enabled errors as no WASI version can be detected" do
     assert {:error,
             {{:bad_return_value, {:error, "Could not create import object: UnknownWasiVersion"}},
-             _}} = start_supervised({Wasmex, %{bytes: @bytes, imports: %{}, wasi: true}})
+             _}} =
+             start_supervised(
+               {Wasmex, %{module: TestHelper.wasm_module(), imports: %{}, wasi: true}}
+             )
   end
 
   test "running a WASM/WASI module while overriding some WASI methods" do
@@ -83,7 +83,9 @@ defmodule WasiTest do
     }
 
     instance =
-      start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, imports: imports, wasi: wasi}})
+      start_supervised!(
+        {Wasmex, %{module: TestHelper.wasi_module(), imports: imports, wasi: wasi}}
+      )
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
@@ -111,7 +113,7 @@ defmodule WasiTest do
   test "file system access without preopened dirs" do
     {:ok, stdout} = Wasmex.Pipe.create()
     wasi = %{args: ["list_files", "src"], stdout: stdout}
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
     assert Wasmex.Pipe.read(stdout) == "Could not find directory src\n"
@@ -126,7 +128,7 @@ defmodule WasiTest do
       preopen: %{"test/wasi_test/src": %{flags: [:read]}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
     assert Wasmex.Pipe.read(stdout) == "\"test/wasi_test/src/main.rs\"\n"
@@ -141,7 +143,7 @@ defmodule WasiTest do
       preopen: %{"test/wasi_test/src": %{flags: [:read], alias: "aliased_src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
     assert Wasmex.Pipe.read(stdout) == "\"aliased_src/main.rs\"\n"
@@ -156,7 +158,7 @@ defmodule WasiTest do
       preopen: %{"test/wasi_test/src": %{flags: [:read], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
     {:ok, expected_content} = File.read("test/wasi_test/src/main.rs")
@@ -172,7 +174,7 @@ defmodule WasiTest do
       preopen: %{"test/wasi_test/src": %{flags: [:create], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
@@ -192,7 +194,7 @@ defmodule WasiTest do
       preopen: %{dir => %{flags: [:write], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
     {:ok, file_contents} = File.read(filepath)
@@ -213,7 +215,7 @@ defmodule WasiTest do
       preopen: %{dir => %{flags: [:read], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
     {:ok, file_contents} = File.read(filepath)
@@ -236,7 +238,7 @@ defmodule WasiTest do
       preopen: %{dir => %{flags: [:create], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
     {:ok, file_contents} = File.read(filepath)
@@ -256,7 +258,7 @@ defmodule WasiTest do
       preopen: %{dir => %{flags: [:read], alias: "src"}}
     }
 
-    instance = start_supervised!({Wasmex, %{bytes: @wasi_test_bytes, wasi: wasi}})
+    instance = start_supervised!({Wasmex, %{module: TestHelper.wasi_module(), wasi: wasi}})
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
 
     {:ok, file_contents} = File.read(filepath)

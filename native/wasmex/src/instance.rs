@@ -2,7 +2,6 @@ use rustler::{
     dynamic::TermType,
     env::{OwnedEnv, SavedTerm},
     resource::ResourceArc,
-    types::binary::Binary,
     types::tuple::make_tuple,
     types::ListIterator,
     Encoder, Env as RustlerEnv, MapIterator, NifResult, Term,
@@ -10,12 +9,12 @@ use rustler::{
 use std::sync::Mutex;
 use std::thread;
 
-use wasmer::{ChainableNamedResolver, Instance, Module, Store, Type, Val, Value};
+use wasmer::{ChainableNamedResolver, Instance, Type, Val, Value};
 use wasmer_wasi::WasiState;
 
 use crate::{
-    atoms, environment::Environment, functions, memory::memory_from_instance, pipe::PipeResource,
-    printable_term_type::PrintableTermType,
+    atoms, environment::Environment, functions, memory::memory_from_instance,
+    module::ModuleResource, pipe::PipeResource, printable_term_type::PrintableTermType,
 };
 
 pub struct InstanceResource {
@@ -31,25 +30,17 @@ pub struct InstanceResourceResponse {
 // creates a new instance from the given WASM bytes
 // expects the following elixir params
 //
-// * bytes (binary): the bytes of the WASM module
+// * module (ModuleResource): the compiled WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
-#[rustler::nif(name = "instance_new_from_bytes")]
-pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<InstanceResourceResponse> {
-    let bytes = binary.as_slice();
-
+#[rustler::nif(name = "instance_new")]
+pub fn new(
+    module_resource: ResourceArc<ModuleResource>,
+    imports: MapIterator,
+) -> NifResult<InstanceResourceResponse> {
     let mut environment = Environment::new();
     let import_object = environment.import_object(imports)?;
-    let store = Store::default();
-    let module = match Module::new(&store, &bytes) {
-        Ok(module) => module,
-        Err(e) => {
-            return Err(rustler::Error::Term(Box::new(format!(
-                "Could not compile module: {:?}",
-                e
-            ))))
-        }
-    };
+    let module = module_resource.module.lock().unwrap();
     let instance = match Instance::new(&module, &import_object) {
         Ok(instance) => instance,
         Err(e) => {
@@ -74,7 +65,7 @@ pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<Instanc
 // Creates a new instance from the given WASM bytes.
 // Expects the following elixir params:
 //
-// * bytes (binary): the bytes of the WASM module
+// * module (ModuleResource): the compiled WASM module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
 // * wasi_args (list of Strings): a list of argument strings
@@ -83,10 +74,10 @@ pub fn new_from_bytes(binary: Binary, imports: MapIterator) -> NifResult<Instanc
 //   * stdin (optional): A pipe that will be passed as stdin to the WASM module
 //   * stdout (optional): A pipe that will be passed as stdout to the WASM module
 //   * stderr (optional): A pipe that will be passed as stderr to the WASM module
-#[rustler::nif(name = "instance_new_wasi_from_bytes")]
-pub fn new_wasi_from_bytes<'a>(
+#[rustler::nif(name = "instance_new_wasi")]
+pub fn new_wasi<'a>(
     env: rustler::Env<'a>,
-    binary: Binary,
+    module_resource: ResourceArc<ModuleResource>,
     imports: MapIterator,
     wasi_args: ListIterator,
     wasi_env: MapIterator,
@@ -101,21 +92,10 @@ pub fn new_wasi_from_bytes<'a>(
                 .and_then(|key| val.decode::<String>().map(|val| (key, val)))
         })
         .collect::<Result<Vec<(String, String)>, _>>()?;
-    let bytes = binary.as_slice();
 
     let mut environment = Environment::new();
     let mut wasi_wasmer_env = create_wasi_env(wasi_args, wasi_env, options, env)?;
-
-    let store = Store::default();
-    let module = match Module::new(&store, &bytes) {
-        Ok(module) => module,
-        Err(e) => {
-            return Err(rustler::Error::Term(Box::new(format!(
-                "Could not compile module: {:?}",
-                e
-            ))))
-        }
-    };
+    let module = module_resource.module.lock().unwrap();
 
     // creates as WASI import object and merges imports from elixir into them
     // this allows overwriting certain WASI functions from elixir

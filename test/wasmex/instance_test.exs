@@ -3,37 +3,33 @@ defmodule Wasmex.InstanceTest do
   doctest Wasmex.Instance
 
   defp build_wasm_instance do
-    bytes = File.read!(TestHelper.wasm_test_file_path())
-    Wasmex.Instance.from_bytes(bytes, %{})
+    TestHelper.wasm_module()
+    |> Wasmex.Instance.new(%{})
   end
 
-  describe "from_bytes/1" do
+  describe "new/2" do
     test "instantiates an Instance from a valid wasm file" do
-      bytes = File.read!(TestHelper.wasm_test_file_path())
-      {:ok, _} = Wasmex.Instance.from_bytes(bytes, %{})
+      {:ok, _} = Wasmex.Instance.new(TestHelper.wasm_module(), %{})
     end
 
     test "errors when not providing necessary imports" do
       bytes = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/simple.wasm")
+      {:ok, module} = Wasmex.Module.compile(bytes)
 
       assert {:error,
               "Cannot Instantiate: Link(Import(\"imports\", \"imported_func\", UnknownImport(Function(FunctionType { params: [I32], results: [] }))))"} ==
-               Wasmex.Instance.from_bytes(bytes, %{})
+               Wasmex.Instance.new(module, %{})
     end
 
     test "instantiates an Instance with imports" do
-      bytes = File.read!(TestHelper.wasm_import_test_file_path())
-
       imports = %{
         "env" => TestHelper.default_imported_functions_env_stringified()
       }
 
-      {:ok, _} = Wasmex.Instance.from_bytes(bytes, imports)
+      {:ok, _} = Wasmex.Instance.new(TestHelper.wasm_import_module(), imports)
     end
 
     test "can not instantiate an Instance with imports having too few params" do
-      bytes = File.read!(TestHelper.wasm_import_test_file_path())
-
       imports = %{
         "env" =>
           TestHelper.default_imported_functions_env_stringified()
@@ -42,15 +38,13 @@ defmodule Wasmex.InstanceTest do
           })
       }
 
-      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+      {:error, reason} = Wasmex.Instance.new(TestHelper.wasm_import_module(), imports)
 
       assert reason =~
                "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32], results: [I32] }))))"
     end
 
     test "can not instantiate an Instance with imports having too many params" do
-      bytes = File.read!(TestHelper.wasm_import_test_file_path())
-
       imports = %{
         "env" => %{
           "imported_sum3" =>
@@ -58,15 +52,13 @@ defmodule Wasmex.InstanceTest do
         }
       }
 
-      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+      {:error, reason} = Wasmex.Instance.new(TestHelper.wasm_import_module(), imports)
 
       assert reason =~
                "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32, I32, I32], results: [I32] }))))"
     end
 
     test "can not instantiate an Instance with imports having wrong params types" do
-      bytes = File.read!(TestHelper.wasm_import_test_file_path())
-
       imports = %{
         "env" =>
           TestHelper.default_imported_functions_env_stringified()
@@ -76,7 +68,7 @@ defmodule Wasmex.InstanceTest do
           })
       }
 
-      {:error, reason} = Wasmex.Instance.from_bytes(bytes, imports)
+      {:error, reason} = Wasmex.Instance.new(TestHelper.wasm_import_module(), imports)
 
       assert reason =~
                "Cannot Instantiate: Link(Import(\"env\", \"imported_sum3\", IncompatibleType(Function(FunctionType { params: [I32, I32, I32], results: [I32] }), Function(FunctionType { params: [I32, I32, I32], results: [I64] }))))"
@@ -134,8 +126,6 @@ defmodule Wasmex.InstanceTest do
     end
 
     test "calling an imported function which returns the wrong type" do
-      bytes = File.read!(TestHelper.wasm_import_test_file_path())
-
       imports = %{
         "env" =>
           TestHelper.default_imported_functions_env_stringified()
@@ -146,7 +136,7 @@ defmodule Wasmex.InstanceTest do
           })
       }
 
-      {:ok, instance} = Wasmex.Instance.from_bytes(bytes, imports)
+      {:ok, instance} = Wasmex.Instance.new(TestHelper.wasm_import_module(), imports)
 
       :ok =
         Wasmex.Instance.call_exported_function(
