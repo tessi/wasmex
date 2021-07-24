@@ -95,7 +95,6 @@ defmodule Wasmex.Memory do
             # resource in attributes. This will convert the resource into an
             # empty binary with no warning. This will make that harder to
             # accidentally do.
-            # It also serves as a handy way to tell file handles apart.
             reference: nil,
             size: nil,
             offset: nil

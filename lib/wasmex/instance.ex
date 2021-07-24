@@ -2,18 +2,17 @@ defmodule Wasmex.Instance do
   @moduledoc """
   Instantiates a WebAssembly module and allows calling exported functions on it.
 
-  ```elixir
-  # Get the WASM module as bytes.
-  {:ok, bytes } = File.read("wasmex_test.wasm")
+      # Read a WASM file and compile it into a WASM module
+      {:ok, bytes } = File.read("wasmex_test.wasm")
+      {:ok, module} = Wasmex.Module.compile(bytes)
 
-  # Instantiates the WASM module.
-  {:ok, instance } = Wasmex.start_link(%{bytes: bytes})
+      # Instantiates the WASM module.
+      {:ok, instance } = Wasmex.start_link(%{module: module})
 
-  # Call a function on it.
-  {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
+      # Call a function on it.
+      {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
 
-  IO.puts result # 3
-  ```
+      IO.puts result # 3
 
   All exported functions are accessible via `call_exported_function`.
   Arguments of these functions are automatically casted to WebAssembly values.
@@ -40,18 +39,28 @@ defmodule Wasmex.Instance do
             # resource in attributes. This will convert the resource into an
             # empty binary with no warning. This will make that harder to
             # accidentally do.
-            # It also serves as a handy way to tell file handles apart.
             reference: nil
 
+  @deprecated "Compile the module with Wasmex.Module.compile/1 and then use new/2 instead"
   @spec from_bytes(binary(), %{optional(binary()) => (... -> any())}) ::
           {:error, binary()} | {:ok, __MODULE__.t()}
-  def from_bytes(bytes, imports) when is_binary(bytes) and is_map(imports) do
-    case Wasmex.Native.instance_new_from_bytes(bytes, imports) do
+  def from_bytes(bytes, imports) do
+    case Wasmex.Module.compile(bytes) do
+      {:ok, module} -> new(module, imports)
+      error -> error
+    end
+  end
+
+  @spec new(Wasmex.Module.t(), %{optional(binary()) => (... -> any())}) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
+  def new(%Wasmex.Module{resource: memory_resource}, imports) when is_map(imports) do
+    case Wasmex.Native.instance_new(memory_resource, imports) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
       {:error, err} -> {:error, err}
     end
   end
 
+  @deprecated "Compile the module with Wasmex.Module.compile/1 and then use new_wasi/3 instead"
   @spec wasi_from_bytes(binary(), %{optional(binary()) => (... -> any())}, %{
           optional(:args) => [String.t()],
           optional(:env) => %{String.t() => String.t()},
@@ -60,13 +69,28 @@ defmodule Wasmex.Instance do
           optional(:stderr) => Wasmex.Pipe.t()
         }) ::
           {:error, binary()} | {:ok, __MODULE__.t()}
-  def wasi_from_bytes(bytes, imports, wasi)
-      when is_binary(bytes) and is_map(imports) and is_map(wasi) do
+  def wasi_from_bytes(bytes, imports, wasi) do
+    case Wasmex.Module.compile(bytes) do
+      {:ok, module} -> new_wasi(module, imports, wasi)
+      error -> error
+    end
+  end
+
+  @spec new_wasi(Wasmex.Module.t(), %{optional(binary()) => (... -> any())}, %{
+          optional(:args) => [String.t()],
+          optional(:env) => %{String.t() => String.t()},
+          optional(:stdin) => Wasmex.Pipe.t(),
+          optional(:stdout) => Wasmex.Pipe.t(),
+          optional(:stderr) => Wasmex.Pipe.t()
+        }) ::
+          {:error, binary()} | {:ok, __MODULE__.t()}
+  def new_wasi(%Wasmex.Module{resource: memory_resource}, imports, wasi)
+      when is_map(imports) and is_map(wasi) do
     args = Map.get(wasi, "args", [])
     env = Map.get(wasi, "env", %{})
     {opts, _} = Map.split(wasi, ["stdin", "stdout", "stderr", "preopen"])
 
-    case Wasmex.Native.instance_new_wasi_from_bytes(bytes, imports, args, env, opts) do
+    case Wasmex.Native.instance_new_wasi(memory_resource, imports, args, env, opts) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
       {:error, err} -> {:error, err}
     end

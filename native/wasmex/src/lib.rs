@@ -3,6 +3,7 @@ pub mod environment;
 pub mod functions;
 pub mod instance;
 pub mod memory;
+pub mod module;
 pub mod namespace;
 pub mod pipe;
 pub mod printable_term_type;
@@ -16,8 +17,9 @@ use rustler::{Env, Term};
 rustler::init! {
     "Elixir.Wasmex.Native",
     [
-        instance::new_from_bytes,
-        instance::new_wasi_from_bytes,
+        module::compile,
+        instance::new,
+        instance::new_wasi,
         instance::function_export_exists,
         instance::call_exported_function,
         namespace::receive_callback_result,
@@ -40,6 +42,7 @@ rustler::init! {
 
 fn on_load(env: Env, _info: Term) -> bool {
     rustler::resource!(instance::InstanceResource, env);
+    rustler::resource!(module::ModuleResource, env);
     rustler::resource!(memory::MemoryResource, env);
     rustler::resource!(environment::CallbackTokenResource, env);
     rustler::resource!(pipe::PipeResource, env);
