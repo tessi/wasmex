@@ -50,8 +50,10 @@ pub fn new(
             ))))
         }
     };
-    let memory = memory_from_instance(&instance)?.clone();
-    environment.memory.initialize(memory);
+
+    if let Ok(memory) = memory_from_instance(&instance) {
+        environment.memory.initialize(memory.clone());
+    }
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
@@ -115,8 +117,10 @@ pub fn new_wasi<'a>(
             ))))
         }
     };
-    let memory = memory_from_instance(&instance)?.clone();
-    environment.memory.initialize(memory);
+
+    if let Ok(memory) = memory_from_instance(&instance) {
+        environment.memory.initialize(memory.clone());
+    }
 
     let resource = ResourceArc::new(InstanceResource {
         instance: Mutex::new(instance),
