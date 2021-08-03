@@ -54,7 +54,7 @@ impl Environment {
         let definition: MapIterator = definition.decode()?;
         for (import_name, import) in definition {
             let import_name = import_name.decode::<String>()?;
-            self.create_import(&mut namespace, &name, &import_name, import)?;
+            self.create_import(&mut namespace, name, &import_name, import)?;
         }
         Ok(namespace)
     }

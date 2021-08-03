@@ -318,7 +318,7 @@ fn execute_function(
             )
         }
     };
-    let function_params = match decode_function_param_terms(&function.ty().params(), given_params) {
+    let function_params = match decode_function_param_terms(function.ty().params(), given_params) {
         Ok(vec) => map_to_wasmer_values(&vec),
         Err(reason) => return make_error_tuple(&thread_env, &reason, from),
     };
@@ -342,13 +342,13 @@ fn execute_function(
             Val::F64(i) => i.encode(thread_env),
             // encoding V128 is not yet supported by rustler
             Val::V128(_) => {
-                return make_error_tuple(&thread_env, &"unable_to_return_v128_type", from)
+                return make_error_tuple(&thread_env, "unable_to_return_v128_type", from)
             }
             Val::FuncRef(_) => {
-                return make_error_tuple(&thread_env, &"unable_to_return_func_ref_type", from)
+                return make_error_tuple(&thread_env, "unable_to_return_func_ref_type", from)
             }
             Val::ExternRef(_) => {
-                return make_error_tuple(&thread_env, &"unable_to_return_extern_ref_type", from)
+                return make_error_tuple(&thread_env, "unable_to_return_extern_ref_type", from)
             }
         })
     }
