@@ -4,6 +4,11 @@ defmodule Wasmex.Native do
   use Rustler, otp_app: :wasmex
 
   def module_compile(_bytes), do: error()
+  def module_name(_module_resource), do: error()
+  def module_set_name(_module_resource, _binary), do: error()
+  def module_serialize(_module_resource), do: error()
+  def module_unsafe_deserialize(_binary), do: error()
+
   def instance_new(_module_resource, _imports), do: error()
   def instance_new_wasi(_module_resource, _imports, _args, _env, _opts), do: error()
   def instance_function_export_exists(_instance_resource, _function_name), do: error()

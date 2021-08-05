@@ -7,31 +7,6 @@ defmodule WasmexTest do
     %{instance: instance}
   end
 
-  describe "module compilation from WAT" do
-    test "instantiates a simple module from wat" do
-      wat = "
-      (module
-        (type $add_one_t (func (param i32) (result i32)))
-        (func $add_one_f (type $add_one_t) (param $value i32) (result i32)
-          local.get $value
-          i32.const 1
-          i32.add)
-        (export \"add_one\" (func $add_one_f)))
-      "
-      {:ok, module} = Wasmex.Module.compile(wat)
-      instance = start_supervised!({Wasmex, %{module: module}})
-      assert {:ok, [42]} == Wasmex.call_function(instance, :add_one, [41])
-    end
-
-    test "errors when attempting to compile nonsense" do
-      wat = "wat is this? not wat for sure"
-
-      assert {:error,
-              "Error while parsing bytes: expected `(`\n     --> <anon>:1:1\n      |\n    1 | wat is this? not wat for sure\n      | ^."} ==
-               Wasmex.Module.compile(wat)
-    end
-  end
-
   describe "when instantiating without imports" do
     setup [:create_instance]
 
