@@ -46,4 +46,120 @@ defmodule Wasmex.ModuleTest do
       assert "test name" == Wasmex.Module.name(module)
     end
   end
+
+  describe "exports/1" do
+    test "lists exports of a module" do
+      module = TestHelper.wasm_module()
+
+      expected = %{
+        "__data_end" => {:global, %{mutability: :const, type: :i32}},
+        "__heap_base" => {:global, %{mutability: :const, type: :i32}},
+        "arity_0" => {:fn, [], [:i32]},
+        "bool_casted_to_i32" => {:fn, [], [:i32]},
+        "endless_loop" => {:fn, [], []},
+        "f32_f32" => {:fn, [:f32], [:f32]},
+        "f64_f64" => {:fn, [:f64], [:f64]},
+        "i32_i32" => {:fn, [:i32], [:i32]},
+        "i32_i64_f32_f64_f64" => {:fn, [:i32, :i64, :f32, :f64], [:f64]},
+        "i64_i64" => {:fn, [:i64], [:i64]},
+        "memory" => {:memory, %{minimum: 17, shared: false}},
+        "string" => {:fn, [], [:i32]},
+        "string_first_byte" => {:fn, [:i32, :i32], [:i32]},
+        "sum" => {:fn, [:i32, :i32], [:i32]},
+        "void" => {:fn, [], []}
+      }
+
+      assert expected == Wasmex.Module.exports(module)
+    end
+
+    test "lists table data" do
+      {:ok, module} = Wasmex.Module.compile("(module (table (export \"myTable\") 2 anyfunc))")
+      expected = %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}
+      assert expected == Wasmex.Module.exports(module)
+    end
+
+    test "lists function data" do
+      {:ok, module} = Wasmex.Module.compile("(module (func (export \"myFunction\")))")
+      expected = %{"myFunction" => {:fn, [], []}}
+      assert expected == Wasmex.Module.exports(module)
+    end
+
+    test "lists memory data" do
+      {:ok, module} = Wasmex.Module.compile("(module (memory (export \"myMemory\") 1))")
+      expected = %{"myMemory" => {:memory, %{minimum: 1, shared: false}}}
+      assert expected == Wasmex.Module.exports(module)
+    end
+
+    test "lists no exports for the empty module" do
+      {:ok, module} = Wasmex.Module.compile("(module)")
+      assert %{} == Wasmex.Module.exports(module)
+    end
+  end
+
+  describe "imports/1" do
+    test "lists imports of a module" do
+      module = TestHelper.wasm_import_module()
+
+      expected = %{
+        "env" => %{
+          "imported_sum3" => {:fn, [:i32, :i32, :i32], [:i32]},
+          "imported_sumf" => {:fn, [:f32, :f32], [:f32]},
+          "imported_void" => {:fn, [], []}
+        }
+      }
+
+      assert expected == Wasmex.Module.imports(module)
+    end
+
+    test "lists table data" do
+      {:ok, module} =
+        Wasmex.Module.compile("(module (table (import \"env\" \"myTable\") 2 anyfunc))")
+
+      expected = %{"env" => %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}}
+      assert expected == Wasmex.Module.imports(module)
+    end
+
+    test "lists function data" do
+      {:ok, module} = Wasmex.Module.compile("(module (func (import \"env\" \"myFunction\")))")
+      expected = %{"env" => %{"myFunction" => {:fn, [], []}}}
+      assert expected == Wasmex.Module.imports(module)
+    end
+
+    test "lists memory data" do
+      {:ok, module} = Wasmex.Module.compile("(module (memory (import \"env\" \"myMemory\") 1))")
+      expected = %{"env" => %{"myMemory" => {:memory, %{minimum: 1, shared: false}}}}
+      assert expected == Wasmex.Module.imports(module)
+    end
+
+    test "lists no imports for the empty module" do
+      {:ok, module} = Wasmex.Module.compile("(module)")
+      assert %{} == Wasmex.Module.imports(module)
+    end
+
+    test "groups imports by namespace" do
+      wat = """
+      (module
+        (import "env" "MyMemory" (memory (;0;) 256 256))
+        (import "global" "Infinity" (global (;8;) f64))
+        (import "global" "NaN" (global (;7;) f64))
+        (import "env" "MyTable" (table (;0;) 10 10 anyfunc))
+      )
+      """
+
+      {:ok, module} = Wasmex.Module.compile(wat)
+
+      expected = %{
+        "env" => %{
+          "MyMemory" => {:memory, %{maximum: 256, minimum: 256, shared: false}},
+          "MyTable" => {:table, %{maximum: 10, minimum: 10, type: :func_ref}}
+        },
+        "global" => %{
+          "Infinity" => {:global, %{mutability: :const, type: :f64}},
+          "NaN" => {:global, %{mutability: :const, type: :f64}}
+        }
+      }
+
+      assert expected == Wasmex.Module.imports(module)
+    end
+  end
 end

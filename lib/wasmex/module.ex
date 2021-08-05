@@ -26,7 +26,7 @@ defmodule Wasmex.Module do
             reference: nil
 
   @doc """
-  Compiles a WASM modules from it's WASM (usually a .wasm file) or WAT (usually a .wat file)
+  Compiles a WASM module from it's WASM (usually a .wasm file) or WAT (usually a .wat file)
   representation.
 
   Compiled modules can be instantiated using `Wasmex.start_link/1`.
@@ -43,7 +43,7 @@ defmodule Wasmex.Module do
   end
 
   @doc """
-  Returns the name of the current module.
+  Returns the name of the current module if a name is given.
 
   This name is normally set in the WebAssembly bytecode by some compilers,
   but can be also overwritten using `set_name/2`.
@@ -68,6 +68,28 @@ defmodule Wasmex.Module do
   @spec set_name(__MODULE__.t(), binary()) :: :ok | {:error, binary()}
   def set_name(%__MODULE__{resource: resource}, name) when is_binary(name) do
     Wasmex.Native.module_set_name(resource, name)
+  end
+
+  @doc """
+  Lists all exports of a WebAssembly module.
+
+  Returns a map which has the exports name (string) as key and export info-tuples as values.
+  Info tuples always start with an atom indicating the exports type:
+
+  * `:fn` (function)
+  * `:global`
+  * `:table`
+  * `:memory`
+
+  Further parts of the info tuple vary depending on the type.
+  """
+  @spec exports(__MODULE__.t()) :: map()
+  def exports(%__MODULE__{resource: resource}) do
+    Wasmex.Native.module_exports(resource)
+  end
+
+  def imports(%__MODULE__{resource: resource}) do
+    Wasmex.Native.module_imports(resource)
   end
 
   @doc """

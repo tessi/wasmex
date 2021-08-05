@@ -30,6 +30,8 @@ rustler::init! {
         memory::set,
         memory::write_binary,
         module::compile,
+        module::exports,
+        module::imports,
         module::name,
         module::serialize,
         module::set_name,
