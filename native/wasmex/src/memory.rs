@@ -193,7 +193,7 @@ fn bounds_checked_index(
     offset: usize,
     index: usize,
 ) -> Result<usize, Error> {
-    let len = view_length(&memory, offset, size);
+    let len = view_length(memory, offset, size);
     if len <= index {
         return Err(Error::RaiseTerm(Box::new(format!(
             "Out of bound: Given index {} is larger than the memory size {}.",

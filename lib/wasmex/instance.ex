@@ -43,7 +43,7 @@ defmodule Wasmex.Instance do
 
   @deprecated "Compile the module with Wasmex.Module.compile/1 and then use new/2 instead"
   @spec from_bytes(binary(), %{optional(binary()) => (... -> any())}) ::
-          {:error, binary()} | {:ok, __MODULE__.t()}
+          {:ok, __MODULE__.t()} | {:error, binary()}
   def from_bytes(bytes, imports) do
     case Wasmex.Module.compile(bytes) do
       {:ok, module} -> new(module, imports)
@@ -52,7 +52,7 @@ defmodule Wasmex.Instance do
   end
 
   @spec new(Wasmex.Module.t(), %{optional(binary()) => (... -> any())}) ::
-          {:error, binary()} | {:ok, __MODULE__.t()}
+          {:ok, __MODULE__.t()} | {:error, binary()}
   def new(%Wasmex.Module{resource: memory_resource}, imports) when is_map(imports) do
     case Wasmex.Native.instance_new(memory_resource, imports) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
@@ -68,7 +68,7 @@ defmodule Wasmex.Instance do
           optional(:stdout) => Wasmex.Pipe.t(),
           optional(:stderr) => Wasmex.Pipe.t()
         }) ::
-          {:error, binary()} | {:ok, __MODULE__.t()}
+          {:ok, __MODULE__.t()} | {:error, binary()}
   def wasi_from_bytes(bytes, imports, wasi) do
     case Wasmex.Module.compile(bytes) do
       {:ok, module} -> new_wasi(module, imports, wasi)
@@ -83,7 +83,7 @@ defmodule Wasmex.Instance do
           optional(:stdout) => Wasmex.Pipe.t(),
           optional(:stderr) => Wasmex.Pipe.t()
         }) ::
-          {:error, binary()} | {:ok, __MODULE__.t()}
+          {:ok, __MODULE__.t()} | {:error, binary()}
   def new_wasi(%Wasmex.Module{resource: memory_resource}, imports, wasi)
       when is_map(imports) and is_map(wasi) do
     args = Map.get(wasi, "args", [])
@@ -116,19 +116,19 @@ defmodule Wasmex.Instance do
   The WebAssembly function will be invoked asynchronously in a new OS thread.
   The calling process will receive a `{:returned_function_call, result, from}` message once
   the execution finished.
-  The result either is an `{:error, reason}` or `{:ok, results}` tuple with `results`
-  containing a list of the results form the called WebAssembly function.
+  The result either is an `{:error, reason}` or the `:ok` atom.
 
   A BadArg exception may be thrown when given unexpected input data.
   """
-  @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) :: any()
+  @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) ::
+          :ok | {:error, binary()}
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)
       when is_binary(name) do
     Wasmex.Native.instance_call_exported_function(resource, name, params, from)
   end
 
   @spec memory(__MODULE__.t(), atom(), pos_integer()) ::
-          {:error, binary()} | {:ok, Wasmex.Memory.t()}
+          {:ok, Wasmex.Memory.t()} | {:error, binary()}
   def memory(%__MODULE__{} = instance, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     Wasmex.Memory.from_instance(instance, size, offset)

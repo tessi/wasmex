@@ -17,34 +17,40 @@ use rustler::{Env, Term};
 rustler::init! {
     "Elixir.Wasmex.Native",
     [
-        module::compile,
-        instance::new,
-        instance::new_wasi,
-        instance::function_export_exists,
         instance::call_exported_function,
-        namespace::receive_callback_result,
-        memory::from_instance,
+        instance::function_export_exists,
+        instance::new_wasi,
+        instance::new,
         memory::bytes_per_element,
-        memory::length,
-        memory::grow,
+        memory::from_instance,
         memory::get,
-        memory::set,
+        memory::grow,
+        memory::length,
         memory::read_binary,
+        memory::set,
         memory::write_binary,
+        module::compile,
+        module::exports,
+        module::imports,
+        module::name,
+        module::serialize,
+        module::set_name,
+        module::unsafe_deserialize,
+        namespace::receive_callback_result,
         pipe::create,
-        pipe::size,
-        pipe::set_len,
         pipe::read_binary,
+        pipe::set_len,
+        pipe::size,
         pipe::write_binary
     ],
     load = on_load
 }
 
 fn on_load(env: Env, _info: Term) -> bool {
-    rustler::resource!(instance::InstanceResource, env);
-    rustler::resource!(module::ModuleResource, env);
-    rustler::resource!(memory::MemoryResource, env);
     rustler::resource!(environment::CallbackTokenResource, env);
+    rustler::resource!(instance::InstanceResource, env);
+    rustler::resource!(memory::MemoryResource, env);
+    rustler::resource!(module::ModuleResource, env);
     rustler::resource!(pipe::PipeResource, env);
     true
 }

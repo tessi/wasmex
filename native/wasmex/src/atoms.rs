@@ -17,11 +17,23 @@ rustler::atoms! {
     f32,
     f64,
     v128,
+    extern_ref,
+    func_ref,
 
     // import objects
     __fn__ = "fn",
+    global,
+    memory,
+    table,
     params,
     results,
+    maximum,
+    minimum,
+    shared,
+    mutability,
+    __const__ = "const",
+    var,
+    __type__ = "type",
 
     // wasi import options
     resource,
@@ -30,9 +42,6 @@ rustler::atoms! {
     write,
     create,
     flags,
-
-    // callback context
-    memory,
 
     // calls to erlang processes
     returned_function_call,

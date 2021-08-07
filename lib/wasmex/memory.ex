@@ -99,13 +99,13 @@ defmodule Wasmex.Memory do
             size: nil,
             offset: nil
 
-  @spec from_instance(Wasmex.Instance.t()) :: {:error, binary()} | {:ok, t}
+  @spec from_instance(Wasmex.Instance.t()) :: {:ok, t} | {:error, binary()}
   def from_instance(%Wasmex.Instance{} = instance) do
     from_instance(instance, :uint8, 0)
   end
 
   @spec from_instance(Wasmex.Instance.t(), atom(), non_neg_integer()) ::
-          {:error, binary()} | {:ok, t}
+          {:ok, t} | {:error, binary()}
   def from_instance(%Wasmex.Instance{resource: resource}, size, offset)
       when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
     case Wasmex.Native.memory_from_instance(resource) do
