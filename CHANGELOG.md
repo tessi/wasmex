@@ -21,7 +21,11 @@ Types of changes
 * `Wasmex.Module.compile/1` which can take the bytes of a .wasm files and compiles the WASM module. This module can be given to the new methods `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3` allowing to re-used precompiled modules. This has a big potential speed-up if one wishes to run a WASI instance multiple times. For example, the wasmex test suite went from 14.5s to just 0.2s runtime.
 * `Wasmex.start_link` can now also be called with a precompiled module in addition to the .wasm file bytes.
 * `Wasmex.Module.compile/1` can now parse WebAssembly text format (WAT) too
-* WASM modules without exported memory can now be instantiated
+* WASM modules without exported memory can now be instantiated without error
+* Added the following functions to `Wasmex.Module`:
+  * `serialize/1` and `unsafe_deserialize/1` which allows serializing a module into a binary and back
+  * `name/1` and `set_name/1` which allows getting/setting a modules name for better debugging
+  * `imports/1` and `exports/1` which lists a modules imports and exports
 
 ### Deprecated
 
