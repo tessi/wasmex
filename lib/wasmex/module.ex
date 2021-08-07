@@ -88,6 +88,21 @@ defmodule Wasmex.Module do
     Wasmex.Native.module_exports(resource)
   end
 
+  @doc """
+  Lists all imports of a WebAssembly module grouped by their module namespace.
+
+  Returns a map of namespaces, each being a map which has the imports name (string)
+  as key and import info-tuples as values.
+  Info tuples always start with an atom indicating the imports type:
+
+  * `:fn` (function)
+  * `:global`
+  * `:table`
+  * `:memory`
+
+  Further parts of the info tuple vary depending on the type.
+  """
+  @spec imports(__MODULE__.t()) :: map()
   def imports(%__MODULE__{resource: resource}) do
     Wasmex.Native.module_imports(resource)
   end
@@ -95,8 +110,8 @@ defmodule Wasmex.Module do
   @doc """
   Serializes a compiled WASM module into a binary.
 
-  The generated binary can be deserialized back into a module using `deserialize/1`.
-  It is unsafe do alter the binary in any way. See `deserialize/1` for safety considerations.
+  The generated binary can be deserialized back into a module using `unsafe_deserialize/1`.
+  It is unsafe do alter the binary in any way. See `unsafe_deserialize/1` for safety considerations.
   """
   @spec serialize(__MODULE__.t()) :: {:ok, binary()} | {:error, binary()}
   def serialize(%__MODULE__{resource: resource}) do

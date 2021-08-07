@@ -116,13 +116,12 @@ defmodule Wasmex.Instance do
   The WebAssembly function will be invoked asynchronously in a new OS thread.
   The calling process will receive a `{:returned_function_call, result, from}` message once
   the execution finished.
-  The result either is an `{:error, reason}` or `{:ok, results}` tuple with `results`
-  containing a list of the results form the called WebAssembly function.
+  The result either is an `{:error, reason}` or the `:ok` atom.
 
   A BadArg exception may be thrown when given unexpected input data.
   """
   @spec call_exported_function(__MODULE__.t(), binary(), [any()], GenServer.from()) ::
-          {:ok, [any()]} | {:error, binary()}
+          :ok | {:error, binary()}
   def call_exported_function(%__MODULE__{resource: resource}, name, params, from)
       when is_binary(name) do
     Wasmex.Native.instance_call_exported_function(resource, name, params, from)

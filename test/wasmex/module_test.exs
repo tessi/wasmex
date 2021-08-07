@@ -33,8 +33,7 @@ defmodule Wasmex.ModuleTest do
       module = TestHelper.wasm_module()
       {:ok, serialized} = Wasmex.Module.serialize(module)
       {:ok, deserialized_module} = Wasmex.Module.unsafe_deserialize(serialized)
-      instance = start_supervised!({Wasmex, %{module: deserialized_module}})
-      assert Wasmex.function_exists(instance, :arity_0)
+      assert Wasmex.Module.exports(module) == Wasmex.Module.exports(deserialized_module)
     end
   end
 
@@ -44,6 +43,13 @@ defmodule Wasmex.ModuleTest do
       assert nil == Wasmex.Module.name(module)
       :ok = Wasmex.Module.set_name(module, "test name")
       assert "test name" == Wasmex.Module.name(module)
+    end
+
+    test "setting the name of an instantiated module fails" do
+      {:ok, module} = Wasmex.Module.compile(@wat)
+      start_supervised!({Wasmex, %{module: module}})
+      expected_error = {:error, "Could not change module name. Maybe it is already instantiated?"}
+      assert expected_error == Wasmex.Module.set_name(module, "test name")
     end
   end
 
