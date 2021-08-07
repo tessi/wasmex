@@ -16,20 +16,25 @@ Types of changes
 
 ## [unreleased changes]
 
+- put your changes here
+
+## [0.6.0] - 2021-08-07
+
 ### Added
 
-* `Wasmex.Module.compile/1` which can take the bytes of a .wasm files and compiles the WASM module. This module can be given to the new methods `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3` allowing to re-used precompiled modules. This has a big potential speed-up if one wishes to run a WASI instance multiple times. For example, the wasmex test suite went from 14.5s to just 0.2s runtime.
-* `Wasmex.start_link` can now also be called with a precompiled module in addition to the .wasm file bytes.
-* `Wasmex.Module.compile/1` can now parse WebAssembly text format (WAT) too
-* WASM modules without exported memory can now be instantiated without error
-* Added the following functions to `Wasmex.Module`:
-  * `serialize/1` and `unsafe_deserialize/1` which allows serializing a module into a binary and back
-  * `name/1` and `set_name/1` which allows getting/setting a modules name for better debugging
-  * `imports/1` and `exports/1` which lists a modules imports and exports
+- `Wasmex.Module.compile/1` which compiles a .wasm file into a module. This module can be given to the new methods `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3` allowing to re-use precompiled modules. This has a big potential speed-up if one wishes to run a WASI instance multiple times. For example, the wasmex test suite went from 14.5s to 0.6s runtime with this release.
+- `Wasmex.start_link` can now be called with a precompiled module.
+- `Wasmex.Module.compile/1` can now parse WebAssembly text format (WAT) too.
+- WASM modules without exported memory can now be instantiated without error.
+- Added the following functions to `Wasmex.Module`:
+  - `serialize/1` and `unsafe_deserialize/1` which allows serializing a module into a binary and back
+  - `name/1` and `set_name/1` which allows getting/setting a modules name for better debugging
+  - `imports/1` and `exports/1` which lists a modules imports and exports
 
 ### Deprecated
 
-* `Instance.from_bytes/2` and `Instance.wasi_from_bytes/3` are deprecated in favor of `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3`. Both may be removed in any release after this one.
+- `Instance.from_bytes/2` and `Instance.wasi_from_bytes/3` are deprecated in favor of `Wasmex.Instance.new/2` and `Wasmex.Instance.new_wasi/3`. Both may be removed in any release after this one.
+
 ## [0.5.0] - 2021-07-22
 
 ### Added
