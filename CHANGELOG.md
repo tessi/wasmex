@@ -16,7 +16,10 @@ Types of changes
 
 ## [unreleased changes]
 
-- put your changes here
+### Changed
+
+- Updated Elixir to 1.13 and OTP to 24.2. Older versions should work, but are not actively tested.
+- Updated several project dependencies, most notably wasmer to 2.1.1
 
 ## [0.6.0] - 2021-08-07
 
