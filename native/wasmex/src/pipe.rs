@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use rustler::resource::ResourceArc;
 use rustler::{Atom, Encoder, Term};
 
-use wasmer_wasi::{WasiFile, WasiFsError};
+use wasmer_wasi::{VirtualFile, WasiFsError};
 
 use crate::atoms;
 
@@ -66,8 +66,7 @@ impl Seek for Pipe {
     }
 }
 
-#[typetag::serde]
-impl WasiFile for Pipe {
+impl VirtualFile for Pipe {
     fn last_accessed(&self) -> u64 {
         0
     }
@@ -96,14 +95,6 @@ impl WasiFile for Pipe {
 
     fn sync_to_disk(&self) -> Result<(), WasiFsError> {
         Ok(())
-    }
-
-    fn rename_file(&self, _new_name: &std::path::Path) -> Result<(), WasiFsError> {
-        panic!("Default implementation for now as this method is unstable; this default implementation or this entire method may be removed in a future release.");
-    }
-
-    fn get_raw_fd(&self) -> Option<i32> {
-        None
     }
 }
 
