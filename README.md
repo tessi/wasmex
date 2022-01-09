@@ -16,7 +16,7 @@ It enables lightweight WebAssembly containers to be run in your Elixir backend.
 It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF.
 We use [Rust](https://www.rust-lang.org/) to implement the NIF to make it as safe as possible.
 
-# Install
+## Install
 
 The package can be installed by adding `wasmex` to your list of
 dependencies in `mix.exs`:
@@ -34,7 +34,7 @@ See [how to install Rust](https://www.rust-lang.org/tools/install).
 
 The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex/Wasmex.html).
 
-# Example
+## Example
 
 There is a toy WASM program in `test/wasm_test/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
 It defines many functions we use for end-to-end testing, but also serves as example code. For example:
@@ -58,12 +58,12 @@ This WASM file can be executed in Elixir:
 {:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
 ```
 
-# Documentation
+## Documentation
 
 Please visit the [`Wasmex documentation`](https://hexdocs.pm/wasmex/Wasmex.html) for further info.
 If a topic is not covered (in the needed depth) there, please open an issue.
 
-# What is WebAssembly?
+## What is WebAssembly?
 
 Quoting [the WebAssembly site](https://webassembly.org/):
 
@@ -84,6 +84,31 @@ About safety:
 > WebAssembly describes a memory-safe, sandboxed [execution
 > environment](https://webassembly.org/docs/semantics/#linear-memory) […].
 
-# License
+## Development
+
+To set up a development environment install [the latest stable rust](https://www.rust-lang.org/tools/install) and rust-related tooling:
+
+```bash
+rustup component add rustfmt
+rustup component add clippy
+rustup target add wasm32-unknown-unknown # to compile our example WASM files for testing
+rustup target add wasm32-wasi # to compile our example WASM/WASI files for testing
+```
+
+Then install the erlang/elixir dependencies:
+
+```bash
+asdf install # assuming you install elixir, erlang with asdf. if not, make sure to install them your way
+mix deps.get
+```
+
+I´m looking forward to your contributions. Please open a PR containing the motivation of your change. If it is a bigger change or refactoring, consider creating an issue first. We can dicuss changes there irst which might safe us time down the road :)
+
+Any changes should be covered by tests, they can be run with `mix test`.
+In addition to tests, we expect the formatters and linters (`cargo fmt`, `cargo clippy`, `mix format`, `mix dialyzer`, `mix credo`) to pass.
+
+Your contributions will be licenced under the same license as this project.
+
+## License
 
 The entire project is under the MIT License. Please read [the`LICENSE` file](https://github.com/tessi/wasmex/blob/master/LICENSE).
