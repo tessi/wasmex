@@ -334,7 +334,7 @@ fn execute_function(
         }
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results.len());
-    for value in results {
+    for value in results.iter().cloned() {
         return_values.push(match value {
             Val::I32(i) => i.encode(thread_env),
             Val::I64(i) => i.encode(thread_env),
