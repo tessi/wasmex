@@ -3,7 +3,7 @@ defmodule Wasmex.Memory do
   A WebAssembly instance has its own memory, represented by the `Wasmex.Memory` struct.
   It is accessible by the `Wasmex.Instance.memory/3` getter.
 
-  The `grow/2` method allows to grow the memory by a number of pages (of 65kb each).
+  The `grow/2` method allows to grow the memory by a number of pages (of 64 kB or 65,536 bytes each).
 
   ```elixir
   Wasmex.Memory.grow(memory, 1)
@@ -12,7 +12,7 @@ defmodule Wasmex.Memory do
   The current size of the memory can be obtained with the `length/1` method:
 
   ```elixir
-  Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (65kb)
+  Wasmex.Memory.length(memory) # in bytes, always a multiple of the the page size (64 kB)
   ```
 
   When creating the memory struct, the `offset` param can be provided, to subset the memory array at a particular offset.
