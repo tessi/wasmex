@@ -1,0 +1,39 @@
+name: Rust CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+defaults:
+  run:
+    working-directory: ./native/wasmex/
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          default: true
+          components: rustfmt, clippy
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: cargo fmt -- --check
+
+      - run: |
+          touch src/lib.rs
+          cargo clippy --all-targets --all-features -- -D warnings
