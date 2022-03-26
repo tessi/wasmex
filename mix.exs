@@ -1,10 +1,12 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
+  @version "0.6.0"
+
   def project do
     [
       app: :wasmex,
-      version: "0.6.0",
+      version: @version,
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
       name: "Wasmex",
@@ -24,7 +26,7 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.23.0"},
+      {:rustler_precompiled, "~> 0.3"},
       {:ex_doc, "~> 0.28.0", only: [:dev, :test]},
       {:dialyxir, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.3", only: [:dev, :test], runtime: false}
@@ -38,8 +40,19 @@ defmodule Wasmex.MixProject do
   defp package() do
     [
       # These are the default files included in the package
-      files:
-        ~w(lib native/wasmex/src native/wasmex/Cargo.* native/wasmex/README.md native/wasmex/.cargo .formatter.exs mix.exs README.md LICENSE.md CHANGELOG.md),
+      files: ~w[
+        lib
+        native/wasmex/src
+        native/wasmex/Cargo.*
+        native/wasmex/README.md
+        native/wasmex/.cargo
+        checksum-Elixir.Wasmex.Native.exs
+        .formatter.exs
+        mix.exs
+        README.md
+        LICENSE.md
+        CHANGELOG.md
+        ],
       licenses: ["MIT"],
       links: %{
         "GitHub" => "https://github.com/tessi/wasmex",
