@@ -29,6 +29,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e37cfd5e7657ada45f742d6e99ca5788580b5c529dc78faf11ece6dc702656f"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -383,12 +392,9 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
-dependencies = [
- "unicode-segmentation",
-]
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
 
 [[package]]
 name = "hermit-abi"
@@ -750,6 +756,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex"
+version = "1.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a11647b6b25ff05a515cb92c365cec08801e83423a235b51e231e1808747286"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
+
+[[package]]
 name = "region"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -827,9 +850,9 @@ dependencies = [
 
 [[package]]
 name = "rustler"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ac79e5fcfae809c16ff8da548daa291933b7ec8d66eadc197cdccec46891625"
+checksum = "ed1d0129006c447df2939ea2d370a31cd1c1a5103c2777545b14da9aefd656df"
 dependencies = [
  "lazy_static",
  "rustler_codegen",
@@ -838,9 +861,9 @@ dependencies = [
 
 [[package]]
 name = "rustler_codegen"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10d303c303a145c1f3d2a2993527128badb9500101070c55e36ef9bb2417666a"
+checksum = "0ed0335f95feb990dc7eebb69cfc29cc93cbbe813b3d7dc1edb915c59e4079a6"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -850,10 +873,11 @@ dependencies = [
 
 [[package]]
 name = "rustler_sys"
-version = "2.1.1"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cb382fde4f421c51555919e9920b058c0286f6bf59e53d02eb4d281eae6758b"
+checksum = "3ff26a42e62d538f82913dd34f60105ecfdffbdb25abdc3c3580b0c622285332"
 dependencies = [
+ "regex",
  "unreachable",
 ]
 
@@ -1163,12 +1187,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "unicode-segmentation"
-version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8895849a949e7845e06bd6dc1aa51731a103c42707010a5b591c0038fb73385b"
 
 [[package]]
 name = "unicode-xid"
