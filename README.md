@@ -29,9 +29,6 @@ def deps do
 end
 ```
 
-**Note**: [Rust](https://www.rust-lang.org/) is required to install the Elixir library (Cargo — the build tool for Rust — is used to compile the extension).
-See [how to install Rust](https://www.rust-lang.org/tools/install).
-
 The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex/Wasmex.html).
 
 ## Example
@@ -101,6 +98,8 @@ Then install the erlang/elixir dependencies:
 asdf install # assuming you install elixir, erlang with asdf. if not, make sure to install them your way
 mix deps.get
 ```
+
+If you plan to change something on the Rust part of this project, set the following ENV `WASMEX_BUILD=true` so that your changes will be picked up.
 
 I´m looking forward to your contributions. Please open a PR containing the motivation of your change. If it is a bigger change or refactoring, consider creating an issue first. We can discuss changes there first which might safe us time down the road :)
 
