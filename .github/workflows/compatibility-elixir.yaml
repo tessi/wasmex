@@ -8,6 +8,7 @@ on:
 
 env:
   MIX_ENV: test
+  WASMEX_BUILD: true
 
 jobs:
   test:
