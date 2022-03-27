@@ -26,7 +26,7 @@ please add changes here
 
 ### Changed
 
-- Wasmex now aims to support the last three elixir and OTP releases. The oldest supported versions for this release are elixir 1.11.4 and OPT 22.3 - Thanks to @fahchen for contributing the CI workflow to test older elixir/OTP versions
+- Wasmex now aims to support the last three elixir and OTP releases. The oldest supported versions for this release are elixir 1.11.4 and OTP 22.3 - Thanks to @fahchen for contributing the CI workflow to test older elixir/OTP versions
 - Moved CI systems from CircleCI to GitHub Actions. Let me thank CircleCI forthe years of free of charge CI runs, thanks! Let me also thank @fahchen for contributing this change
 - Thanks to @phaleth for fixing page sizes in our Memory documentation
 - Updated several project dependencies, most notably wasmer to 2.1.1
