@@ -97,7 +97,7 @@ jobs:
         id: plt-cache
         with:
           path: priv/plts
-          key: plt-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}
+          key: v2-plt-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}
 
       - run: mix dialyzer --plt
         if: steps.plt-cache.outputs.cache-hit != 'true'
