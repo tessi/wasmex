@@ -1,0 +1,44 @@
+name: Elixir Compatibility
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  MIX_ENV: test
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }}
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: [22.3, 23.3, 24.3]
+        elixir: [1.10.4, 1.11.4, 1.12.3, 1.13.3]
+        exclude:
+          - otp: 24.3
+            elixir: 1.10.4
+    steps:
+      - uses: actions/checkout@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          default: true
+
+      - name: Add targets
+        run: |
+          rustup target add wasm32-unknown-unknown
+          rustup target add wasm32-wasi
+
+      - run: mix do deps.get, deps.compile
+
+      - run: mix test

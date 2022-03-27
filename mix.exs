@@ -7,12 +7,15 @@ defmodule Wasmex.MixProject do
     [
       app: :wasmex,
       version: @version,
-      elixir: "~> 1.13",
+      elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
       name: "Wasmex",
       description: description(),
       package: package(),
-      deps: deps()
+      deps: deps(),
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      ]
     ]
   end
 
