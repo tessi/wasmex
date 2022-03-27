@@ -16,9 +16,19 @@ Types of changes
 
 ## [unreleased changes]
 
+please add changes here
+
+## [0.7.0] - 2022-03-27
+
+### Added
+
+- Added support for precompiled binaries. This should reduce compilation time of wasmex significantly. At the same time it frees most of our users from needing to install Rust. Thanks @fahchen for implementing this feature
+
 ### Changed
 
-- Updated Elixir to 1.13 and OTP to 24.2. Older versions should work, but are not actively tested.
+- Wasmex now aims to support the last three elixir and OTP releases. The oldest supported versions for this release are elixir 1.11.4 and OPT 22.3 - Thanks to @fahchen for contributing the CI workflow to test older elixir/OTP versions
+- Moved CI systems from CircleCI to GitHub Actions. Let me thank CircleCI forthe years of free of charge CI runs, thanks! Let me also thank @fahchen for contributing this change
+- Thanks to @phaleth for fixing page sizes in our Memory documentation
 - Updated several project dependencies, most notably wasmer to 2.1.1
 
 ## [0.6.0] - 2021-08-07
