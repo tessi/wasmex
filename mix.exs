@@ -10,7 +10,10 @@ defmodule Wasmex.MixProject do
       name: "Wasmex",
       description: description(),
       package: package(),
-      deps: deps()
+      deps: deps(),
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      ]
     ]
   end
 
