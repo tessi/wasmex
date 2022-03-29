@@ -8,12 +8,13 @@ on:
     branches:
       # Always run on main branch.
       - main
-    paths:
-      # Run if "native" path changed.
-      - 'native/**'
     tags:
       # Tags will always run.
       - '*'
+  pull_request:
+    paths:
+      # Run if "native" path changed.
+      - 'native/**'
 
 defaults:
   run:
