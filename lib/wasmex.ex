@@ -211,9 +211,15 @@ defmodule Wasmex do
   {:ok, [pointer]} = Wasmex.call_function(instance, "string", [])
   returned_string = Wasmex.Memory.read_string(memory, pointer, 13) # "Hello, World!"
   ```
+
+  #### Specifying a timeout
+  The default timeout for `call_function` is 5 seconds, or 5000 milliseconds. If you're calling a long-running function, you can specify a timeout value (in milliseconds) for this call. Using the above example as a starting point, calling a function with a timeout of 10 seconds looks like:
+  ```elixir
+  {:ok, [pointer]} = Wasmex.call_function(instance, "string", [], 10000)
+  ```
   """
-  def call_function(pid, name, params) do
-    GenServer.call(pid, {:call_function, stringify(name), params})
+  def call_function(pid, name, params, timeout \\ 5000) do
+    GenServer.call(pid, {:call_function, stringify(name), params}, timeout)
   end
 
   @doc """
