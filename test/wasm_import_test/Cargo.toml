@@ -1,6 +1,6 @@
 [package]
 name = "wasmex_test"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Philipp Tessenow <philipp@tessenow.org>"]
 edition = "2018"
 
