@@ -18,7 +18,12 @@ Types of changes
 
 please add changes here
 
-- Added an optional fourth parameter to `call_function`, `timeout`, which accepts a value in milliseconds that will cap the execution time of the function. The default behavior if not supplied is preserved, which is a 5 second timeout.
+## [0.7.1] - 2022-05-25
+
+### Added
+
+- Added an optional fourth parameter to `call_function`, `timeout`, which accepts a value in milliseconds that will cap the execution time of the function. The default behavior if not supplied is preserved, which is a 5 second timeout. Thanks @brooksmtownsend for this contribution
+
 
 ## [0.7.0] - 2022-03-27
 
