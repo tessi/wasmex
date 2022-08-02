@@ -31,9 +31,8 @@ jobs:
       fail-fast: false
       matrix:
         nif:
-          - "2.14"
-          - "2.15"
-          - "2.16"
+          - "2.15" # OTP 22, OTP 23
+          - "2.16" # OTP 24, OTP 24
         job:
           # https://github.com/wasmerio/wasmer/issues/2324
           # - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }

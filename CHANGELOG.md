@@ -18,6 +18,18 @@ Types of changes
 
 please add changes here
 
+### Added
+
+* Support for OTP 25
+
+### Removed
+
+* Removed official support for OTP 22 (we support the latest three releases)
+
+### Changed
+
+* Updated wasmer to 2.3.0
+
 ## [0.7.1] - 2022-05-25
 
 ### Added

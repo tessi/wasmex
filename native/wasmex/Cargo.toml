@@ -7,7 +7,7 @@ readme = "README.md"
 repository = "https://github.com/tessi/wasmex"
 keywords = ["elixir", "extension", "webassembly"]
 categories = ["wasm"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "wasmex"
@@ -17,8 +17,8 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.25.0"
 lazy_static = "1.4"
-wasmer = "2.2.1"
-wasmer-vm = "2.1.1"
-wasmer-wasi = "2.2.1"
+wasmer = "2.3.0"
+wasmer-vm = "2.3.0"
+wasmer-wasi = "2.3.0"
 serde = "1.0.141"
-typetag = "0.1.8"
+typetag = "0.2.2"
