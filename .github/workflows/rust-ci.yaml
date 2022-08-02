@@ -36,4 +36,6 @@ jobs:
 
       - run: |
           touch src/lib.rs
-          cargo clippy --all-targets --all-features -- -D warnings
+          # need to disable extra_unused_lifetimes clippy because of rustler lifetime issues
+          # https://github.com/rusterlium/rustler/issues/428
+          cargo clippy --all-targets --all-features -- -D warnings -A clippy::extra_unused_lifetimes
