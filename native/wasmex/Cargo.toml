@@ -17,7 +17,7 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.25.0"
 lazy_static = "1.4"
-wasmer = "2.3.0"
+wasmer = "3.1.0"
 wasmer-vm = "2.3.0"
 wasmer-wasi = "2.3.0"
 serde = "1.0.142"
