@@ -1,5 +1,7 @@
 defmodule Wasmex.MemoryTest do
   use ExUnit.Case, async: true
+  import TestHelper, only: [t: 1]
+
   doctest Wasmex.Memory
 
   defp build_wasm_instance do
@@ -15,7 +17,7 @@ defmodule Wasmex.MemoryTest do
     %{store: store, module: module, instance: instance, memory: memory}
   end
 
-  describe "from_instance/1" do
+  describe t(&Memory.from_instance/1) do
     test "creates memory with defaults for size and offset" do
       %{store: store, instance: instance} = build_wasm_instance()
       {:ok, %Wasmex.Memory{}} = Wasmex.Memory.from_instance(store, instance)
@@ -28,14 +30,14 @@ defmodule Wasmex.MemoryTest do
   # in bytes
   @min_memory_size @initial_pages * @page_size
 
-  describe "length/1" do
+  describe t(&Memory.length/1) do
     test "returns number of uint8 elements that fit into memory" do
       %{store: store, memory: memory} = build_memory()
       assert Wasmex.Memory.length(store, memory) == @min_memory_size
     end
   end
 
-  describe "grow/2" do
+  describe t(&Memory.grow/2) do
     test "grows the memory by the given number of pages" do
       %{store: store, memory: memory} = build_memory()
       assert Wasmex.Memory.length(store, memory) / @page_size == @initial_pages
@@ -46,7 +48,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "get_byte/2 and set_byte/3" do
+  describe t(&Memory.get_byte/2) <> t(&Memory.set_byte/3) do
     test "sets and gets uint8 values" do
       %{store: store, memory: memory} = build_memory()
       assert Wasmex.Memory.get_byte(store, memory, 0) == 0
@@ -55,7 +57,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "write_binary/3" do
+  describe t(&Memory.write_binary/3) do
     test "writes a binary into memory" do
       %{store: store, memory: memory} = build_memory()
       :ok = Wasmex.Memory.write_binary(store, memory, 0, "hello")
@@ -89,7 +91,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "read_binary/3" do
+  describe t(&Memory.read_binary/3) do
     test "reads a binary from memory" do
       %{store: store, memory: memory} = build_memory()
       # h
@@ -109,7 +111,7 @@ defmodule Wasmex.MemoryTest do
     end
   end
 
-  describe "read_string/3" do
+  describe t(&Memory.read_string/3) do
     test "reads a string from memory" do
       %{store: store, memory: memory} = build_memory()
       # h

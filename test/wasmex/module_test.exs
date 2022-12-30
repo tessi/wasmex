@@ -1,5 +1,7 @@
 defmodule Wasmex.ModuleTest do
   use ExUnit.Case, async: true
+  import TestHelper, only: [t: 1]
+
   doctest Wasmex.Module
 
   @wat """
@@ -12,7 +14,7 @@ defmodule Wasmex.ModuleTest do
     (export "add_one" (func $add_one_f)))
   """
 
-  describe "module compilation from WAT" do
+  describe t(&Module.compile/2) <> " from WAT" do
     test "instantiates a simple module from wat" do
       {:ok, store} = Wasmex.Store.new()
       {:ok, module} = Wasmex.Module.compile(store, @wat)
@@ -30,7 +32,7 @@ defmodule Wasmex.ModuleTest do
     end
   end
 
-  describe "module de-/serialization" do
+  describe t(&Module.serialize/1) <> t(&Module.unsafe_deserialize/1) do
     test "a module can be serialized and deserialized again" do
       %{module: module} = TestHelper.wasm_module()
       {:ok, serialized} = Wasmex.Module.serialize(module)
@@ -41,7 +43,7 @@ defmodule Wasmex.ModuleTest do
     end
   end
 
-  describe "name/1" do
+  describe t(&Module.name/1) do
     test "a modules name can be set and read out" do
       {:ok, store} = Wasmex.Store.new()
       {:ok, module} = Wasmex.Module.compile(store, @wat)
@@ -49,7 +51,7 @@ defmodule Wasmex.ModuleTest do
     end
   end
 
-  describe "exports/1" do
+  describe t(&Module.exports/1) do
     test "lists exports of a module" do
       %{module: module} = TestHelper.wasm_module()
 
@@ -109,7 +111,7 @@ defmodule Wasmex.ModuleTest do
     end
   end
 
-  describe "imports/1" do
+  describe t(&Module.imports/1) do
     test "lists imports of a module" do
       %{module: module} = TestHelper.wasm_import_module()
 

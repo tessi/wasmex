@@ -1,5 +1,7 @@
 defmodule Wasmex.InstanceTest do
   use ExUnit.Case, async: false
+  import TestHelper, only: [t: 1]
+
   doctest Wasmex.Instance
 
   defp build_wasm_instance() do
@@ -9,7 +11,7 @@ defmodule Wasmex.InstanceTest do
     %{store: store, module: module, instance: instance}
   end
 
-  describe "new/2" do
+  describe t(&Instance.new/2) do
     test "instantiates an Instance from a valid wasm file" do
       %{store: store, module: module} = TestHelper.wasm_module()
       {:ok, _} = Wasmex.Instance.new(store, module, %{})
@@ -79,7 +81,7 @@ defmodule Wasmex.InstanceTest do
     end
   end
 
-  describe "function_export_exists/2" do
+  describe t(&Instance.function_export_exists/2) do
     test "returns whether a function export could be found in the wasm file" do
       %{store: store, instance: instance} = build_wasm_instance()
       assert Wasmex.Instance.function_export_exists(store, instance, "sum")
@@ -88,7 +90,7 @@ defmodule Wasmex.InstanceTest do
     end
   end
 
-  describe "call_exported_function/3" do
+  describe t(&Instance.call_exported_function/3) do
     test "calling a function sends an async message back to self" do
       %{store: store, instance: instance} = build_wasm_instance()
 
@@ -186,7 +188,7 @@ defmodule Wasmex.InstanceTest do
     end
   end
 
-  describe "memory/3" do
+  describe t(&Instance.memory/2) do
     test "returns a memory struct" do
       %{store: store, instance: instance} = build_wasm_instance()
 

@@ -1,7 +1,7 @@
 defmodule Wasmex.Memory do
   @moduledoc """
   A WebAssembly instance has its own memory, represented by the `Wasmex.Memory` struct.
-  It is accessible by the `Wasmex.Instance.memory/3` getter.
+  It is accessible by the `Wasmex.Instance.memory/2` getter.
 
   The `grow/2` method allows to grow the memory by a number of pages (of 64 kB or 65,536 bytes each).
 

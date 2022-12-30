@@ -18,7 +18,7 @@ defmodule Wasmex.Instance do
   Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbitrary data to WebAssembly by writing data into an instances memory. The `memory/3` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
+  You can pass arbitrary data to WebAssembly by writing data into an instances memory. The `memory/2` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
 
   ```elixir
   {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
