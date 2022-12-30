@@ -1,31 +1,34 @@
 defmodule Wasmex.Instance do
   @moduledoc """
-  Instantiates a WebAssembly module and allows calling exported functions on it.
+  Instantiates a WASM module and allows calling exported functions on it.
 
       # Read a WASM file and compile it into a WASM module
       {:ok, bytes } = File.read("wasmex_test.wasm")
-      {:ok, module} = Wasmex.Module.compile(bytes)
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, bytes)
 
       # Instantiates the WASM module.
-      {:ok, instance } = Wasmex.start_link(%{module: module})
+      {:ok, wasmex_pid } = Wasmex.start_link(%{module: module, store: store})
 
       # Call a function on it.
-      {:ok, [result]} = Wasmex.call_function(instance, "sum", [1, 2])
+      {:ok, [result]} = Wasmex.call_function(wasmex_pid, "sum", [1, 2])
 
       IO.puts result # 3
 
-  All exported functions are accessible via `call_exported_function`.
+  Functions exported by the WASM instance can be called via `call_exported_function`.
   Arguments of these functions are automatically casted to WebAssembly values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
-  You can pass arbitrary data to WebAssembly by writing data into an instances memory. The `memory/2` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
+  You can pass arbitrary data to WebAssembly by writing data into an instances memory.
+  The `memory/2` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
 
   ```elixir
-  {:ok, memory} = Wasmex.Instance.memory(instance, :uint8, 0)
+  {:ok, memory} = Wasmex.Instance.memory(store, instance)
   ```
 
-  This module, especially `call_exported_function/4`, is assumed to be called within a GenServer context.
-  Usually, functions definedd here are called through the `Wasmex` module API to satisfy this assumption.
+  This module, but especially `call_exported_function/4`, is assumed to be called
+  within a GenServer context. Usually, functions defined here are called through
+  the `Wasmex` module API to satisfy this assumption.
   """
 
   @type t :: %__MODULE__{
@@ -41,6 +44,19 @@ defmodule Wasmex.Instance do
             # accidentally do.
             reference: nil
 
+  @doc false
+  defp wrap_resource(resource) do
+    %__MODULE__{
+      resource: resource,
+      reference: make_ref()
+    }
+  end
+
+  @doc """
+  Instantiates a WASM module with the given imports.
+
+  Returns the WASM instance.
+  """
   @spec new(Wasmex.StoreOrCaller.t(), Wasmex.Module.t(), %{
           optional(binary()) => (... -> any())
         }) ::
@@ -55,13 +71,9 @@ defmodule Wasmex.Instance do
     end
   end
 
-  defp wrap_resource(resource) do
-    %__MODULE__{
-      resource: resource,
-      reference: make_ref()
-    }
-  end
-
+  @doc """
+  Whether the WASM `instance` has a function export with the given `name`.
+  """
   @spec function_export_exists(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
           boolean()
   def function_export_exists(store_or_caller, instance, name) when is_binary(name) do
@@ -76,7 +88,7 @@ defmodule Wasmex.Instance do
   end
 
   @doc """
-  Calls a function with the given `name` and `params` on the WebAssembly `instance`.
+  Calls a function with the given `name` and `params` on the WASM `instance`.
   This function assumes to be called within a GenServer context, it expects a `from` argument
   as given by `handle_call` etc.
 

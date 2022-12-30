@@ -14,6 +14,7 @@ defmodule Wasmex.CallbackToken do
             # accidentally do.
             reference: nil
 
+  @doc false
   def wrap_resource(resource) do
     %__MODULE__{
       resource: resource,

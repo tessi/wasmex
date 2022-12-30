@@ -1,6 +1,7 @@
 defmodule Wasmex.Pipe do
   @moduledoc """
   A Pipe is a memory buffer that can be used in exchange for a WASM file.
+
   It can be used, for example, to capture stdout/stdin/stderr of a WASI program.
   """
 
@@ -17,6 +18,7 @@ defmodule Wasmex.Pipe do
             # accidentally do.
             reference: nil
 
+  @doc false
   def wrap_resource(resource) do
     %__MODULE__{
       resource: resource,
@@ -36,23 +38,17 @@ defmodule Wasmex.Pipe do
   end
 
   @doc """
-  Returns the current size in bytes of the Pipe.
+  Returns the current size of the Pipe in bytes.
   """
   @spec size(__MODULE__.t()) :: integer()
   def size(%__MODULE__{resource: resource}) do
     Wasmex.Native.pipe_size(resource)
   end
 
-  # @doc """
-  # Attempts to resize the pipe to the given number of bytes.
-  # """
-  # @spec set_len(__MODULE__.t(), integer()) :: :ok | :error
-  # def set_len(%__MODULE__{resource: resource}, len) do
-  #   Wasmex.Native.pipe_set_len(resource, len)
-  # end
-
   @doc """
-  TBD
+  Sets the read/write position of the Pipe to the given position.
+
+  The position is given as a number of bytes from the start of the Pipe.
   """
   @spec seek(__MODULE__.t(), integer()) :: :ok | :error
   def seek(%__MODULE__{resource: resource}, pos_from_start) do
@@ -61,6 +57,9 @@ defmodule Wasmex.Pipe do
 
   @doc """
   Reads all available bytes from the Pipe and returns them as a binary.
+
+  Note that this will not block if there are no bytes available.
+  Reading starts at the current read position, see seek/2.
   """
   @spec read(__MODULE__.t()) :: binary()
   def read(%__MODULE__{resource: resource}) do
@@ -69,6 +68,8 @@ defmodule Wasmex.Pipe do
 
   @doc """
   Writes the given binary into the pipe.
+
+  Writing starts at the current write position, see seek/2.
   """
   @spec write(__MODULE__.t(), binary()) :: {:ok, integer()} | :error
   def write(%__MODULE__{resource: resource}, binary) do

@@ -27,7 +27,6 @@ defmodule Wasmex.MemoryTest do
   # in bytes
   @page_size 65_536
   @initial_pages 17
-  # in bytes
   @min_memory_size @initial_pages * @page_size
 
   describe t(&Memory.length/1) do
@@ -46,6 +45,13 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.grow(store, memory, 1) == @initial_pages + 3
       assert Wasmex.Memory.length(store, memory) / @page_size == @initial_pages + 4
     end
+
+    test "fails when growing too large" do
+      %{store: store, memory: memory} = build_memory()
+
+      assert Wasmex.Memory.grow(store, memory, 999_999_999) ==
+               {:error, "Failed to grow the memory: failed to grow memory by `999999999`."}
+    end
   end
 
   describe t(&Memory.get_byte/2) <> t(&Memory.set_byte/3) do
@@ -54,6 +60,22 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.get_byte(store, memory, 0) == 0
       :ok = Wasmex.Memory.set_byte(store, memory, 0, 42)
       assert Wasmex.Memory.get_byte(store, memory, 0) == 42
+    end
+
+    test "attempting to read at non-valid indexes" do
+      %{store: store, memory: memory} = build_memory()
+      assert_raise ArgumentError, fn -> Wasmex.Memory.get_byte(store, memory, -42) end
+
+      assert {:error, "out of bounds memory access"} =
+               Wasmex.Memory.get_byte(store, memory, 999_999_999_999)
+    end
+
+    test "attempting to write at non-valid indexes" do
+      %{store: store, memory: memory} = build_memory()
+      assert_raise ArgumentError, fn -> Wasmex.Memory.set_byte(store, memory, -42, 0) end
+
+      assert {:error, "out of bounds memory access"} =
+               Wasmex.Memory.set_byte(store, memory, 999_999_999_999, 0)
     end
   end
 
