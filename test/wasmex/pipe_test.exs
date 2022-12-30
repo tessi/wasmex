@@ -1,6 +1,6 @@
 defmodule Wasmex.PipeTest do
   use ExUnit.Case, async: true
-  import TestHelper, only: [ƒ: 1]
+  import TestHelper, only: [t: 1]
 
   alias Wasmex.Pipe
   doctest Pipe
@@ -10,7 +10,7 @@ defmodule Wasmex.PipeTest do
     %{pipe: pipe}
   end
 
-  describe ƒ(&Pipe.size/1) do
+  describe t(&Pipe.size/1) do
     setup :build_pipe
 
     test "new pipes have a size of 0", %{pipe: pipe} do
@@ -30,7 +30,7 @@ defmodule Wasmex.PipeTest do
     end
   end
 
-  describe ƒ(&Pipe.read/1) <> ƒ(&Pipe.write/2) <> ƒ(&Pipe.seek/2) do
+  describe t(&Pipe.read/1) <> t(&Pipe.write/2) <> t(&Pipe.seek/2) do
     setup :build_pipe
 
     test "allows reads and writes", %{pipe: pipe} do
@@ -44,7 +44,7 @@ defmodule Wasmex.PipeTest do
       assert Pipe.read(pipe) == "Hello, World!"
     end
 
-    test "#{ƒ(&Pipe.seek/2)} sets pipe position", %{pipe: pipe} do
+    test "#{t(&Pipe.seek/2)} sets pipe position", %{pipe: pipe} do
       Pipe.write(pipe, "Hello, World!")
       Pipe.seek(pipe, 7)
       Pipe.write(pipe, "Wasmex")
