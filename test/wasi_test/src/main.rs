@@ -80,7 +80,10 @@ fn print_info(args: Vec<String>) {
     }
     println!();
     println!("Environment:");
-    for (name, value) in env::vars().collect::<Vec<(String, String)>>() {
+    let mut env = env::vars().collect::<Vec<(String, String)>>();
+    // needs sorting, because the order of env vars is not deterministic
+    env.sort();
+    for (name, value) in env {
         println!("{}={}", name, value);
     }
     println!();

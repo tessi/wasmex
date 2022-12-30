@@ -3,8 +3,9 @@ defmodule WasmexTest do
   doctest Wasmex
 
   defp create_instance(_context) do
-    instance = start_supervised!({Wasmex, %{module: TestHelper.wasm_module()}})
-    %{instance: instance}
+    %{module: module, store: store} = TestHelper.wasm_module()
+    instance = start_supervised!({Wasmex, %{store: store, module: module}})
+    %{instance: instance, module: module, store: store}
   end
 
   describe "when instantiating without imports" do
@@ -51,7 +52,8 @@ defmodule WasmexTest do
 
       # giving a value greater than i32::max_value()
       # see: https://doc.rust-lang.org/std/primitive.i32.html#method.max_value
-      assert {:ok, [3_000_000_000]} == Wasmex.call_function(instance, "i64_i64", [3_000_000_000])
+      assert {:ok, [3_000_000_000]} ==
+               Wasmex.call_function(instance, "i64_i64", [3_000_000_000])
     end
 
     test "call_function: f32_f32(f32) -> f32 function", %{instance: instance} do
@@ -95,24 +97,33 @@ defmodule WasmexTest do
       assert {:ok, []} == Wasmex.call_function(instance, :void, [])
     end
 
-    test "call_function: string() -> string function", %{instance: instance} do
+    test "call_function: string() -> string function", %{store: store, instance: instance} do
       {:ok, [pointer]} = Wasmex.call_function(instance, :string, [])
-      {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
-      assert Wasmex.Memory.read_string(memory, pointer, 13) == "Hello, World!"
+      {:ok, memory} = Wasmex.memory(instance)
+      assert Wasmex.Memory.read_string(store, memory, pointer, 13) == "Hello, World!"
     end
 
-    test "call_function: string_first_byte(string_pointer) -> u8 function", %{instance: instance} do
-      {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
+    test "call_function: string_first_byte(string_pointer) -> u8 function", %{
+      store: store,
+      instance: instance
+    } do
+      {:ok, memory} = Wasmex.memory(instance)
       string = "hello, world"
       index = 42
-      Wasmex.Memory.write_binary(memory, index, string)
+      Wasmex.Memory.write_binary(store, memory, index, string)
 
       assert {:ok, [104]} ==
-               Wasmex.call_function(instance, :string_first_byte, [index, String.length(string)])
+               Wasmex.call_function(instance, :string_first_byte, [
+                 index,
+                 String.length(string)
+               ])
     end
   end
 
+  # deadlocks
   test "read and manipulate memory in a callback" do
+    %{store: store, module: module} = TestHelper.wasm_import_module()
+
     imports = %{
       env:
         TestHelper.default_imported_functions_env()
@@ -120,24 +131,22 @@ defmodule WasmexTest do
           :imported_sum3,
           {:fn, [:i32, :i32, :i32], [:i32],
            fn context, a, b, c ->
-             memory = Map.get(context, :memory)
-             assert 42 == Wasmex.Memory.get(memory, :uint8, 0, 0)
-             Wasmex.Memory.set(memory, :uint8, 0, 0, 23)
+             assert 42 == Wasmex.Memory.get_byte(context.caller, context.memory, 0)
+             Wasmex.Memory.set_byte(context.caller, context.memory, 0, 23)
              a + b + c
            end}
         )
     }
 
-    instance =
-      start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+    instance = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
 
-    {:ok, memory} = Wasmex.memory(instance, :uint8, 0)
-    Wasmex.Memory.set(memory, :uint8, 0, 0, 42)
+    {:ok, memory} = Wasmex.memory(instance)
+    Wasmex.Memory.set_byte(store, memory, 0, 42)
 
     # asserts that the byte at memory[0] was set to 42 and then sets it to 23
     {:ok, _} = Wasmex.call_function(instance, :using_imported_sum3, [1, 2, 3])
 
-    assert 23 == Wasmex.Memory.get(memory, :uint8, 0, 0)
+    assert 23 == Wasmex.Memory.get_byte(store, memory, 0)
   end
 
   describe "when instantiating with imports" do
@@ -146,10 +155,11 @@ defmodule WasmexTest do
         env: TestHelper.default_imported_functions_env()
       }
 
-      instance =
-        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+      %{store: store, module: module} = TestHelper.wasm_import_module()
 
-      %{instance: instance}
+      instance = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
+
+      %{store: store, module: module, imports: imports, instance: instance}
     end
 
     setup [:create_instance_with_atom_imports]
@@ -159,8 +169,11 @@ defmodule WasmexTest do
     end
 
     test "call_function using_imported_sum3", %{instance: instance} do
-      assert {:ok, [44]} == Wasmex.call_function(instance, :using_imported_sum3, [23, 19, 2])
-      assert {:ok, [28]} == Wasmex.call_function(instance, :using_imported_sum3, [100, -77, 5])
+      assert {:ok, [44]} ==
+               Wasmex.call_function(instance, :using_imported_sum3, [23, 19, 2])
+
+      assert {:ok, [28]} ==
+               Wasmex.call_function(instance, :using_imported_sum3, [100, -77, 5])
     end
 
     test "call_function using_imported_sumf", %{instance: instance} do
@@ -168,6 +181,7 @@ defmodule WasmexTest do
       assert_in_delta 4.2, result, 0.001
 
       assert {:ok, [result]} = Wasmex.call_function(instance, :using_imported_sumf, [10.0, -7.7])
+
       assert_in_delta 2.3, result, 0.001
     end
   end
@@ -178,10 +192,11 @@ defmodule WasmexTest do
         "env" => TestHelper.default_imported_functions_env_stringified()
       }
 
-      instance =
-        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+      %{store: store, module: module} = TestHelper.wasm_import_module()
 
-      %{instance: instance}
+      instance = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
+
+      %{store: store, module: module, instance: instance}
     end
 
     setup [:create_instance_with_string_imports]
@@ -189,7 +204,9 @@ defmodule WasmexTest do
     test "call_function using_imported_sum3 with both, string and atom, identifiers", %{
       instance: instance
     } do
-      assert {:ok, [6]} == Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
+      assert {:ok, [6]} ==
+               Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
+
       assert {:ok, [6]} == Wasmex.call_function(instance, :using_imported_sum3, [1, 2, 3])
     end
   end
@@ -205,10 +222,11 @@ defmodule WasmexTest do
         }
       }
 
-      instance =
-        start_supervised!({Wasmex, %{module: TestHelper.wasm_import_module(), imports: imports}})
+      %{store: store, module: module} = TestHelper.wasm_import_module()
 
-      %{instance: instance}
+      instance = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
+
+      %{store: store, module: module, instance: instance}
     end
 
     setup [:create_instance_with_imports_raising_exceptions]
@@ -219,7 +237,7 @@ defmodule WasmexTest do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
 
       assert reason =~
-               "Error during function excecution: `RuntimeError: the elixir callback threw an exception`."
+               "Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x12e - <unknown>!using_imported_sum3"
     end
   end
 end

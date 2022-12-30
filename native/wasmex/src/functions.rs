@@ -1,9 +1,12 @@
-use wasmer::{ExportError, Function, Instance};
+use wasmtime::Func;
+use wasmtime::Instance;
 
-pub fn exists(instance: &Instance, name: &str) -> bool {
-    find(instance, name).is_ok()
+use crate::environment::StoreOrCaller;
+
+pub fn exists(instance: &Instance, store_or_caller: &mut StoreOrCaller, name: &str) -> bool {
+    find(instance, store_or_caller, name).is_some()
 }
 
-pub fn find<'a>(instance: &'a Instance, name: &str) -> Result<&'a Function, ExportError> {
-    instance.exports.get(name)
+pub fn find(instance: &Instance, store_or_caller: &mut StoreOrCaller, name: &str) -> Option<Func> {
+    instance.get_func(store_or_caller, name)
 }

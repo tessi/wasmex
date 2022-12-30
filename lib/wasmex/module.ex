@@ -34,9 +34,11 @@ defmodule Wasmex.Module do
   may be a good idea to compile a module once and instantiate it often if you want to
   run a WASM binary multiple times.
   """
-  @spec compile(binary()) :: {:ok, __MODULE__.t()} | {:error, binary()}
-  def compile(bytes) when is_binary(bytes) do
-    case Wasmex.Native.module_compile(bytes) do
+  @spec compile(Wasmex.StoreOrCaller.t(), binary()) ::
+          {:ok, __MODULE__.t()} | {:error, binary()}
+  def compile(%Wasmex.StoreOrCaller{resource: store_or_caller_resource}, bytes)
+      when is_binary(bytes) do
+    case Wasmex.Native.module_compile(store_or_caller_resource, bytes) do
       {:ok, resource} -> {:ok, wrap_resource(resource)}
       {:error, err} -> {:error, err}
     end
@@ -54,20 +56,6 @@ defmodule Wasmex.Module do
       {:error, _} -> nil
       name -> name
     end
-  end
-
-  @doc """
-  Sets the name of the current module.
-
-  This is normally useful for stacktraces and debugging.
-
-  It will return `:ok` if the module name was changed successfully,
-  and return an `{:error, reason}` tuple otherwise (in case the module is already
-  instantiated).
-  """
-  @spec set_name(__MODULE__.t(), binary()) :: :ok | {:error, binary()}
-  def set_name(%__MODULE__{resource: resource}, name) when is_binary(name) do
-    Wasmex.Native.module_set_name(resource, name)
   end
 
   @doc """

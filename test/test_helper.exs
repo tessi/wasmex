@@ -1,6 +1,4 @@
 defmodule TestHelper do
-  @ets_table __MODULE__
-
   @wasm_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_test"
   @wasm_import_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_import_test"
   @wasi_test_source_dir "#{Path.dirname(__ENV__.file)}/wasi_test"
@@ -18,25 +16,25 @@ defmodule TestHelper do
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasi_test_source_dir)
-
-    # cache precompiled modules in an ETS so our tests can re-use them
-    :ets.new(@ets_table, [:named_table, read_concurrency: true])
-
-    {:ok, wasm_module} = Wasmex.Module.compile(File.read!(TestHelper.wasm_test_file_path()))
-    :ets.insert(@ets_table, {:wasm, wasm_module})
-
-    {:ok, wasm_import_module} =
-      Wasmex.Module.compile(File.read!(TestHelper.wasm_import_test_file_path()))
-
-    :ets.insert(@ets_table, {:wasm_import, wasm_import_module})
-
-    {:ok, wasi_module} = Wasmex.Module.compile(File.read!(TestHelper.wasi_test_file_path()))
-    :ets.insert(@ets_table, {:wasi, wasi_module})
   end
 
-  def wasm_module, do: :ets.lookup(@ets_table, :wasm) |> Keyword.get(:wasm)
-  def wasm_import_module, do: :ets.lookup(@ets_table, :wasm_import) |> Keyword.get(:wasm_import)
-  def wasi_module, do: :ets.lookup(@ets_table, :wasi) |> Keyword.get(:wasi)
+  def wasm_module do
+    {:ok, store} = Wasmex.Store.new()
+
+    {:ok, wasm_module} =
+      Wasmex.Module.compile(store, File.read!(TestHelper.wasm_test_file_path()))
+
+    %{store: store, module: wasm_module}
+  end
+
+  def wasm_import_module do
+    {:ok, store} = Wasmex.Store.new()
+
+    {:ok, wasm_module} =
+      Wasmex.Module.compile(store, File.read!(TestHelper.wasm_import_test_file_path()))
+
+    %{store: store, module: wasm_module}
+  end
 
   def default_imported_functions_env do
     %{
@@ -50,6 +48,12 @@ defmodule TestHelper do
     default_imported_functions_env()
     |> Enum.map(fn {k, v} -> {to_string(k), v} end)
     |> Enum.into(%{})
+  end
+
+  defmacro ƒ(expr) do
+    quote do
+      inspect(unquote(expr))
+    end
   end
 end
 

@@ -85,26 +85,22 @@ defmodule Wasmex do
   or file system access.
   These can be provided by giving a `wasi` map:
 
-      wasi = %{
+      wasi = %Wasmex.Wasi.WasiOptions{
         args: ["hello", "from elixir"],
         env: %{
           "A_NAME_MAPS" => "to a value",
           "THE_TEST_WASI_FILE" => "prints all environment variables"
         },
-        preopen: %{"wasi_logfiles": %{flags: [:write, :create], alias: "log"}}
+        preopen: [%Wasmex.Wasi.PreopenOption{path: "logfile", alias: "log"}]
       }
       {:ok, instance } = Wasmex.start_link(%{module: module, wasi: wasi})
-
-  The `preopen` map takes directory paths as keys and settings map as values.
-  Settings must specify the access map with one or more of `:create`, `:read`, `:write`.
-  Optionally, the directory can be given another name in the WASI program using `alias`.
 
   It is also possible to capture stdout, stdin, or stderr of a WASI program using pipes:
 
       {:ok, stdin} = Wasmex.Pipe.create()
       {:ok, stdout} = Wasmex.Pipe.create()
       {:ok, stderr} = Wasmex.Pipe.create()
-      wasi = %{
+      wasi = %Wasmex.Wasi.WasiOptions{
         stdin: stdin,
         stdout: stdout,
         stderr: stderr
@@ -117,28 +113,37 @@ defmodule Wasmex do
   def start_link(%{} = opts) when not is_map_key(opts, :imports),
     do: start_link(Map.merge(opts, %{imports: %{}}))
 
-  def start_link(%{wasi: true} = opts), do: start_link(Map.merge(opts, %{wasi: %{}}))
+  def start_link(%{} = opts) when is_map_key(opts, :module) and not is_map_key(opts, :store),
+    do: {:error, :must_specify_store_used_to_compile_module}
+
+  def start_link(%{wasi: true} = opts),
+    do: start_link(Map.merge(opts, %{wasi: %Wasmex.Wasi.WasiOptions{}}))
 
   def start_link(%{bytes: bytes} = opts) do
-    with {:ok, module} <- Wasmex.Module.compile(bytes) do
+    with {:ok, store} <- build_store(opts),
+         {:ok, module} <- Wasmex.Module.compile(store, bytes) do
       opts
       |> Map.delete(:bytes)
       |> Map.put(:module, module)
+      |> Map.put(:store, store)
       |> start_link()
     end
   end
 
-  def start_link(%{module: module, imports: imports, wasi: wasi})
-      when is_map(imports) and is_map(wasi) do
+  def start_link(%{store: store, module: module, imports: imports}) when is_map(imports) do
     GenServer.start_link(__MODULE__, %{
+      store: store,
       module: module,
-      imports: stringify_keys(imports),
-      wasi: stringify_keys(wasi)
+      imports: stringify_keys(imports)
     })
   end
 
-  def start_link(%{module: module, imports: imports}) when is_map(imports) do
-    GenServer.start_link(__MODULE__, %{module: module, imports: stringify_keys(imports)})
+  defp build_store(opts) do
+    if Map.has_key?(opts, :wasi) do
+      Wasmex.Store.new_wasi(stringify_keys(opts[:wasi]))
+    else
+      Wasmex.Store.new()
+    end
   end
 
   @doc """
@@ -225,18 +230,10 @@ defmodule Wasmex do
   @doc """
   Finds the exported memory of the given WASM instance and returns it as a `Wasmex.Memory`.
 
-  The memory is a collection of bytes which can be viewed and interpreted as a sequence of different
-  (data-)`types`:
-
-  * uint8 / int8 - (un-)signed 8-bit integer values
-  * uint16 / int16 - (un-)signed 16-bit integer values
-  * uint32 / int32 - (un-)signed 32-bit integer values
-
-  We can think of it as a list of values of the above type (where each value may be larger than a byte).
-  The `offset` value can be used to start reading the memory starting from the chosen position.
+  The memory is a sequence of bytes.
   """
-  def memory(pid, type, offset) when type in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
-    GenServer.call(pid, {:memory, type, offset})
+  def memory(pid) do
+    GenServer.call(pid, {:memory})
   end
 
   defp stringify_keys(struct) when is_struct(struct), do: struct
@@ -274,40 +271,38 @@ defmodule Wasmex do
                 }
   """
   @impl true
-  def init(%{module: module, imports: imports, wasi: wasi})
-      when is_map(imports) and is_map(wasi) do
-    case Wasmex.Instance.new_wasi(module, imports, wasi) do
-      {:ok, instance} -> {:ok, %{instance: instance, imports: imports, wasi: wasi}}
+  def init(%{store: store, module: module, imports: imports} = state) when is_map(imports) do
+    case Wasmex.Instance.new(store, module, imports) do
+      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
       {:error, reason} -> {:error, reason}
     end
   end
 
   @impl true
-  def init(%{module: module, imports: imports}) when is_map(imports) do
-    case Wasmex.Instance.new(module, imports) do
-      {:ok, instance} -> {:ok, %{instance: instance, imports: imports}}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  @impl true
-  def handle_call({:memory, size, offset}, _from, %{instance: instance} = state)
-      when size in [:uint8, :int8, :uint16, :int16, :uint32, :int32] do
-    case Wasmex.Memory.from_instance(instance, size, offset) do
+  def handle_call({:memory}, _from, %{store: store, instance: instance} = state) do
+    case Wasmex.Memory.from_instance(store, instance) do
       {:ok, memory} -> {:reply, {:ok, memory}, state}
       {:error, error} -> {:reply, {:error, error}, state}
     end
   end
 
   @impl true
-  def handle_call({:exported_function_exists, name}, _from, %{instance: instance} = state)
+  def handle_call(
+        {:exported_function_exists, name},
+        _from,
+        %{store: store, instance: instance} = state
+      )
       when is_binary(name) do
-    {:reply, Wasmex.Instance.function_export_exists(instance, name), state}
+    {:reply, Wasmex.Instance.function_export_exists(store, instance, name), state}
   end
 
   @impl true
-  def handle_call({:call_function, name, params}, from, %{instance: instance} = state) do
-    :ok = Wasmex.Instance.call_exported_function(instance, name, params, from)
+  def handle_call(
+        {:call_function, name, params},
+        from,
+        %{store: store, instance: instance} = state
+      ) do
+    :ok = Wasmex.Instance.call_exported_function(store, instance, name, params, from)
     {:noreply, state}
   end
 
@@ -323,10 +318,12 @@ defmodule Wasmex do
         %{imports: imports} = state
       ) do
     context =
-      Map.put(
+      Map.merge(
         context,
-        :memory,
-        Wasmex.Memory.wrap_resource(Map.get(context, :memory), :uint8, 0)
+        %{
+          memory: Wasmex.Memory.wrap_resource(Map.get(context, :memory)),
+          caller: Wasmex.StoreOrCaller.wrap_resource(Map.get(context, :caller))
+        }
       )
 
     {success, return_value} =
@@ -347,7 +344,7 @@ defmodule Wasmex do
         _ -> [return_value]
       end
 
-    :ok = Wasmex.Native.namespace_receive_callback_result(token, success, return_values)
+    :ok = Wasmex.Native.instance_receive_callback_result(token, success, return_values)
     {:noreply, state}
   end
 end

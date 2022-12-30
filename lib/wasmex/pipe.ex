@@ -43,12 +43,20 @@ defmodule Wasmex.Pipe do
     Wasmex.Native.pipe_size(resource)
   end
 
+  # @doc """
+  # Attempts to resize the pipe to the given number of bytes.
+  # """
+  # @spec set_len(__MODULE__.t(), integer()) :: :ok | :error
+  # def set_len(%__MODULE__{resource: resource}, len) do
+  #   Wasmex.Native.pipe_set_len(resource, len)
+  # end
+
   @doc """
-  Attempts to resize the pipe to the given number of bytes.
+  TBD
   """
-  @spec set_len(__MODULE__.t(), integer()) :: :ok | :error
-  def set_len(%__MODULE__{resource: resource}, len) do
-    Wasmex.Native.pipe_set_len(resource, len)
+  @spec seek(__MODULE__.t(), integer()) :: :ok | :error
+  def seek(%__MODULE__{resource: resource}, pos_from_start) do
+    Wasmex.Native.pipe_seek(resource, pos_from_start)
   end
 
   @doc """
@@ -65,5 +73,13 @@ defmodule Wasmex.Pipe do
   @spec write(__MODULE__.t(), binary()) :: {:ok, integer()} | :error
   def write(%__MODULE__{resource: resource}, binary) do
     Wasmex.Native.pipe_write_binary(resource, binary)
+  end
+end
+
+defimpl Inspect, for: Wasmex.Pipe do
+  import Inspect.Algebra
+
+  def inspect(dict, opts) do
+    concat(["#Wasmex.Pipe<", to_doc(dict.reference, opts), ">"])
   end
 end
