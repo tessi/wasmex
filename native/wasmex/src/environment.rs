@@ -5,8 +5,8 @@ use rustler::{
     Term,
 };
 use wasmtime::{
-    AsContext, AsContextMut, Caller, Engine, Extern, FuncType, Linker, Store, Val, ValType,
-    StoreContext, StoreContextMut
+    AsContext, AsContextMut, Caller, Engine, Extern, FuncType, Linker, Store, StoreContext,
+    StoreContextMut, Val, ValType,
 };
 use wiggle::anyhow::{self, anyhow};
 
