@@ -19,6 +19,9 @@ jobs:
       matrix:
         otp: [24.3, 25.2]
         elixir: [1.12.3, 1.13.4, 1.14.2]
+        exclude:
+          - otp: 25.2
+          - elixir: 1.12.3
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
