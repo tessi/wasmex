@@ -18,17 +18,46 @@ Types of changes
 
 please add changes here
 
+
+## [0.8.0] - 2023-01-??
+
+This release brings some changes to our API because of the change of the underlying WASM engine to [wasmtime](https://wasmtime.dev/).
+
+It brings a new abstraction, the `Wasmex.Store`, which holds all internal structures. Thus, the store (or a "caller" in function-call contexts) needs
+to be provided in most Wasmex APIs in the form of a `Wasmex.StoreOrCaller` struct.
+
+The WASM engine change requires us to do further changes, most notably
+a change in how `Wasmex.Memory` is accessed. We dropped support for
+different data types and simplified the memory model to be just an array of bytes. The concept of memory offsets was dropped.
+
+Please visit the list of detailed changed below for a detailed list of changes.
+
 ### Added
 
-* Support for OTP 25
+* Added support for OTP 25
+* Added support for Elixir 1.14
 
 ### Removed
 
-* Removed official support for OTP 22 (we support the latest three releases)
+* Removed official support for OTP 22 and 23
+* Removed official support for Elixir 1.12
+* Removed `Wasmex.Module.set_name()` without replacement as this is not supported by Wasmtime
+* Removed `Wasmex.Memory.bytes_per_element()` without replacement because we dropped support for different data types and now only handle bytes
+* Removed `Wasmex.Pipe.set_len()` without replacement
+* WASI directory/file preopens can not configure read/write/create permissions anymore because wasmtime does not support this feature well. We very much plan to add support back once wasmtime allows.
 
 ### Changed
 
-* Updated wasmer to 2.3.0
+* Changed the underlying WASM engine from wasmer to [wasmtime](https://wasmtime.dev)
+* Removed `Wasmex.Instance.new()` and `Wasmex.Instance.new_wasi()` in favor of `Wasmex.Store.new()` and `Wasmex.Store.new_wasi()`.
+* WASI-options to `Wasmex.Store.new_wasi()` are now a proper struct `Wasmex.Wasi.WasiOptions` to improve typespecs, docs, and compile-time warnings.
+* `Wasmex.Pipe` went through an internal rewrite. It is now a positioned read/write stream. You may change the read/write position with `Wasmex.Pipe.seek()`
+* Renamed `Wasmex.Pipe.create()` to `Wasmex.Pipe.new()` to be consistent with other struct-creation calls
+* Renamed `Wasmex.Memory.length()` to `Wasmex.Memory.size()` for consistenct with other `size` methods
+* Renamed `Wasmex.Memory.set()` to `Wasmex.Memory.set_byte()`
+* Renamed `Wasmex.Memory.get()` to `Wasmex.Memory.get_byte()`
+* Updated and rewrote most of the docs - all examples are now doctests and tested on CI
+* Updated all Elixir/Rust dependencies
 
 ## [0.7.1] - 2022-05-25
 

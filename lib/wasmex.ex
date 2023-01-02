@@ -4,8 +4,7 @@ defmodule Wasmex do
   It enables lightweight WebAssembly containers to be run in your Elixir backend.
   This is the main module, providing most of the needed API to run WASM binaries.
 
-  It uses [wasmtime](https://wasmtime.dev/) to execute WASM binaries through a NIF.
-  [Rust](https://www.rust-lang.org/) is used to implement the NIF to make it as safe as possible.
+  It uses [wasmtime](https://wasmtime.dev) to execute WASM binaries through a [Rust](https://www.rust-lang.org) NIF.
 
   Each WASM module must be compiled from a `.wasm` file.
   A compiled WASM module can be instantiated which usually happens in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).

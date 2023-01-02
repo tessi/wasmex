@@ -13,8 +13,7 @@
 Wasmex is a fast and secure [WebAssembly](https://webassembly.org/) and [WASI](https://github.com/WebAssembly/WASI) runtime for Elixir.
 It enables lightweight WebAssembly containers to be run in your Elixir backend.
 
-It uses [wasmer](https://wasmer.io/) to execute WASM binaries through a NIF.
-We use [Rust](https://www.rust-lang.org/) to implement the NIF to make it as safe as possible.
+It uses [wasmtime](https://wasmtime.dev) to execute WASM binaries through a [Rust](https://www.rust-lang.org) NIF.
 
 ## Install
 
