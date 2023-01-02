@@ -114,8 +114,8 @@ pub struct PipeResourceResponse {
     resource: ResourceArc<PipeResource>,
 }
 
-#[rustler::nif(name = "pipe_create")]
-pub fn create() -> PipeResourceResponse {
+#[rustler::nif(name = "pipe_new")]
+pub fn new() -> PipeResourceResponse {
     let pipe = Pipe::new();
     let pipe_resource = ResourceArc::new(PipeResource {
         pipe: Mutex::new(pipe),

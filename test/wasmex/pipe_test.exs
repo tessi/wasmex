@@ -6,7 +6,7 @@ defmodule Wasmex.PipeTest do
   doctest Pipe
 
   defp build_pipe(_) do
-    {:ok, pipe} = Pipe.create()
+    {:ok, pipe} = Pipe.new()
     %{pipe: pipe}
   end
 

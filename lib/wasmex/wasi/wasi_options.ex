@@ -13,7 +13,7 @@ defmodule Wasmex.Wasi.WasiOptions do
 
   ## Example
 
-      iex> {:ok, stdin} = Wasmex.Pipe.create()
+      iex> {:ok, stdin} = Wasmex.Pipe.new()
       iex> Wasmex.Store.new_wasi(%WasiOptions{
       ...>   args: ["first param", "second param"],
       ...>   env: %{"env_key" => "env_value"},

@@ -8,7 +8,7 @@ defmodule Wasmex.Pipe do
 
   Pipes can be written to and read from:
 
-      iex> {:ok, pipe} = Wasmex.Pipe.create()
+      iex> {:ok, pipe} = Wasmex.Pipe.new()
       iex> Wasmex.Pipe.write(pipe, "hello")
       {:ok, 5}
       iex> Wasmex.Pipe.seek(pipe, 0)
@@ -17,9 +17,9 @@ defmodule Wasmex.Pipe do
 
   They can be used to capture stdout/stdin/stderr of WASI programs:
 
-      iex> {:ok, stdin} = Wasmex.Pipe.create()
-      iex> {:ok, stdout} = Wasmex.Pipe.create()
-      iex> {:ok, stderr} = Wasmex.Pipe.create()
+      iex> {:ok, stdin} = Wasmex.Pipe.new()
+      iex> {:ok, stdout} = Wasmex.Pipe.new()
+      iex> {:ok, stderr} = Wasmex.Pipe.new()
       iex> Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{
       ...>   stdin: stdin,
       ...>   stdout: stdout,
@@ -52,11 +52,11 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, %Pipe{}} = Wasmex.Pipe.create()
+      iex> {:ok, %Pipe{}} = Wasmex.Pipe.new()
   """
-  @spec create() :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
-  def create() do
-    case Wasmex.Native.pipe_create() do
+  @spec new() :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
+  def new() do
+    case Wasmex.Native.pipe_new() do
       {:ok, resource} -> {:ok, __wrap_resource__(resource)}
       {:error, err} -> {:error, err}
     end
@@ -67,7 +67,7 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, pipe} = Wasmex.Pipe.create()
+      iex> {:ok, pipe} = Wasmex.Pipe.new()
       iex> Wasmex.Pipe.size(pipe)
       0
       iex> Wasmex.Pipe.write(pipe, "hello")
@@ -86,7 +86,7 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, pipe} = Wasmex.Pipe.create()
+      iex> {:ok, pipe} = Wasmex.Pipe.new()
       iex> Wasmex.Pipe.write(pipe, "hello")
       iex> Wasmex.Pipe.seek(pipe, 0)
       :ok
@@ -107,7 +107,7 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, pipe} = Wasmex.Pipe.create()
+      iex> {:ok, pipe} = Wasmex.Pipe.new()
       iex> Wasmex.Pipe.write(pipe, "hello")
       iex> Wasmex.Pipe.read(pipe) # current position is at EOL, nothing more to read
       ""
@@ -132,7 +132,7 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, pipe} = Wasmex.Pipe.create()
+      iex> {:ok, pipe} = Wasmex.Pipe.new()
       iex> Wasmex.Pipe.write(pipe, "hello")
       {:ok, 5}
       iex> Wasmex.Pipe.seek(pipe, 0)

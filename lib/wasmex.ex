@@ -139,8 +139,8 @@ defmodule Wasmex do
 
   It is also possible to capture stdout, stdin, or stderr of a WASI program using pipes:
 
-      iex> {:ok, stdin} = Wasmex.Pipe.create()
-      iex> {:ok, stdout} = Wasmex.Pipe.create()
+      iex> {:ok, stdin} = Wasmex.Pipe.new()
+      iex> {:ok, stdout} = Wasmex.Pipe.new()
       iex> wasi_options = %Wasmex.Wasi.WasiOptions{
       ...>   args: ["wasmex", "echo"],
       ...>   stdin: stdin,

@@ -63,7 +63,7 @@ defmodule WasiTest do
       }
     }
 
-    {:ok, pipe} = Wasmex.Pipe.create()
+    {:ok, pipe} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["hello", "from elixir"],
@@ -107,8 +107,8 @@ defmodule WasiTest do
   end
 
   test "echo stdin" do
-    {:ok, stdin} = Wasmex.Pipe.create()
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdin} = Wasmex.Pipe.new()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi_options = %Wasmex.Wasi.WasiOptions{
       args: ["wasmex", "echo"],
@@ -127,7 +127,7 @@ defmodule WasiTest do
   end
 
   test "file system access without preopened dirs" do
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
     wasi = %WasiOptions{args: ["wasmex", "list_files", "src"], stdout: stdout}
 
     instance =
@@ -141,7 +141,7 @@ defmodule WasiTest do
   end
 
   test "list files on a preopened dir with all permissions" do
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["wasmex", "list_files", "test/wasi_test/src"],
@@ -160,7 +160,7 @@ defmodule WasiTest do
   end
 
   test "list files on a preopened dir with alias" do
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["wasmex", "list_files", "aliased_src"],
@@ -179,7 +179,7 @@ defmodule WasiTest do
   end
 
   test "read a file on a preopened dir" do
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["wasmex", "read_file", "src/main.rs"],
@@ -202,7 +202,7 @@ defmodule WasiTest do
     {dir, filename, filepath} = tmp_file_path("write_file")
     File.write!(filepath, "existing content\n")
 
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["wasmex", "write_file", "src/#{filename}"],
@@ -229,7 +229,7 @@ defmodule WasiTest do
   test "create a file on a preopened dir" do
     {dir, filename, filepath} = tmp_file_path("create_file")
 
-    {:ok, stdout} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
       args: ["wasmex", "create_file", "src/#{filename}"],
