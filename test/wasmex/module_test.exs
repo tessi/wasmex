@@ -44,10 +44,16 @@ defmodule Wasmex.ModuleTest do
   end
 
   describe t(&Module.name/1) do
-    test "a modules name can be set and read out" do
+    test "returns the module name" do
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, "(module $helloTest)")
+      assert Wasmex.Module.name(module) == "helloTest"
+    end
+
+    test "returns nil for unnamed modules" do
       {:ok, store} = Wasmex.Store.new()
       {:ok, module} = Wasmex.Module.compile(store, @wat)
-      assert nil == Wasmex.Module.name(module)
+      assert Wasmex.Module.name(module) == nil
     end
   end
 

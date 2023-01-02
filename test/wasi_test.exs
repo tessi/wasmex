@@ -106,6 +106,26 @@ defmodule WasiTest do
              """
   end
 
+  test "echo stdin" do
+    {:ok, stdin} = Wasmex.Pipe.create()
+    {:ok, stdout} = Wasmex.Pipe.create()
+
+    wasi_options = %Wasmex.Wasi.WasiOptions{
+      args: ["wasmex", "echo"],
+      stdin: stdin,
+      stdout: stdout
+    }
+
+    {:ok, pid} =
+      Wasmex.start_link(%{bytes: File.read!(TestHelper.wasi_test_file_path()), wasi: wasi_options})
+
+    Wasmex.Pipe.write(stdin, "Hey! It compiles! Ship it!")
+    Wasmex.Pipe.seek(stdin, 0)
+    {:ok, _} = Wasmex.call_function(pid, :_start, [])
+    Wasmex.Pipe.seek(stdout, 0)
+    assert Wasmex.Pipe.read(stdout) == "Hey! It compiles! Ship it!\n"
+  end
+
   test "file system access without preopened dirs" do
     {:ok, stdout} = Wasmex.Pipe.create()
     wasi = %WasiOptions{args: ["wasmex", "list_files", "src"], stdout: stdout}

@@ -39,8 +39,7 @@ defmodule Wasmex.PipeTest do
       assert {:ok, 13} == Pipe.write(pipe, "Hello, World!")
       # current read position of that pipe is at EOL
       assert Pipe.read(pipe) == ""
-
-      assert Pipe.seek(pipe, 0)
+      assert Pipe.seek(pipe, 0) == :ok
       assert Pipe.read(pipe) == "Hello, World!"
     end
 

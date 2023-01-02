@@ -11,6 +11,7 @@ fn main() {
         Some("read_file") => read_file(args),
         Some("write_file") => write_file(args),
         Some("create_file") => create_file(args),
+        Some("echo") => echo(),
         _ => print_info(args),
     };
 }
@@ -68,6 +69,14 @@ fn create_file(args: Vec<String>) {
             Err(e) => println!("error: could not write file ({:?})", e),
         },
         None => println!("error: needs the file path as second argument"),
+    }
+}
+
+fn echo() {
+    let mut buffer = String::new();
+    match io::stdin().read_line(&mut buffer) {
+        Ok(_) => println!("{}", buffer),
+        Err(e) => println!("error: could not read from stdin ({:?})", e),
     }
 }
 

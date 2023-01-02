@@ -50,7 +50,7 @@ defmodule TestHelper do
     |> Enum.into(%{})
   end
 
-  @doc """
+  @doc ~S"""
   Inspects an expression in a test.
 
   Useful for test descriptions to make sure the tested function exists and is displayed nicely in test output.

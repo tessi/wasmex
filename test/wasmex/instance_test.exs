@@ -104,7 +104,7 @@ defmodule Wasmex.InstanceTest do
                )
 
       receive do
-        {:returned_function_call, {:ok, '*'}, :fake_from} -> nil
+        {:returned_function_call, {:ok, [42]}, :fake_from} -> nil
       after
         2000 ->
           raise "message_expected"

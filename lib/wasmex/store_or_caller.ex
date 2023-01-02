@@ -1,8 +1,8 @@
 defmodule Wasmex.StoreOrCaller do
-  @moduledoc """
-  Either a Wasmex.Store or "Caller" for imported functions.
+  @moduledoc ~S"""
+  Either a `Wasmex.Store` or "Caller" for imported functions.
 
-  A Store is a collection of WebAssembly instances and host-defined state, see `Wasmex.Store`.
+  A Store is a collection of WASM instances and host-defined state, see `Wasmex.Store`.
   A Caller takes the place of a Store in imported function calls. If a Store is needed in
   Elixir-provided imported functions, always use the provided Caller because
   using the Store will cause a deadlock (the running WASM instance locks the Stores Mutex).
@@ -21,8 +21,7 @@ defmodule Wasmex.StoreOrCaller do
             # accidentally do.
             reference: nil
 
-  @doc false
-  def wrap_resource(resource) do
+  def __wrap_resource__(resource) do
     %__MODULE__{
       resource: resource,
       reference: make_ref()

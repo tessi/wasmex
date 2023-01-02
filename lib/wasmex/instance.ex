@@ -1,34 +1,10 @@
 defmodule Wasmex.Instance do
-  @moduledoc """
+  @moduledoc ~S"""
   Instantiates a WASM module and allows calling exported functions on it.
 
-      # Read a WASM file and compile it into a WASM module
-      {:ok, bytes } = File.read("wasmex_test.wasm")
-      {:ok, store} = Wasmex.Store.new()
-      {:ok, module} = Wasmex.Module.compile(store, bytes)
-
-      # Instantiates the WASM module.
-      {:ok, wasmex_pid } = Wasmex.start_link(%{module: module, store: store})
-
-      # Call a function on it.
-      {:ok, [result]} = Wasmex.call_function(wasmex_pid, "sum", [1, 2])
-
-      IO.puts result # 3
-
-  Functions exported by the WASM instance can be called via `call_exported_function`.
-  Arguments of these functions are automatically casted to WebAssembly values.
-  Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
-
-  You can pass arbitrary data to WebAssembly by writing data into an instances memory.
-  The `memory/2` function returns a `Wasmex.Memory` struct representing the memory of an instance, e.g.:
-
-  ```elixir
-  {:ok, memory} = Wasmex.Instance.memory(store, instance)
-  ```
-
-  This module, but especially `call_exported_function/4`, is assumed to be called
-  within a GenServer context. Usually, functions defined here are called through
-  the `Wasmex` module API to satisfy this assumption.
+  In the majority of cases, you will not need to use this module directly
+  but use the main module `Wasmex` instead.
+  This module expects to be executed within GenServer context which `Wasmex` sets up.
   """
 
   @type t :: %__MODULE__{
@@ -44,18 +20,48 @@ defmodule Wasmex.Instance do
             # accidentally do.
             reference: nil
 
-  @doc false
-  defp wrap_resource(resource) do
+  defp __wrap_resource__(resource) do
     %__MODULE__{
       resource: resource,
       reference: make_ref()
     }
   end
 
-  @doc """
+  @doc ~S"""
   Instantiates a WASM module with the given imports.
 
-  Returns the WASM instance.
+  Returns the instantiated WASM instance.
+
+  The `import` parameter is a nested map of WASM namespaces.
+  Each namespace consists of a name and a map of function names to function signatures.
+
+  Function signatures are a tuple of the form `{:fn, arg_types, return_types, callback}`.
+  Where `arg_types` and `return_types` are lists of `:i32`, `:i64`, `:f32`, `:f64`.
+
+  Each `callback` function receives a `context` map as the first argument followed by the arguments specified in its signature.
+  `context` has the following keys:
+
+    * `:memory` - The default exported `Wasmex.Memory` of the WASM instance
+    * `:caller` - The caller of the WASM instance which MUST be used instead of a `Wasmex.Store` in all Wasmex functions called from within the callback. Failure to do so will result in a deadlock. The `caller` MUST NOT be used outside of the callback.
+
+  ## Example
+
+  This example instantiates a WASM module with one namespace `env` having
+  three imported functions `imported_sum3`, `imported_sumf`, and `imported_void`.
+
+  The imported function `imported_sum3` takes three `:i32` (32 bit integer) arguments and returns a `:i32` number.
+  Its implementation is defined by the callback function `fn _context, a, b, c -> a + b + c end`.
+
+      iex> %{store: store, module: module} = TestHelper.wasm_module()
+      iex> imports = %{
+      ...>   "env" =>
+      ...>     %{
+      ...>       "imported_sum3" => {:fn, [:i32, :i32, :i32], [:i32], fn _context, a, b, c -> a + b + c end},
+      ...>       "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, a, b -> a + b end},
+      ...>       "imported_void" => {:fn, [], [], fn _context -> nil end}
+      ...>     }
+      ...> }
+      iex> {:ok, %Wasmex.Instance{}} = Wasmex.Instance.new(store, module, imports)
   """
   @spec new(Wasmex.StoreOrCaller.t(), Wasmex.Module.t(), %{
           optional(binary()) => (... -> any())
@@ -66,13 +72,22 @@ defmodule Wasmex.Instance do
     %Wasmex.Module{resource: module_resource} = module
 
     case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports) do
-      {:ok, resource} -> {:ok, wrap_resource(resource)}
+      {:ok, resource} -> {:ok, __wrap_resource__(resource)}
       {:error, err} -> {:error, err}
     end
   end
 
-  @doc """
-  Whether the WASM `instance` has a function export with the given `name`.
+  @doc ~S"""
+  Whether the WASM `instance` exports a function with the given `name`.
+
+  ## Example
+
+      iex> %{store: store, module: module} = TestHelper.wasm_module()
+      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      iex> Wasmex.Instance.function_export_exists(store, instance, "sum")
+      true
+      iex> Wasmex.Instance.function_export_exists(store, instance, "does_not_exist")
+      false
   """
   @spec function_export_exists(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
           boolean()
@@ -87,17 +102,39 @@ defmodule Wasmex.Instance do
     )
   end
 
-  @doc """
-  Calls a function with the given `name` and `params` on the WASM `instance`.
-  This function assumes to be called within a GenServer context, it expects a `from` argument
-  as given by `handle_call` etc.
+  @doc ~S"""
+  Calls a function the given `name` exported by the WASM `instance` with the given `params`.
 
-  The WebAssembly function will be invoked asynchronously in a new OS thread.
-  The calling process will receive a `{:returned_function_call, result, from}` message once
-  the execution finished.
-  The result either is an `{:error, reason}` or the `:ok` atom.
+  The WASM function will be invoked asynchronously in a new OS thread.
+  The calling Process/GenServer will receive a `{:returned_function_call, result, from}`
+  message once execution finishes.
+  The result either is an `{:error, reason}` or `:ok`.
+
+  `call_exported_function/5` assumes to be called within a GenServer context, it expects a `from` argument
+  as given by `c:GenServer.handle_call/3`. `from` is returned unchanged to allow
+  the wrapping GenServer to reply to their caller.
 
   A BadArg exception may be thrown when given unexpected input data.
+
+  ## Function parameters
+
+  Parameters for WASM functions are automatically casted to WASM values.
+  Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
+
+  You can pass arbitrary data to WebAssembly by writing that data into an instances `Wasmex.Memory`.
+  The `memory/2` function returns the instances memory.
+
+  ## Example
+
+      iex> %{store: store, module: module} = TestHelper.wasm_module()
+      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      iex> Wasmex.Instance.call_exported_function(store, instance, "sum", [1, 2], :from)
+      :ok
+      iex> receive do
+      ...>   {:returned_function_call, {:ok, [3]}, :from} -> :ok
+      ...> after
+      ...>  1000 -> raise "message_expected"
+      ...> end
   """
   @spec call_exported_function(
           Wasmex.StoreOrCaller.t(),
@@ -121,6 +158,15 @@ defmodule Wasmex.Instance do
     )
   end
 
+  @doc ~S"""
+  Returns the `Wasmex.Memory` of the WASM `instance`.
+
+  ## Example
+
+      iex> %{store: store, module: module} = TestHelper.wasm_module()
+      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      iex> {:ok, %Wasmex.Memory{}} = Wasmex.Instance.memory(store, instance)
+  """
   @spec memory(Wasmex.StoreOrCaller.t(), __MODULE__.t()) ::
           {:ok, Wasmex.Memory.t()} | {:error, binary()}
   def memory(store, instance) do

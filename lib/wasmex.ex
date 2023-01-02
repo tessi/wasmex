@@ -1,5 +1,5 @@
 defmodule Wasmex do
-  @moduledoc """
+  @moduledoc ~S"""
   Wasmex is a fast and secure [WebAssembly](https://webassembly.org/) and [WASI](https://github.com/WebAssembly/WASI) runtime for Elixir.
   It enables lightweight WebAssembly containers to be run in your Elixir backend.
   This is the main module, providing most of the needed API to run WASM binaries.
@@ -9,58 +9,80 @@ defmodule Wasmex do
 
   Each WASM module must be compiled from a `.wasm` file.
   A compiled WASM module can be instantiated which usually happens in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).
-  To start the GenServer, `start_link/1` is used - it receives a variety of configuration options including function imports and optional WASI runtime options.
+  To start the GenServer, `start_link/1` is used:
 
-      {:ok, bytes} = File.read("wasmex_test.wasm")
-      {:ok, instance_pid} = Wasmex.start_link(%{bytes: bytes})
-      {:ok, [42]} == Wasmex.call_function(instance_pid, "sum", [50, -8])
+      iex> bytes = File.read!(TestHelper.wasm_test_file_path())
+      iex> {:ok, instance_pid} = Wasmex.start_link(%{bytes: bytes})
+      iex> Wasmex.call_function(instance_pid, "sum", [50, -8])
+      {:ok, [42]}
 
   Memory of a WASM instance can be read/written using `Wasmex.Memory`:
 
-      index = 4
-      value = 42
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, store} = Wasmex.store(pid)
+      iex> {:ok, memory} = Wasmex.memory(pid)
+      iex> index = 4
+      iex> Wasmex.Memory.set_byte(store, memory, index, 42)
+      iex> Wasmex.Memory.get_byte(store, memory, index)
+      42
 
-      {:ok, memory} = Wasmex.memory(instance_pid)
-      Wasmex.Memory.set_byte(store, memory, index, value)
-      IO.puts Wasmex.Memory.get_byte(store, memory, index) # 42
-
-  See `start_link/1` for starting a WASM instance and `call_function/3` for details about calling WASM functions.
+  See `start_link/1` for starting and configuring a WASM instance and `call_function/3` for details about calling WASM functions.
   """
   use GenServer
 
   # Client
 
-  @doc """
-  Starts a GenServer which instantiates a WASM module from the given `.wasm` bytes.
+  @doc ~S"""
+  Starts a GenServer which compiles and instantiates a WASM module from the given `.wasm` or `.wat` bytes.
 
-      {:ok, bytes} = File.read("wasmex_test.wasm")
-      {:ok, pid} = Wasmex.start_link(%{bytes: bytes})
-      {:ok, [42]} == Wasmex.call_function(pid, "sum", [50, -8])
+      iex> bytes = File.read!(TestHelper.wasm_test_file_path())
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: bytes})
+
+  Alternatively, a precompiled `Wasmex.Module` can be passed with its `Wasmex.Store`:
+
+      iex> {:ok, store} = Wasmex.Store.new()
+      iex> {:ok, module} = Wasmex.Module.compile(store, "(module)")
+      iex> {:ok, _pid} = Wasmex.start_link(%{store: store, module: module})
 
   ### Imports
 
-  Imports are provided as a map of namespaces, each namespace being a nested map of imported functions:
+  WASM imports may be given as an additional option.
+  Imports are a map of namespace-name to namespaces.
+  Each namespace is in turn a map of import-name to import.
 
-      imports = %{
-        env: %{
-          sum3: {:fn, [:i32, :i32, :i32], [:i32], fn (_context, a, b, c) -> a + b + c end},
-        }
-      }
-      {:ok, pid} = Wasmex.start_link(%{bytes: bytes, imports: imports})
-      {:ok, [6]} = Wasmex.call_function(pid, "use_the_imported_sum_fn", [1, 2, 3])
+      iex> wat = "(module
+      ...>          (import \"IO\" \"inspect\" (func $log (param i32)))
+      ...>        )"
+      iex> io_inspect = fn (%{_memory: %Wasmex.Memory{}, _caller: %Wasmex.StoreOrCaller{}} = _context, i) ->
+      ...>                IO.inspect(i)
+      ...>              end
+      iex> imports = %{
+      ...>   IO: %{
+      ...>     inspect: {:fn, [:i32], [], io_inspect},
+      ...>   }
+      ...> }
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: wat, imports: imports})
 
-  In the example above, we import the `"env"` namespace.
-  Each namespace is a map listing imports, e.g. the `sum3` function, which is represented with a tuple of:
+  In the example above, we import the `"IO"` namespace.
+  That namespace is a map of imports, in this case the `inspect` function, which is represented with a tuple of:
 
   1. the import type: `:fn` (a function),
-  1. the functions parameter types: `[:i32, :i32]`,
-  1. the functions return types: `[:i32]`, and
-  1. the function to be executed: `fn (_context, a, b, c) -> a + b end`
+  1. the functions parameter types: `[:i32]`,
+  1. the functions return types: `[]`, and
+  1. the function to be executed: `fn (_context, i) -> IO.inspect(i) end`
 
-  The first param the function receives is always the call context (a Map containing the instances memory and `caller`).
-  The `caller` MUST be used instead of a `store` in many functions. Wasmex might deadlock if you use the `store`
-  instead of the `caller` (because running the WASM instance holds a Mutex lock on the `store`).
-  The caller, however, MUST NOT be used outside of the function call.
+  The first param the function receives is always the call context:
+
+      %{
+        memory: %Wasmex.Memory{},
+        caller: %Wasmex.StoreOrCaller{}
+      } = context
+
+  The `caller` MUST be used instead of a `store` in Wasmex API functions.
+  Wasmex might deadlock if the `store` is used instead of the `caller`
+  (because running the WASM instance holds a Mutex lock on the `store` so
+  we cannot use that store again during the execution of an imported function).
+  The caller, however, MUST NOT be used outside of the imported functions scope.
 
   All other params are regular parameters as specified by the parameter type list.
 
@@ -74,41 +96,66 @@ defmodule Wasmex do
   ### WASI
 
   Optionally, modules can be run with WebAssembly System Interface (WASI) support.
-  WASI functions are provided as native implementations by default but could be overrideen
+  WASI functions are provided as native implementations by default but could be overridden
   with Elixir provided functions.
 
-      {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: true})
+      iex> {:ok, _pid } = Wasmex.start_link(%{bytes: "(module)", wasi: true})
 
-  It is possible to overwrite the default WASI functions using the imports map.
+  It is possible to overwrite the default WASI functions using the imports map:
 
-  Oftentimes, WASI programs need additional input like environment variables, arguments,
+      iex> imports = %{
+      ...>   wasi_snapshot_preview1: %{
+      ...>     random_get: {:fn, [:i32, :i32], [:i32],
+      ...>                  fn %{memory: memory, caller: caller}, address, size ->
+      ...>                    Enum.each(0..size, fn index ->
+      ...>                      Wasmex.Memory.set_byte(caller, memory, address + index, 0)
+      ...>                    end)
+      ...>                    # We chose `4` as the random number with a fair dice roll
+      ...>                    Wasmex.Memory.set_byte(caller, memory, address, 4)
+      ...>                    0
+      ...>                  end
+      ...>                 }
+      ...>   }
+      ...> }
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: "(module)", imports: imports})
+
+  In the example above, we overwrite the `random_get` function which is (as all other WASI functions)
+  implemented in Rust. This way our Elixir implementation of `random_get` is used instead of the
+  default WASI implementation.
+
+  Oftentimes, WASI programs need additional inputs like environment variables, arguments,
   or file system access.
-  These can be provided by giving a `wasi` map:
+  These can configured by additional `Wasmex.Wasi.WasiOptions`:
 
-      wasi_options = %Wasmex.Wasi.WasiOptions{
-        args: ["hello", "from elixir"],
-        env: %{
-          "A_NAME_MAPS" => "to a value",
-          "THE_TEST_WASI_FILE" => "prints all environment variables"
-        },
-        preopen: [%Wasmex.Wasi.PreopenOption{path: "logfile", alias: "log"}]
-      }
-      {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: wasi_options})
+      iex> wasi_options = %Wasmex.Wasi.WasiOptions{
+      ...>   args: ["hello", "from elixir"],
+      ...>   env: %{
+      ...>     "A_NAME_MAPS" => "to a value",
+      ...>     "THE_TEST_WASI_FILE" => "prints all environment variables"
+      ...>   },
+      ...>   preopen: [%Wasmex.Wasi.PreopenOptions{path: "lib", alias: "src"}]
+      ...> }
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: "(module)", wasi: wasi_options})
 
   It is also possible to capture stdout, stdin, or stderr of a WASI program using pipes:
 
-      {:ok, stdin} = Wasmex.Pipe.create()
-      {:ok, stdout} = Wasmex.Pipe.create()
-      {:ok, stderr} = Wasmex.Pipe.create()
-      wasi_options = %Wasmex.Wasi.WasiOptions{
-        stdin: stdin,
-        stdout: stdout,
-        stderr: stderr
-      }
-      {:ok, instance } = Wasmex.start_link(%{bytes: bytes, wasi: wasi_options})
-      Wasmex.Pipe.write(stdin, "Hey! It compiles! Ship it!")
-      {:ok, _} = Wasmex.call_function(instance, :_start, [])
-      Wasmex.Pipe.read(stdout)
+      iex> {:ok, stdin} = Wasmex.Pipe.create()
+      iex> {:ok, stdout} = Wasmex.Pipe.create()
+      iex> wasi_options = %Wasmex.Wasi.WasiOptions{
+      ...>   args: ["wasmex", "echo"],
+      ...>   stdin: stdin,
+      ...>   stdout: stdout
+      ...> }
+      iex> {:ok, pid } = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasi_test_file_path()), wasi: wasi_options})
+      iex> Wasmex.Pipe.write(stdin, "Hey! It compiles! Ship it!")
+      iex> Wasmex.Pipe.seek(stdin, 0)
+      iex> {:ok, _} = Wasmex.call_function(pid, :_start, [])
+      iex> Wasmex.Pipe.seek(stdout, 0)
+      iex> Wasmex.Pipe.read(stdout)
+      "Hey! It compiles! Ship it!\n"
+
+  In the example above, we call a WASI program which echoes a line from stdin
+  back to stdout.
   """
   def start_link(%{} = opts) when not is_map_key(opts, :imports),
     do: start_link(Map.merge(opts, %{imports: %{}}))
@@ -146,29 +193,51 @@ defmodule Wasmex do
     end
   end
 
-  @doc """
-  Returns whether a function export with the given `name` exists in the WebAssembly instance.
+  @doc ~S"""
+  Returns whether a function export with the given `name` exists in the WASM instance.
+
+  ## Examples
+
+      iex> wat = "(module
+      ...>          (func $helloWorld (result i32) (i32.const 42))
+      ...>          (export \"hello_world\" (func $helloWorld))
+      ...>        )"
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wat})
+      iex> Wasmex.function_exists(pid, "hello_world")
+      true
+      iex> Wasmex.function_exists(pid, "something_else")
+      false
   """
   def function_exists(pid, name) do
     GenServer.call(pid, {:exported_function_exists, stringify(name)})
   end
 
-  @doc """
+  @doc ~S"""
   Calls a function with the given `name` and `params` on the WASM instance
   and returns its results.
 
-  ### String Handling
+  ## Example
+
+      iex> wat = "(module
+      ...>          (func $helloWorld (result i32) (i32.const 42))
+      ...>          (export \"hello_world\" (func $helloWorld))
+      ...>        )"
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wat})
+      iex> Wasmex.call_function(pid, "hello_world", [])
+      {:ok, [42]}
+
+  ## String Handling
 
   Strings are common candidates for function parameters and return values.
-  However, they can not directly be used when calling WASM functions,
-  because WebAssembly only knows number data types.
-  But since Strings are just "a bunch of bytes" we can write these bytes into memory
+  However, they can not be used directly when calling WASM functions,
+  because WASM only knows number data types.
+  Since Strings are just "a bunch of bytes", we can write these bytes into memory
   and give our WASM function a pointer to that memory location.
 
-  #### Strings as Function Parameters
+  ### Strings as Function Parameters
 
-  Given we have the following Rust function that returns the first byte of a given string
-  compiled to WASM (note: this is copied from our test code, have a look there if you're interested):
+  Given we have the following Rust function that returns the first byte of a string input
+  compiled to WASM:
 
   ```rust
   #[no_mangle]
@@ -183,20 +252,18 @@ defmodule Wasmex do
 
   This WASM function can be called from Elixir:
 
-  ```elixir
-  {:ok, pid} = Wasmex.start_link(%{module: module, store: store})
-  {:ok, memory} = Wasmex.memory(pid)
-  index = 42
-  string = "hello, world"
-  Wasmex.Memory.write_binary(store, memory, index, string)
-
-  # 104 is the letter "h" in ASCII/UTF-8 encoding
-  {:ok, [104]} == Wasmex.call_function(pid, "string_first_byte", [index, String.length(string)])
-  ```
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, store} = Wasmex.store(pid)
+      iex> {:ok, memory} = Wasmex.memory(pid)
+      iex> index = 42
+      iex> string = "hello, world"
+      iex> Wasmex.Memory.write_binary(store, memory, index, string)
+      iex> Wasmex.call_function(pid, "string_first_byte", [index, String.length(string)])
+      {:ok, [104]} # 104 is the letter "h" in ASCII/UTF-8 encoding
 
   Please not that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
 
-  #### Strings as Function Return Values
+  ### Strings as Function Return Values
 
   Given we have the following Rust function compiled to WASM (again, copied from our test code):
 
@@ -208,39 +275,55 @@ defmodule Wasmex do
   ```
 
   This function returns a _pointer_ to its memory.
-  This memory location contains the String "Hello, World!" (ending with a null-byte since
-  a C-convention is terminating strings with a null-byte to mark its end).
+  This memory location contains the String "Hello, World!".
 
   This is how we would receive this String in Elixir:
 
-  ```elixir
-  {:ok, pid} = Wasmex.start_link(%{module: module, store: store})
-  {:ok, memory} = Wasmex.memory(pid)
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, store} = Wasmex.store(pid)
+      iex> {:ok, memory} = Wasmex.memory(pid)
+      iex> {:ok, [pointer]} = Wasmex.call_function(pid, "string", [])
+      iex> Wasmex.Memory.read_string(store, memory, pointer, 13)
+      "Hello, World!"
 
-  {:ok, [pointer]} = Wasmex.call_function(pid, "string", [])
-  returned_string = Wasmex.Memory.read_string(store, memory, pointer, 13) # "Hello, World!"
-  ```
-
-  ### Specifying a timeout
+  ## Specifying a timeout
 
   The default timeout for `call_function` is 5 seconds, or 5000 milliseconds.
   When calling a long-running function, you can specify a timeout value (in milliseconds) for this call.
-  Using the above example as a starting point, calling a function with a timeout of 10 seconds looks like:
 
-  ```elixir
-  {:ok, [pointer]} = Wasmex.call_function(pid, "string", [], 10_000)
-  ```
+      iex> wat = "(module
+      ...>          (func $helloWorld (result i32) (i32.const 42))
+      ...>          (export \"hello_world\" (func $helloWorld))
+      ...>        )"
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wat})
+      iex> Wasmex.call_function(pid, "hello_world", [], 10_000)
+      {:ok, [42]}
+
+  In the example above, we specify a timeout of 10 seconds.
   """
   def call_function(pid, name, params, timeout \\ 5000) do
     GenServer.call(pid, {:call_function, stringify(name), params}, timeout)
   end
 
-  @doc """
-  Finds the exported memory of the given WASM instance and returns it as a `Wasmex.Memory`.
+  @doc ~S"""
+  Returns the exported `Wasmex.Memory` of the given WASM instance.
+
+  ## Example
+
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, %Wasmex.Memory{}} = Wasmex.memory(pid)
   """
-  def memory(pid) do
-    GenServer.call(pid, {:memory})
-  end
+  def memory(pid), do: GenServer.call(pid, {:memory})
+
+  @doc ~S"""
+  Returns the `Wasmex.Store` of the WASM instance.
+
+  ## Example
+
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.store(pid)
+  """
+  def store(pid), do: GenServer.call(pid, {:store})
 
   defp stringify_keys(struct) when is_struct(struct), do: struct
 
@@ -255,19 +338,6 @@ defmodule Wasmex do
 
   # Server
 
-  @doc """
-  Params:
-
-  * module (`Wasmex.Module`): the compiled WASM module
-  * store (`Wasmex.Store`): the store used to compile the WASM module
-  * imports (map): a map defining imports. Structure is:
-                   %{
-                     namespace_name: %{
-                       import_name: {:fn, [:i32, :i32], [:i32], function_reference}
-                     }
-                   }
-  * wasi (map): a `Wasmex.Wasi.WasiOptions` struct.
-  """
   @impl true
   def init(%{store: store, module: module, imports: imports} = state) when is_map(imports) do
     case Wasmex.Instance.new(store, module, imports) do
@@ -282,6 +352,11 @@ defmodule Wasmex do
       {:ok, memory} -> {:reply, {:ok, memory}, state}
       {:error, error} -> {:reply, {:error, error}, state}
     end
+  end
+
+  @impl true
+  def handle_call({:store}, _from, %{store: store} = state) do
+    {:reply, {:ok, store}, state}
   end
 
   @impl true
@@ -319,8 +394,8 @@ defmodule Wasmex do
       Map.merge(
         context,
         %{
-          memory: Wasmex.Memory.wrap_resource(Map.get(context, :memory)),
-          caller: Wasmex.StoreOrCaller.wrap_resource(Map.get(context, :caller))
+          memory: Wasmex.Memory.__wrap_resource__(Map.get(context, :memory)),
+          caller: Wasmex.StoreOrCaller.__wrap_resource__(Map.get(context, :caller))
         }
       )
 
