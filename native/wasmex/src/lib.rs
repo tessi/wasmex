@@ -24,7 +24,7 @@ rustler::init! {
         memory::from_instance,
         memory::get_byte,
         memory::grow,
-        memory::length,
+        memory::size,
         memory::read_binary,
         memory::set_byte,
         memory::write_binary,

@@ -67,14 +67,14 @@ defmodule Wasmex.Memory do
       iex> %{store: store, module: module} = TestHelper.wasm_module()
       iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
       iex> {:ok, memory} = Wasmex.Memory.from_instance(store, instance)
-      iex> Wasmex.Memory.length(store, memory)
+      iex> Wasmex.Memory.size(store, memory)
       1114112 # in bytes (17 pages of 64 kB)
   """
-  @spec length(Wasmex.StoreOrCaller.t(), t()) :: pos_integer()
-  def length(store_or_caller, memory) do
+  @spec size(Wasmex.StoreOrCaller.t(), t()) :: pos_integer()
+  def size(store_or_caller, memory) do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
-    Wasmex.Native.memory_length(store_or_caller_resource, memory_resource)
+    Wasmex.Native.memory_size(store_or_caller_resource, memory_resource)
   end
 
   @doc ~S"""

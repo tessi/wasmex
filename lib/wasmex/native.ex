@@ -40,7 +40,7 @@ defmodule Wasmex.Native do
 
   def memory_from_instance(_store_resource, _memory_resource), do: error()
   def memory_bytes_per_element(_size), do: error()
-  def memory_length(_store_resource, _memory_resource), do: error()
+  def memory_size(_store_resource, _memory_resource), do: error()
   def memory_grow(_store_resource, _memory_resource, _pages), do: error()
   def memory_get_byte(_store_or_caller_resource, _memory_resource, _index), do: error()
   def memory_set_byte(_store_or_caller_resource, _memory_resource, _index, _value), do: error()

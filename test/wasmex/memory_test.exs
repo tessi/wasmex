@@ -29,21 +29,21 @@ defmodule Wasmex.MemoryTest do
   @initial_pages 17
   @min_memory_size @initial_pages * @page_size
 
-  describe t(&Memory.length/1) do
+  describe t(&Memory.size/1) do
     test "returns number of uint8 elements that fit into memory" do
       %{store: store, memory: memory} = build_memory()
-      assert Wasmex.Memory.length(store, memory) == @min_memory_size
+      assert Wasmex.Memory.size(store, memory) == @min_memory_size
     end
   end
 
   describe t(&Memory.grow/2) do
     test "grows the memory by the given number of pages" do
       %{store: store, memory: memory} = build_memory()
-      assert Wasmex.Memory.length(store, memory) / @page_size == @initial_pages
+      assert Wasmex.Memory.size(store, memory) / @page_size == @initial_pages
       assert Wasmex.Memory.grow(store, memory, 3) == @initial_pages
-      assert Wasmex.Memory.length(store, memory) / @page_size == @initial_pages + 3
+      assert Wasmex.Memory.size(store, memory) / @page_size == @initial_pages + 3
       assert Wasmex.Memory.grow(store, memory, 1) == @initial_pages + 3
-      assert Wasmex.Memory.length(store, memory) / @page_size == @initial_pages + 4
+      assert Wasmex.Memory.size(store, memory) / @page_size == @initial_pages + 4
     end
 
     test "fails when growing too large" do

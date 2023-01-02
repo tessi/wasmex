@@ -50,8 +50,8 @@ pub fn from_instance(
     })
 }
 
-#[rustler::nif(name = "memory_length")]
-pub fn length(
+#[rustler::nif(name = "memory_size")]
+pub fn size(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
 ) -> NifResult<usize> {
