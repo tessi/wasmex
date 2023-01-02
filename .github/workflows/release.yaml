@@ -34,7 +34,8 @@ jobs:
           - "2.15" # OTP 22, OTP 23
           - "2.16" # OTP 24, OTP 24, OTP 25
         job:
-          - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }
+          # cranelift-codegen panics at 'error when identifying target: "no supported isa found for arch `arm`"'
+          # - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-unknown-linux-gnu   , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-apple-darwin        , os: macos-11      }
           - { target: x86_64-apple-darwin         , os: macos-11      }
