@@ -38,7 +38,7 @@ defmodule Wasmex.MixProject do
   end
 
   defp description() do
-    "Wasmex is an Elixir library for executing WebAssembly binaries with wasmtime"
+    "Wasmex is an Elixir library for executing WebAssembly binaries"
   end
 
   defp package() do

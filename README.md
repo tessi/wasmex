@@ -15,6 +15,8 @@ It enables lightweight WebAssembly containers to be run in your Elixir backend.
 
 It uses [wasmtime](https://wasmtime.dev) to execute WASM binaries through a [Rust](https://www.rust-lang.org) NIF.
 
+Documentation can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex/Wasmex.html).
+
 ## Install
 
 The package can be installed by adding `wasmex` to your list of
@@ -27,8 +29,6 @@ def deps do
   ]
 end
 ```
-
-The docs can be found at [https://hexdocs.pm/wasmex](https://hexdocs.pm/wasmex/Wasmex.html).
 
 ## Example
 
@@ -47,17 +47,10 @@ Once this program compiled to WebAssembly (which we do every time when running t
 This WASM file can be executed in Elixir:
 
 ```elixir
-{:ok, bytes } = File.read("wasmex_test.wasm")
-{:ok, module} = Wasmex.Module.compile(bytes)
-{:ok, instance } = Wasmex.start_link(%{module: module}) # starts a GenServer running this WASM instance
-
-{:ok, [42]} == Wasmex.call_function(instance, "sum", [50, -8])
+bytes = File.read!("wasmex_test.wasm")
+{:ok, pid} = Wasmex.start_link(%{bytes: bytes}) # starts a GenServer running a WASM instance
+{:ok, [42]} == Wasmex.call_function(pid, "sum", [50, -8])
 ```
-
-## Documentation
-
-Please visit the [`Wasmex documentation`](https://hexdocs.pm/wasmex/Wasmex.html) for further info.
-If a topic is not covered (in the needed depth) there, please open an issue.
 
 ## What is WebAssembly?
 
@@ -79,6 +72,12 @@ About safety:
 
 > WebAssembly describes a memory-safe, sandboxed [execution
 > environment](https://webassembly.org/docs/semantics/#linear-memory) […].
+
+Using WebAssembly on an Elixir host is great not only, but especially for the following use cases:
+
+* Running user-provided code safely
+* Share business logic between systems written in different programming languages. E.g. a JS frontend and Elixir backend
+* Run existing libraries/programs and easily interface them from Elixir
 
 ## Development
 

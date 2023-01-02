@@ -28,9 +28,10 @@ to be provided in most Wasmex APIs in the form of a `Wasmex.StoreOrCaller` struc
 
 The WASM engine change requires us to do further changes, most notably
 a change in how `Wasmex.Memory` is accessed. We dropped support for
-different data types and simplified the memory model to be just an array of bytes. The concept of memory offsets was dropped.
+different data types and simplified the memory model to be just an array of bytes.
+The concept of memory offsets was dropped.
 
-Please visit the list of detailed changed below for a detailed list of changes.
+Please visit the list of changes below for more details.
 
 ### Added
 
@@ -44,7 +45,7 @@ Please visit the list of detailed changed below for a detailed list of changes.
 * Removed `Wasmex.Module.set_name()` without replacement as this is not supported by Wasmtime
 * Removed `Wasmex.Memory.bytes_per_element()` without replacement because we dropped support for different data types and now only handle bytes
 * Removed `Wasmex.Pipe.set_len()` without replacement
-* WASI directory/file preopens can not configure read/write/create permissions anymore because wasmtime does not support this feature well. We very much plan to add support back once wasmtime allows.
+* WASI directory/file preopens can not configure read/write/create permissions anymore because wasmtime does not support this feature well. We very much plan to add support back [once wasmtime allows](https://github.com/bytecodealliance/wasmtime/issues/4273).
 
 ### Changed
 

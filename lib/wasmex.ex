@@ -6,7 +6,7 @@ defmodule Wasmex do
 
   It uses [wasmtime](https://wasmtime.dev) to execute WASM binaries through a [Rust](https://www.rust-lang.org) NIF.
 
-  Each WASM module must be compiled from a `.wasm` file.
+  Each WASM module must be compiled from a `.wasm` or '.wat' file.
   A compiled WASM module can be instantiated which usually happens in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).
   To start the GenServer, `start_link/1` is used:
 
