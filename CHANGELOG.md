@@ -14,9 +14,16 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [unreleased changes]
+## [0.8.1] - unreleased
 
-please add changes here
+### Added
+
+* Added precompiled binary for `aarch64-unknown-linux-musl`
+
+### Changed
+
+* `mix.exs` now also requires at least Elixir 1.12
+
 ## [0.8.0] - 2023-01-03
 
 This release brings some changes to our API because of the change of the underlying WASM engine to [wasmtime](https://wasmtime.dev/).
