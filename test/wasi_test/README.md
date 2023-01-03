@@ -1,6 +1,6 @@
 # WASI Test
 
-This sub-project generates a WASM binary which relies on WASI calls that we implement in Wasmex.
+This sub-project generates a WASM binary which relies on WASI calls.
 It is used in our integration tests and built every time we run our tests.
 
 ## Manual Building

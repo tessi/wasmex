@@ -1,14 +1,14 @@
 pub mod atoms;
+pub mod caller;
 pub mod environment;
 pub mod functions;
 pub mod instance;
 pub mod memory;
 pub mod module;
-pub mod namespace;
 pub mod pipe;
 pub mod printable_term_type;
+pub mod store;
 
-extern crate lazy_static;
 #[macro_use]
 extern crate rustler;
 
@@ -19,35 +19,35 @@ rustler::init! {
     [
         instance::call_exported_function,
         instance::function_export_exists,
-        instance::new_wasi,
         instance::new,
-        memory::bytes_per_element,
+        instance::receive_callback_result,
         memory::from_instance,
-        memory::get,
+        memory::get_byte,
         memory::grow,
-        memory::length,
+        memory::size,
         memory::read_binary,
-        memory::set,
+        memory::set_byte,
         memory::write_binary,
         module::compile,
         module::exports,
         module::imports,
         module::name,
         module::serialize,
-        module::set_name,
         module::unsafe_deserialize,
-        namespace::receive_callback_result,
-        pipe::create,
+        pipe::new,
         pipe::read_binary,
-        pipe::set_len,
+        pipe::seek,
         pipe::size,
-        pipe::write_binary
+        pipe::write_binary,
+        store::new,
+        store::new_wasi,
     ],
     load = on_load
 }
 
 fn on_load(env: Env, _info: Term) -> bool {
     rustler::resource!(environment::CallbackTokenResource, env);
+    rustler::resource!(environment::StoreOrCallerResource, env);
     rustler::resource!(instance::InstanceResource, env);
     rustler::resource!(memory::MemoryResource, env);
     rustler::resource!(module::ModuleResource, env);

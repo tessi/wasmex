@@ -32,9 +32,9 @@ jobs:
       matrix:
         nif:
           - "2.15" # OTP 22, OTP 23
-          - "2.16" # OTP 24, OTP 24
+          - "2.16" # OTP 24, OTP 24, OTP 25
         job:
-          # https://github.com/wasmerio/wasmer/issues/2324
+          # cranelift-codegen panics at 'error when identifying target: "no supported isa found for arch `arm`"'
           # - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-unknown-linux-gnu   , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-apple-darwin        , os: macos-11      }
@@ -48,7 +48,7 @@ jobs:
       RUSTLER_NIF_VERSION: ${{ matrix.nif }}
     steps:
     - name: Checkout source code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install prerequisites
       run: |

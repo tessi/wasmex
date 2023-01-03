@@ -1,8 +1,8 @@
 [package]
 name = "wasmex_test"
-version = "0.7.1"
+version = "0.1.0"
 authors = ["Philipp Tessenow <philipp@tessenow.org>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 

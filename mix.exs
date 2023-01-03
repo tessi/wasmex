@@ -1,7 +1,7 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
-  @version "0.7.1"
+  @version "0.8.0-dev"
 
   def project do
     [
@@ -9,7 +9,7 @@ defmodule Wasmex.MixProject do
       version: @version,
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
-      name: "Wasmex",
+      name: "wasmex",
       description: description(),
       package: package(),
       deps: deps(),
@@ -29,16 +29,16 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler_precompiled, "~> 0.5.1"},
-      {:rustler, "~> 0.25.0", optional: true},
-      {:ex_doc, "~> 0.28.0", only: [:dev, :test]},
+      {:rustler_precompiled, "~> 0.5.5"},
+      {:rustler, "~> 0.26.0", optional: true},
+      {:ex_doc, "~> 0.29.1", only: [:dev, :test]},
       {:dialyxir, "~> 1.2.0", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp description() do
-    "Wasmex is an Elixir library for executing WebAssembly binaries."
+    "Wasmex is an Elixir library for executing WebAssembly binaries"
   end
 
   defp package() do

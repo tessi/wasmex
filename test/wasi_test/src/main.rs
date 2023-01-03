@@ -11,6 +11,7 @@ fn main() {
         Some("read_file") => read_file(args),
         Some("write_file") => write_file(args),
         Some("create_file") => create_file(args),
+        Some("echo") => echo(),
         _ => print_info(args),
     };
 }
@@ -71,6 +72,14 @@ fn create_file(args: Vec<String>) {
     }
 }
 
+fn echo() {
+    let mut buffer = String::new();
+    match io::stdin().read_line(&mut buffer) {
+        Ok(_) => println!("{}", buffer),
+        Err(e) => println!("error: could not read from stdin ({:?})", e),
+    }
+}
+
 fn print_info(args: Vec<String>) {
     println!("Hello from the WASI test program!");
     println!();
@@ -80,7 +89,10 @@ fn print_info(args: Vec<String>) {
     }
     println!();
     println!("Environment:");
-    for (name, value) in env::vars().collect::<Vec<(String, String)>>() {
+    let mut env = env::vars().collect::<Vec<(String, String)>>();
+    // needs sorting, because the order of env vars is not deterministic
+    env.sort();
+    for (name, value) in env {
         println!("{}={}", name, value);
     }
     println!();

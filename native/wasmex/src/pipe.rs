@@ -1,35 +1,43 @@
 //! A Pipe is a file buffer hold in memory.
 //! It can, for example, be used to replace stdin/stdout/stderr of a WASI module.
 
-use std::collections::VecDeque;
-use std::io::Write;
+use std::any::Any;
 use std::io::{self, Read, Seek};
-use std::sync::{Arc, Mutex};
-
-use serde::{Deserialize, Serialize};
+use std::io::{Cursor, Write};
+use std::sync::{Arc, Mutex, RwLock};
 
 use rustler::resource::ResourceArc;
-use rustler::{Atom, Encoder, Term};
+use rustler::{Encoder, Term};
 
-use wasmer_wasi::{VirtualFile, WasiFsError};
+use wasi_common::file::{FdFlags, FileType};
+use wasi_common::Error;
+use wasi_common::WasiFile;
 
 use crate::atoms;
 
 /// For piping stdio. Stores all output / input in a byte-vector.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default)]
 pub struct Pipe {
-    buffer: Arc<Mutex<VecDeque<u8>>>,
+    buffer: Arc<RwLock<Cursor<Vec<u8>>>>,
 }
 
 impl Pipe {
     pub fn new() -> Self {
         Self::default()
     }
+    fn borrow(&self) -> std::sync::RwLockWriteGuard<Cursor<Vec<u8>>> {
+        RwLock::write(&self.buffer).unwrap()
+    }
+
+    fn size(&self) -> u64 {
+        let buffer = &*(self.borrow());
+        buffer.get_ref().len() as u64
+    }
 }
 
 impl Clone for Pipe {
     fn clone(&self) -> Self {
-        Pipe {
+        Self {
             buffer: self.buffer.clone(),
         }
     }
@@ -37,64 +45,62 @@ impl Clone for Pipe {
 
 impl Read for Pipe {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut buffer = self.buffer.lock().unwrap();
-        let amt = std::cmp::min(buf.len(), buffer.len());
-        for (i, byte) in buffer.drain(..amt).enumerate() {
-            buf[i] = byte;
-        }
-        Ok(amt)
+        let buffer = &mut *(self.borrow());
+        buffer.read(buf)
     }
 }
 
 impl Write for Pipe {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut buffer = self.buffer.lock().unwrap();
-        buffer.extend(buf);
-        Ok(buf.len())
+        let buffer = &mut *(self.borrow());
+        buffer.write(buf)
     }
+
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        let buffer = &mut *(self.borrow());
+        buffer.flush()
     }
 }
 
 impl Seek for Pipe {
-    fn seek(&mut self, _pos: io::SeekFrom) -> io::Result<u64> {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "can not seek in a pipe",
-        ))
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let buffer = &mut *(self.borrow());
+        buffer.seek(pos)
     }
 }
 
-impl VirtualFile for Pipe {
-    fn last_accessed(&self) -> u64 {
-        0
-    }
-    fn last_modified(&self) -> u64 {
-        0
-    }
-    fn created_time(&self) -> u64 {
-        0
-    }
-    fn size(&self) -> u64 {
-        let buffer = self.buffer.lock().unwrap();
-        buffer.len() as u64
-    }
-    fn set_len(&mut self, len: u64) -> Result<(), WasiFsError> {
-        let mut buffer = self.buffer.lock().unwrap();
-        buffer.resize(len as usize, 0);
-        Ok(())
-    }
-    fn unlink(&mut self) -> Result<(), WasiFsError> {
-        Ok(())
-    }
-    fn bytes_available(&self) -> Result<usize, WasiFsError> {
-        let buffer = self.buffer.lock().unwrap();
-        Ok(buffer.len())
+#[wiggle::async_trait]
+impl WasiFile for Pipe {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    fn sync_to_disk(&self) -> Result<(), WasiFsError> {
-        Ok(())
+    async fn get_filetype(&mut self) -> Result<FileType, Error> {
+        Ok(FileType::Unknown)
+    }
+
+    async fn get_fdflags(&mut self) -> Result<FdFlags, Error> {
+        Ok(FdFlags::APPEND)
+    }
+
+    async fn write_vectored<'a>(&mut self, bufs: &[io::IoSlice<'a>]) -> Result<u64, Error> {
+        let buffer = &mut *(self.borrow());
+        buffer
+            .write_vectored(bufs)
+            .map(|written| written as u64)
+            .map_err(wasi_common::Error::from)
+    }
+
+    async fn read_vectored<'a>(&mut self, bufs: &mut [io::IoSliceMut<'a>]) -> Result<u64, Error> {
+        let buffer = &mut *(self.borrow());
+        buffer
+            .read_vectored(bufs)
+            .map(|read| read as u64)
+            .map_err(wasi_common::Error::from)
+    }
+
+    fn isatty(&mut self) -> bool {
+        false
     }
 }
 
@@ -108,8 +114,8 @@ pub struct PipeResourceResponse {
     resource: ResourceArc<PipeResource>,
 }
 
-#[rustler::nif(name = "pipe_create")]
-pub fn create() -> PipeResourceResponse {
+#[rustler::nif(name = "pipe_new")]
+pub fn new() -> PipeResourceResponse {
     let pipe = Pipe::new();
     let pipe_resource = ResourceArc::new(PipeResource {
         pipe: Mutex::new(pipe),
@@ -122,23 +128,26 @@ pub fn create() -> PipeResourceResponse {
 }
 
 #[rustler::nif(name = "pipe_size")]
-pub fn size(resource: ResourceArc<PipeResource>) -> u64 {
-    resource.pipe.lock().unwrap().size()
+pub fn size(pipe_resource: ResourceArc<PipeResource>) -> u64 {
+    let pipe: &Pipe = &pipe_resource.pipe.lock().unwrap();
+    pipe.size()
 }
 
-#[rustler::nif(name = "pipe_set_len")]
-pub fn set_len(resource: ResourceArc<PipeResource>, len: u64) -> Atom {
-    let mut pipe = resource.pipe.lock().unwrap();
+#[rustler::nif(name = "pipe_seek")]
+pub fn seek(
+    pipe_resource: ResourceArc<PipeResource>,
+    pos: u64,
+) -> rustler::NifResult<rustler::Atom> {
+    let pipe: &mut Pipe = &mut pipe_resource.pipe.lock().unwrap();
 
-    match pipe.set_len(len) {
-        Ok(_) => atoms::ok(),
-        _ => atoms::error(),
-    }
+    Seek::seek(pipe, io::SeekFrom::Start(pos))
+        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
+        .map(|_| atoms::ok())
 }
 
 #[rustler::nif(name = "pipe_read_binary")]
-pub fn read_binary(resource: ResourceArc<PipeResource>) -> String {
-    let mut pipe = resource.pipe.lock().unwrap();
+pub fn read_binary(pipe_resource: ResourceArc<PipeResource>) -> String {
+    let mut pipe = pipe_resource.pipe.lock().unwrap();
     let mut buffer = String::new();
 
     (*pipe).read_to_string(&mut buffer).unwrap();
@@ -148,10 +157,10 @@ pub fn read_binary(resource: ResourceArc<PipeResource>) -> String {
 #[rustler::nif(name = "pipe_write_binary")]
 pub fn write_binary(
     env: rustler::Env,
-    resource: ResourceArc<PipeResource>,
+    pipe_resource: ResourceArc<PipeResource>,
     content: String,
 ) -> Term {
-    let mut pipe = resource.pipe.lock().unwrap();
+    let mut pipe = pipe_resource.pipe.lock().unwrap();
 
     match (*pipe).write(content.as_bytes()) {
         Ok(bytes_written) => (atoms::ok(), bytes_written).encode(env),
