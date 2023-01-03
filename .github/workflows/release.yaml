@@ -146,8 +146,8 @@ jobs:
         LIB_FINAL_PATH="${NIF_DIRECTORY}/${LIB_FINAL_NAME}.tar.gz"
 
         # Let subsequent steps know where to find the lib
-        echo "LIB_FINAL_PATH=${ LIB_FINAL_PATH }" >> $GITHUB_OUTPUT
-        echo "LIB_FINAL_NAME=${ LIB_FINAL_NAME }.tar.gz" >> $GITHUB_OUTPUT
+        echo "LIB_FINAL_PATH=${{ LIB_FINAL_PATH }}" >> $GITHUB_OUTPUT
+        echo "LIB_FINAL_NAME=${{ LIB_FINAL_NAME }}.tar.gz" >> $GITHUB_OUTPUT
 
     - name: "Artifact upload"
       uses: actions/upload-artifact@v2
