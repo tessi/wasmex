@@ -36,3 +36,7 @@ wapm.lock
 # The PLT files for `dialyzer`
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+/checksum-Elixir.Wasmex.Native.exs
+/priv/native
+/priv/plts
