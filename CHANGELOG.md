@@ -18,6 +18,8 @@ Types of changes
 
 put your changes here
 
+* added support for `riscv64gc-unknown-linux-gnu`
+
 ## [0.8.2] - 2023-01-08
 
 ## Added
