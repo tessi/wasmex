@@ -24,7 +24,7 @@ jobs:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -143,7 +143,7 @@ jobs:
             _build
           key: ${{ needs.deps.outputs.deps-cache-key }}
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/toolchain@v1
         with:
           toolchain: stable
           override: true
