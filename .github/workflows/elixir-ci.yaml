@@ -31,7 +31,7 @@ jobs:
           default: true
 
       - id: get-cache-key
-        run: echo "::set-output name=key::mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}"
+        run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}"
 
       - uses: actions/cache@v2
         id: cache-deps
