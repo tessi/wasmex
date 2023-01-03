@@ -1,13 +1,13 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
-  @version "0.8.0"
+  @version "0.8.1-dev"
 
   def project do
     [
       app: :wasmex,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       name: "wasmex",
       description: description(),

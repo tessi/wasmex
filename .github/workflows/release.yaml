@@ -37,6 +37,7 @@ jobs:
           # cranelift-codegen panics at 'error when identifying target: "no supported isa found for arch `arm`"'
           # - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-unknown-linux-gnu   , os: ubuntu-20.04 , use-cross: true }
+          - { target: aarch64-unknown-linux-musl  , os: ubuntu-20.04 , use-cross: true }
           - { target: aarch64-apple-darwin        , os: macos-11      }
           - { target: x86_64-apple-darwin         , os: macos-11      }
           - { target: x86_64-unknown-linux-gnu    , os: ubuntu-20.04  }
@@ -64,7 +65,7 @@ jobs:
         echo "PROJECT_VERSION=$(sed -n 's/^  @version "\(.*\)"/\1/p' ../../mix.exs | head -n1)" >> $GITHUB_ENV
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
         target: ${{ matrix.job.target }}
@@ -86,8 +87,8 @@ jobs:
       if: ${{ matrix.job.use-cross }}
       with:
         binary: "cross"
-        version: "v0.2.1"
-        download_url: "https://github.com/rust-embedded/cross/releases/download/${version}/cross-${version}-x86_64-unknown-linux-gnu.tar.gz"
+        version: "v0.2.2"
+        download_url: "https://github.com/cross-rs/cross/releases/download/${version}/cross-x86_64-unknown-linux-gnu.tar.gz"
         tarball_binary_path: "${binary}"
         smoke_test: "${binary} --version"
 
@@ -145,8 +146,8 @@ jobs:
         LIB_FINAL_PATH="${NIF_DIRECTORY}/${LIB_FINAL_NAME}.tar.gz"
 
         # Let subsequent steps know where to find the lib
-        echo ::set-output name=LIB_FINAL_PATH::${LIB_FINAL_PATH}
-        echo ::set-output name=LIB_FINAL_NAME::${LIB_FINAL_NAME}.tar.gz
+        echo "LIB_FINAL_PATH=${{ LIB_FINAL_PATH }}" >> $GITHUB_OUTPUT
+        echo "LIB_FINAL_NAME=${{ LIB_FINAL_NAME }}.tar.gz" >> $GITHUB_OUTPUT
 
     - name: "Artifact upload"
       uses: actions/upload-artifact@v2
