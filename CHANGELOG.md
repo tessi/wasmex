@@ -17,9 +17,7 @@ Types of changes
 ## [unreleased changes]
 
 please add changes here
-
-
-## [0.8.0] - 2023-01-??
+## [0.8.0] - 2023-01-03
 
 This release brings some changes to our API because of the change of the underlying WASM engine to [wasmtime](https://wasmtime.dev/).
 
