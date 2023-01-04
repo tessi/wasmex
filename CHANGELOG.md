@@ -19,6 +19,7 @@ Types of changes
 ### Added
 
 * Added precompiled binary for `aarch64-unknown-linux-musl`
+* Added support for setting store limits. This allows users to limit memory usage, instance creation, table sizes and more. See `Wasmex.StoreLimits` for details.
 
 ### Changed
 

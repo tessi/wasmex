@@ -1,7 +1,7 @@
 use rustler::{resource::ResourceArc, Error, NifResult};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::WasiCtx;
-use wasmtime::{Config, Engine, Store};
+use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::{
@@ -35,15 +35,70 @@ pub struct ExWasiOptions {
     pub(crate) preopen: Vec<ExWasiPreopenOptions>,
 }
 
+#[derive(NifStruct)]
+#[module = "Wasmex.StoreLimits"]
+pub struct ExStoreLimits {
+    pub(crate) memory_size: Option<usize>,
+    pub(crate) table_elements: Option<u32>,
+    pub(crate) instances: Option<usize>,
+    pub(crate) tables: Option<usize>,
+    pub(crate) memories: Option<usize>,
+}
+
+impl ExStoreLimits {
+    pub fn to_wasmtime(&self) -> StoreLimits {
+        let limits = StoreLimitsBuilder::new();
+
+        let limits = if let Some(memory_size) = self.memory_size {
+            limits.memory_size(memory_size)
+        } else {
+            limits
+        };
+
+        let limits = if let Some(table_elements) = self.table_elements {
+            limits.table_elements(table_elements)
+        } else {
+            limits
+        };
+
+        let limits = if let Some(instances) = self.instances {
+            limits.instances(instances)
+        } else {
+            limits
+        };
+
+        let limits = if let Some(tables) = self.tables {
+            limits.tables(tables)
+        } else {
+            limits
+        };
+
+        let limits = if let Some(memories) = self.memories {
+            limits.memories(memories)
+        } else {
+            limits
+        };
+
+        limits.build()
+    }
+}
+
 pub struct StoreData {
     pub(crate) wasi: Option<WasiCtx>,
+    pub(crate) limits: StoreLimits,
 }
 
 #[rustler::nif(name = "store_new")]
-pub fn new() -> NifResult<StoreOrCallerResourceResponse> {
+pub fn new(limits: Option<ExStoreLimits>) -> NifResult<StoreOrCallerResourceResponse> {
     let config = Config::new();
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
-    let store = Store::new(&engine, StoreData { wasi: None });
+    let limits = if let Some(limits) = limits {
+        limits.to_wasmtime()
+    } else {
+        StoreLimits::default()
+    };
+    let mut store = Store::new(&engine, StoreData { wasi: None, limits });
+    store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
         inner: Mutex::new(StoreOrCaller::Store(store)),
     });
@@ -54,7 +109,10 @@ pub fn new() -> NifResult<StoreOrCallerResourceResponse> {
 }
 
 #[rustler::nif(name = "store_new_wasi")]
-pub fn new_wasi(options: ExWasiOptions) -> NifResult<StoreOrCallerResourceResponse> {
+pub fn new_wasi(
+    options: ExWasiOptions,
+    limits: Option<ExStoreLimits>,
+) -> NifResult<StoreOrCallerResourceResponse> {
     let wasi_env = &options
         .env
         .iter()
@@ -79,12 +137,19 @@ pub fn new_wasi(options: ExWasiOptions) -> NifResult<StoreOrCallerResourceRespon
 
     let config = Config::new();
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
-    let store = Store::new(
+    let limits = if let Some(limits) = limits {
+        limits.to_wasmtime()
+    } else {
+        StoreLimits::default()
+    };
+    let mut store = Store::new(
         &engine,
         StoreData {
             wasi: Some(wasi_ctx),
+            limits,
         },
     );
+    store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
         inner: Mutex::new(StoreOrCaller::Store(store)),
     });

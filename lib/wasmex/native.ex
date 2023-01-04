@@ -52,8 +52,8 @@ defmodule Wasmex.Native do
   def pipe_read_binary(_pipe_resource), do: error()
   def pipe_write_binary(_pipe_resource, _binary), do: error()
 
-  def store_new(), do: error()
-  def store_new_wasi(_opts), do: error()
+  def store_new(_store_limits), do: error()
+  def store_new_wasi(_wasi_options, _store_limits), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.
