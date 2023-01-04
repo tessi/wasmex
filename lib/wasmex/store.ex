@@ -16,6 +16,7 @@ defmodule Wasmex.Store do
   to the lifetime of a “main instance”.
   """
 
+  alias Wasmex.StoreLimits
   alias Wasmex.StoreOrCaller
   alias Wasmex.Wasi.WasiOptions
 
@@ -25,13 +26,18 @@ defmodule Wasmex.Store do
   Returns a `Wasmex.StoreOrCaller` even though we know it’s definitely a Store.
   This allows Elixir-provided imported functions, which only have a "Caller", to use the same Wasmex APIs.
 
+  Optionally, a `Wasmex.StoreLimits` can be passed in to limit the resources that can be created within the store.
+
   ## Examples
 
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new()
+
+      iex> limits = %Wasmex.StoreLimits{memory_size: 1_000_000}
+      iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new(limits)
   """
-  @spec new() :: {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
-  def new() do
-    case Wasmex.Native.store_new() do
+  @spec new(StoreLimits.t() | nil) :: {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
+  def new(store_limits \\ nil) do
+    case Wasmex.Native.store_new(store_limits) do
       {:ok, resource} -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
       {:error, err} -> {:error, err}
     end
@@ -48,10 +54,15 @@ defmodule Wasmex.Store do
   ## Examples
 
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{})
+
+      iex> wasi_opts = %Wasmex.Wasi.WasiOptions{args: ["arg1", "arg2"]}
+      iex> limits = %Wasmex.StoreLimits{memory_size: 1_000_000}
+      iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new_wasi(wasi_opts, limits)
   """
-  @spec new_wasi(WasiOptions.t()) :: {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
-  def new_wasi(%WasiOptions{} = options) do
-    case Wasmex.Native.store_new_wasi(options) do
+  @spec new_wasi(WasiOptions.t(), StoreLimits.t() | nil) ::
+          {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
+  def new_wasi(%WasiOptions{} = options, store_limits \\ nil) do
+    case Wasmex.Native.store_new_wasi(options, store_limits) do
       {:ok, resource} -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
       {:error, err} -> {:error, err}
     end
