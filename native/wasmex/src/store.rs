@@ -1,3 +1,8 @@
+// Due to a clippy bug it thinks we needlessly borrow stuff
+// when defining the ExStoreLimits struct
+// see: https://github.com/rust-lang/rust-clippy/issues/9778
+#![allow(clippy::needless_borrow)]
+
 use rustler::{resource::ResourceArc, Error, NifResult};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::WasiCtx;
@@ -27,22 +32,22 @@ pub struct ExPipe {
 #[module = "Wasmex.Wasi.WasiOptions"]
 #[rustler(decode)]
 pub struct ExWasiOptions {
-    pub(crate) args: Vec<String>,
-    pub(crate) env: HashMap<String, String>,
-    pub(crate) stderr: Option<ExPipe>,
-    pub(crate) stdin: Option<ExPipe>,
-    pub(crate) stdout: Option<ExPipe>,
-    pub(crate) preopen: Vec<ExWasiPreopenOptions>,
+    args: Vec<String>,
+    env: HashMap<String, String>,
+    stderr: Option<ExPipe>,
+    stdin: Option<ExPipe>,
+    stdout: Option<ExPipe>,
+    preopen: Vec<ExWasiPreopenOptions>,
 }
 
 #[derive(NifStruct)]
 #[module = "Wasmex.StoreLimits"]
 pub struct ExStoreLimits {
-    pub(crate) memory_size: Option<usize>,
-    pub(crate) table_elements: Option<u32>,
-    pub(crate) instances: Option<usize>,
-    pub(crate) tables: Option<usize>,
-    pub(crate) memories: Option<usize>,
+    memory_size: Option<usize>,
+    table_elements: Option<u32>,
+    instances: Option<usize>,
+    tables: Option<usize>,
+    memories: Option<usize>,
 }
 
 impl ExStoreLimits {
