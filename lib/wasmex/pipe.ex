@@ -57,8 +57,8 @@ defmodule Wasmex.Pipe do
   @spec new() :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
   def new() do
     case Wasmex.Native.pipe_new() do
-      {:ok, resource} -> {:ok, __wrap_resource__(resource)}
       {:error, err} -> {:error, err}
+      resource -> {:ok, __wrap_resource__(resource)}
     end
   end
 

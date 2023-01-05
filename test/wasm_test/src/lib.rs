@@ -61,3 +61,8 @@ pub extern "C" fn string_first_byte(bytes: *const u8, length: usize) -> u8 {
 pub extern "C" fn endless_loop() -> () {
     loop {}
 }
+
+#[no_mangle]
+pub extern "C" fn divide(x: i32, y: i32) -> i32 {
+    x / y
+}

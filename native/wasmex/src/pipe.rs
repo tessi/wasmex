@@ -108,23 +108,14 @@ pub struct PipeResource {
     pub pipe: Mutex<Pipe>,
 }
 
-#[derive(NifTuple)]
-pub struct PipeResourceResponse {
-    ok: rustler::Atom,
-    resource: ResourceArc<PipeResource>,
-}
-
 #[rustler::nif(name = "pipe_new")]
-pub fn new() -> PipeResourceResponse {
+pub fn new() -> Result<ResourceArc<PipeResource>, rustler::Error> {
     let pipe = Pipe::new();
     let pipe_resource = ResourceArc::new(PipeResource {
         pipe: Mutex::new(pipe),
     });
 
-    PipeResourceResponse {
-        ok: atoms::ok(),
-        resource: pipe_resource,
-    }
+    Ok(pipe_resource)
 }
 
 #[rustler::nif(name = "pipe_size")]

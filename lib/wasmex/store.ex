@@ -16,6 +16,7 @@ defmodule Wasmex.Store do
   to the lifetime of a “main instance”.
   """
 
+  alias Wasmex.Engine
   alias Wasmex.StoreLimits
   alias Wasmex.StoreOrCaller
   alias Wasmex.Wasi.WasiOptions
@@ -35,11 +36,14 @@ defmodule Wasmex.Store do
       iex> limits = %Wasmex.StoreLimits{memory_size: 1_000_000}
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new(limits)
   """
-  @spec new(StoreLimits.t() | nil) :: {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
-  def new(store_limits \\ nil) do
-    case Wasmex.Native.store_new(store_limits) do
-      {:ok, resource} -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
+  @spec new(StoreLimits.t() | nil, Engine.t() | nil) ::
+          {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
+  def new(store_limits \\ nil, engine \\ nil) do
+    %Engine{resource: engine_resource} = engine || Engine.default()
+
+    case Wasmex.Native.store_new(store_limits, engine_resource) do
       {:error, err} -> {:error, err}
+      resource -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
     end
   end
 
@@ -59,12 +63,18 @@ defmodule Wasmex.Store do
       iex> limits = %Wasmex.StoreLimits{memory_size: 1_000_000}
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.Store.new_wasi(wasi_opts, limits)
   """
-  @spec new_wasi(WasiOptions.t(), StoreLimits.t() | nil) ::
+  @spec new_wasi(WasiOptions.t(), StoreLimits.t() | nil, Engine.t() | nil) ::
           {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
-  def new_wasi(%WasiOptions{} = options, store_limits \\ nil) do
-    case Wasmex.Native.store_new_wasi(options, store_limits) do
-      {:ok, resource} -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
+  def new_wasi(%WasiOptions{} = options, store_limits \\ nil, engine \\ nil) do
+    %Engine{resource: engine_resource} = engine || Engine.default()
+
+    case Wasmex.Native.store_new_wasi(
+           options,
+           store_limits,
+           engine_resource
+         ) do
       {:error, err} -> {:error, err}
+      resource -> {:ok, StoreOrCaller.__wrap_resource__(resource)}
     end
   end
 end

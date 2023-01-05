@@ -13,21 +13,15 @@ use wasmtime::{Instance, Linker, Module, Val, ValType};
 
 use crate::{
     atoms,
-    environment::{link_imports, CallbackTokenResource, StoreOrCaller, StoreOrCallerResource},
+    environment::{link_imports, CallbackTokenResource},
     functions,
     module::ModuleResource,
     printable_term_type::PrintableTermType,
-    store::StoreData,
+    store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
 
 pub struct InstanceResource {
     pub inner: Mutex<Instance>,
-}
-
-#[derive(NifTuple)]
-pub struct InstanceResourceResponse {
-    ok: rustler::Atom,
-    resource: ResourceArc<InstanceResource>,
 }
 
 // creates a new instance from the given WASM bytes
@@ -42,7 +36,7 @@ pub fn new(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     module_resource: ResourceArc<ModuleResource>,
     imports: MapIterator,
-) -> NifResult<InstanceResourceResponse> {
+) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock module resource as the mutex was poisoned: {}",
@@ -61,10 +55,7 @@ pub fn new(
     let resource = ResourceArc::new(InstanceResource {
         inner: Mutex::new(instance),
     });
-    Ok(InstanceResourceResponse {
-        ok: atoms::ok(),
-        resource,
-    })
+    Ok(resource)
 }
 
 fn link_and_create_instance(
@@ -189,12 +180,9 @@ fn execute_function(
     );
     match call_result {
         Ok(_) => (),
-        Err(e) => {
-            return make_error_tuple(
-                &thread_env,
-                &format!("Error during function excecution: `{}`.", e),
-                from,
-            )
+        Err(err) => {
+            let reason = format!("Error during function excecution: `{}`.", err);
+            return make_error_tuple(&thread_env, &reason, from);
         }
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results_count);

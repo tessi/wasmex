@@ -8,24 +8,18 @@ use rustler::{Atom, Binary, Error, NewBinary, NifResult, Term};
 
 use wasmtime::{Instance, Memory, Store};
 
-use crate::environment::{StoreOrCaller, StoreOrCallerResource};
+use crate::store::{StoreOrCaller, StoreOrCallerResource};
 use crate::{atoms, instance};
 
 pub struct MemoryResource {
     pub inner: Mutex<Memory>,
 }
 
-#[derive(NifTuple)]
-pub struct MemoryResourceResponse {
-    ok: rustler::Atom,
-    resource: ResourceArc<MemoryResource>,
-}
-
 #[rustler::nif(name = "memory_from_instance")]
 pub fn from_instance(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<instance::InstanceResource>,
-) -> rustler::NifResult<MemoryResourceResponse> {
+) -> Result<ResourceArc<MemoryResource>, rustler::Error> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock instance resource: {}",
@@ -44,10 +38,7 @@ pub fn from_instance(
         inner: Mutex::new(memory.to_owned()),
     });
 
-    Ok(MemoryResourceResponse {
-        ok: atoms::ok(),
-        resource,
-    })
+    Ok(resource)
 }
 
 #[rustler::nif(name = "memory_size")]

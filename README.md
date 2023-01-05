@@ -128,3 +128,9 @@ mix hex.publish
 ## License
 
 The entire project is under the MIT License. Please read [the`LICENSE` file](https://github.com/tessi/wasmex/blob/master/LICENSE).
+
+### Licensing
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, shall be licensed as above, without any
+additional terms or conditions.

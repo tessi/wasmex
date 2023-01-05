@@ -1,5 +1,7 @@
 defmodule WasmexTest do
   use ExUnit.Case, async: true
+  import TestHelper, only: [t: 1]
+
   doctest Wasmex
 
   defp create_instance(_context) do
@@ -11,7 +13,7 @@ defmodule WasmexTest do
   describe "when instantiating without imports" do
     setup [:create_instance]
 
-    test "function_exists", %{instance: instance} do
+    test t(&Wasmex.function_exists/2), %{instance: instance} do
       assert Wasmex.function_exists(instance, :arity_0)
       assert Wasmex.function_exists(instance, "arity_0")
 
@@ -19,26 +21,34 @@ defmodule WasmexTest do
       assert !Wasmex.function_exists(instance, "unknown_function")
     end
 
-    test "call_function: calling an unknown function", %{instance: instance} do
+    test t(&Wasmex.store/1), %{instance: instance} do
+      assert {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.store(instance)
+    end
+
+    test t(&Wasmex.module/1), %{instance: instance} do
+      assert {:ok, %Wasmex.Module{}} = Wasmex.module(instance)
+    end
+
+    test t(&Wasmex.call_function/3) <> " calling an unknown function", %{instance: instance} do
       assert {:error, "exported function `unknown_function` not found"} =
                Wasmex.call_function(instance, :unknown_function, [1])
     end
 
-    test "call_function: arity0 with too many params", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " arity0 with too many params", %{instance: instance} do
       assert {:error, "number of params does not match. expected 0, got 1"} =
                Wasmex.call_function(instance, :arity_0, [1])
     end
 
-    test "call_function: arity0 -> i32", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " arity0 -> i32", %{instance: instance} do
       assert {:ok, [42]} = Wasmex.call_function(instance, :arity_0, [])
       assert {:ok, [42]} = Wasmex.call_function(instance, "arity_0", [])
     end
 
-    test "call_function: sum(i32, i32) -> i32 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " sum(i32, i32) -> i32 function", %{instance: instance} do
       assert {:ok, [42]} == Wasmex.call_function(instance, :sum, [50, -8])
     end
 
-    test "call_function: i32_i32(i32) -> i32 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " i32_i32(i32) -> i32 function", %{instance: instance} do
       assert {:ok, [-3]} == Wasmex.call_function(instance, :i32_i32, [-3])
 
       # giving a value greater than i32::max_value()
@@ -47,7 +57,7 @@ defmodule WasmexTest do
                Wasmex.call_function(instance, :i32_i32, [3_000_000_000])
     end
 
-    test "call_function: i64_i64(i64) -> i64 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " i64_i64(i64) -> i64 function", %{instance: instance} do
       assert {:ok, [-3]} == Wasmex.call_function(instance, :i64_i64, [-3])
 
       # giving a value greater than i32::max_value()
@@ -56,7 +66,7 @@ defmodule WasmexTest do
                Wasmex.call_function(instance, "i64_i64", [3_000_000_000])
     end
 
-    test "call_function: f32_f32(f32) -> f32 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " f32_f32(f32) -> f32 function", %{instance: instance} do
       {:ok, [result]} = Wasmex.call_function(instance, :f32_f32, [3.14])
 
       assert_in_delta 3.14,
@@ -68,7 +78,7 @@ defmodule WasmexTest do
                Wasmex.call_function(instance, :f32_f32, [3.5e38])
     end
 
-    test "call_function: f64_f64(f64) -> f64 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " f64_f64(f64) -> f64 function", %{instance: instance} do
       {:ok, [result]} = Wasmex.call_function(instance, :f64_f64, [3.14])
 
       assert_in_delta 3.14,
@@ -79,9 +89,10 @@ defmodule WasmexTest do
       assert {:ok, [3.5e38]} == Wasmex.call_function(instance, :f64_f64, [3.5e38])
     end
 
-    test "call_function: i32_i64_f32_f64_f64(i32, i64, f32, f64) -> f64 function", %{
-      instance: instance
-    } do
+    test t(&Wasmex.call_function/3) <> " i32_i64_f32_f64_f64(i32, i64, f32, f64) -> f64 function",
+         %{
+           instance: instance
+         } do
       {:ok, [result]} = Wasmex.call_function(instance, :i32_i64_f32_f64_f64, [3, 4, 5.6, 7.8])
 
       assert_in_delta 20.4,
@@ -89,21 +100,26 @@ defmodule WasmexTest do
                       0.001
     end
 
-    test "call_function: bool_casted_to_i32() -> i32 function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " bool_casted_to_i32() -> i32 function", %{
+      instance: instance
+    } do
       assert {:ok, [1]} == Wasmex.call_function(instance, :bool_casted_to_i32, [])
     end
 
-    test "call_function: void() -> () function", %{instance: instance} do
+    test t(&Wasmex.call_function/3) <> " void() -> () function", %{instance: instance} do
       assert {:ok, []} == Wasmex.call_function(instance, :void, [])
     end
 
-    test "call_function: string() -> string function", %{store: store, instance: instance} do
+    test t(&Wasmex.call_function/3) <> " string() -> string function", %{
+      store: store,
+      instance: instance
+    } do
       {:ok, [pointer]} = Wasmex.call_function(instance, :string, [])
       {:ok, memory} = Wasmex.memory(instance)
       assert Wasmex.Memory.read_string(store, memory, pointer, 13) == "Hello, World!"
     end
 
-    test "call_function: string_first_byte(string_pointer) -> u8 function", %{
+    test t(&Wasmex.call_function/3) <> " string_first_byte(string_pointer) -> u8 function", %{
       store: store,
       instance: instance
     } do
@@ -120,7 +136,6 @@ defmodule WasmexTest do
     end
   end
 
-  # deadlocks
   test "read and manipulate memory in a callback" do
     %{store: store, module: module} = TestHelper.wasm_import_module()
 
@@ -231,13 +246,80 @@ defmodule WasmexTest do
 
     setup [:create_instance_with_imports_raising_exceptions]
 
-    test "call_function using_imported_sum3 with both, string and atom, identifiers", %{
+    test "call_function returns an error tuple", %{
       instance: instance
     } do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
 
-      assert reason =~
-               "Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x12e - <unknown>!using_imported_sum3"
+      expected_reason = """
+      Error during function excecution: `error while executing at wasm backtrace:
+          0:  0x12e - <unknown>!using_imported_sum3`.
+      """
+
+      assert reason =~ String.trim(expected_reason)
+    end
+  end
+
+  describe "error handling" do
+    test "handles errors occuring during WASM execution with default engine config" do
+      config =
+        %Wasmex.EngineConfig{}
+        |> Wasmex.EngineConfig.wasm_backtrace_details(false)
+
+      {:ok, engine} = Wasmex.Engine.new(config)
+      {:ok, store} = Wasmex.Store.new(nil, engine)
+      bytes = File.read!(TestHelper.wasm_test_file_path())
+      {:ok, module} = Wasmex.Module.compile(store, bytes)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+
+      expected_reason = """
+      Error during function excecution: `error while executing at wasm backtrace:
+          0: 0x395d - <unknown>!__rust_start_panic
+          1: 0x3951 - <unknown>!rust_panic
+          2: 0x3921 - <unknown>!std::panicking::rust_panic_with_hook::he04cb00575f2a1e3
+          3: 0x2fc0 - <unknown>!std::panicking::begin_panic_handler::{{closure}}::hb733f0aa505760cf
+          4: 0x2f25 - <unknown>!std::sys_common::backtrace::__rust_end_short_backtrace::h6beefa0bcab220bc
+          5: 0x3575 - <unknown>!rust_begin_unwind
+          6: 0x3c47 - <unknown>!core::panicking::panic_fmt::h586d720a90aa8503
+          7: 0x3c9c - <unknown>!core::panicking::panic::h0859aaac783261b2
+          8:  0x567 - <unknown>!divide`.
+      """
+
+      assert Wasmex.call_function(pid, :divide, [1, 0]) == {:error, String.trim(expected_reason)}
+    end
+
+    test "handles errors occuring during WASM execution with wasm_backtrace_details enabled" do
+      config =
+        %Wasmex.EngineConfig{}
+        |> Wasmex.EngineConfig.wasm_backtrace_details(true)
+
+      {:ok, engine} = Wasmex.Engine.new(config)
+      {:ok, store} = Wasmex.Store.new(nil, engine)
+      bytes = File.read!(TestHelper.wasm_test_file_path())
+      {:ok, module} = Wasmex.Module.compile(store, bytes)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+
+      assert {:error, reason} = Wasmex.call_function(pid, :divide, [1, 0])
+
+      # contains source file and line number
+      assert reason =~ "wasmex/test/wasm_test/src/lib.rs:67:5"
+    end
+  end
+
+  describe "fuel consumption" do
+    test t(&Wasmex.call_function/3) <> " with fuel_consumption" do
+      {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
+      {:ok, store} = Wasmex.Store.new(nil, engine)
+      bytes = File.read!(TestHelper.wasm_test_file_path())
+      pid = start_supervised!({Wasmex, %{store: store, bytes: bytes}})
+      Wasmex.StoreOrCaller.add_fuel(store, 2)
+
+      assert Wasmex.call_function(pid, :void, []) == {:ok, []}
+      assert Wasmex.StoreOrCaller.fuel_remaining(store) == {:ok, 1}
+
+      assert Wasmex.call_function(pid, :void, []) ==
+               {:error,
+                "Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x3bf - <unknown>!void`."}
     end
   end
 end

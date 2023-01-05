@@ -52,8 +52,8 @@ defmodule Wasmex.Memory do
     %Wasmex.Instance{resource: instance_resource} = instance
 
     case Wasmex.Native.memory_from_instance(store_or_caller_resource, instance_resource) do
-      {:ok, memory_resource} -> {:ok, __wrap_resource__(memory_resource)}
       {:error, err} -> {:error, err}
+      resource -> {:ok, __wrap_resource__(resource)}
     end
   end
 

@@ -4,18 +4,15 @@ use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
     Term,
 };
-use wasmtime::{
-    AsContext, AsContextMut, Caller, Engine, Extern, FuncType, Linker, Store, StoreContext,
-    StoreContextMut, Val, ValType,
-};
+use wasmtime::{Caller, Extern, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use crate::{
     atoms::{self},
-    caller::{get_caller, get_caller_mut, remove_caller, set_caller},
+    caller::{remove_caller, set_caller},
     instance::{map_wasm_values_to_vals, WasmValue},
     memory::MemoryResource,
-    store::StoreData,
+    store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
 
 pub struct CallbackTokenResource {
@@ -65,57 +62,6 @@ fn link_import(
     }
 
     Err(Error::Atom("unknown import type"))
-}
-
-pub enum StoreOrCaller {
-    Store(Store<StoreData>),
-    Caller(i32),
-}
-
-pub struct StoreOrCallerResource {
-    pub inner: Mutex<StoreOrCaller>,
-}
-
-#[derive(NifTuple)]
-pub struct StoreOrCallerResourceResponse {
-    pub(crate) ok: rustler::Atom,
-    pub(crate) resource: ResourceArc<StoreOrCallerResource>,
-}
-
-impl StoreOrCaller {
-    pub(crate) fn engine(&self) -> &Engine {
-        match self {
-            StoreOrCaller::Store(store) => store.engine(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().engine(),
-        }
-    }
-
-    pub(crate) fn data(&self) -> &StoreData {
-        match self {
-            StoreOrCaller::Store(store) => store.data(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().data(),
-        }
-    }
-}
-
-impl AsContext for StoreOrCaller {
-    type Data = StoreData;
-
-    fn as_context(&self) -> StoreContext<'_, Self::Data> {
-        match self {
-            StoreOrCaller::Store(store) => store.as_context(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().as_context(),
-        }
-    }
-}
-
-impl AsContextMut for StoreOrCaller {
-    fn as_context_mut(&mut self) -> StoreContextMut<'_, Self::Data> {
-        match self {
-            StoreOrCaller::Store(store) => store.as_context_mut(),
-            StoreOrCaller::Caller(token) => get_caller_mut(token).unwrap().as_context_mut(),
-        }
-    }
 }
 
 // Creates a wrapper function used in a WASM import object.

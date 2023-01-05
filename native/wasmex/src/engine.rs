@@ -1,0 +1,76 @@
+// Due to a clippy bug it thinks we needlessly borrow stuff
+// when defining the ExStoreLimits struct
+// see: https://github.com/rust-lang/rust-clippy/issues/9778
+#![allow(clippy::needless_borrow)]
+
+use rustler::{resource::ResourceArc, types::Binary, Error, OwnedBinary};
+use std::sync::Mutex;
+use wasmtime::{Config, Engine, WasmBacktraceDetails};
+
+#[derive(NifStruct)]
+#[module = "Wasmex.EngineConfig"]
+pub struct ExEngineConfig {
+    consume_fuel: bool,
+    wasm_backtrace_details: bool,
+}
+
+pub struct EngineResource {
+    pub inner: Mutex<Engine>,
+}
+
+#[rustler::nif(name = "engine_new")]
+pub fn new(config: ExEngineConfig) -> Result<ResourceArc<EngineResource>, rustler::Error> {
+    let config = engine_config(config);
+    let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    let resource = ResourceArc::new(EngineResource {
+        inner: Mutex::new(engine),
+    });
+    Ok(resource)
+}
+
+#[rustler::nif(name = "engine_precompile_module")]
+pub fn precompile_module<'a>(
+    env: rustler::Env<'a>,
+    engine_resource: ResourceArc<EngineResource>,
+    binary: Binary<'a>,
+) -> Result<Binary<'a>, rustler::Error> {
+    let engine: &Engine = &*(engine_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!("Could not unlock engine resource: {}", e)))
+    })?);
+    let bytes = binary.as_slice();
+    let serialized_module = engine.precompile_module(bytes).map_err(|err| {
+        rustler::Error::Term(Box::new(format!("Could not precompile module: {}", err)))
+    })?;
+    let mut binary = OwnedBinary::new(serialized_module.len())
+        .ok_or_else(|| rustler::Error::Term(Box::new("not enough memory")))?;
+    binary.copy_from_slice(&serialized_module);
+    Ok(binary.release(env))
+}
+
+pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
+    let backtrace_details = match engine_config.wasm_backtrace_details {
+        true => WasmBacktraceDetails::Enable,
+        false => WasmBacktraceDetails::Disable,
+    };
+
+    let mut config = Config::new();
+    config.consume_fuel(engine_config.consume_fuel);
+    config.wasm_backtrace_details(backtrace_details);
+    config
+}
+
+pub(crate) fn unwrap_engine(
+    engine_resource: ResourceArc<EngineResource>,
+) -> Result<Engine, rustler::Error> {
+    let engine: Engine = engine_resource
+        .inner
+        .lock()
+        .map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock engine resource as the mutex was poisoned: {}",
+                e
+            )))
+        })?
+        .clone();
+    Ok(engine)
+}

@@ -1,7 +1,7 @@
 use wasmtime::Func;
 use wasmtime::Instance;
 
-use crate::environment::StoreOrCaller;
+use crate::store::StoreOrCaller;
 
 pub fn exists(instance: &Instance, store_or_caller: &mut StoreOrCaller, name: &str) -> bool {
     find(instance, store_or_caller, name).is_some()
