@@ -72,8 +72,8 @@ defmodule Wasmex.Instance do
     %Wasmex.Module{resource: module_resource} = module
 
     case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports) do
-      {:ok, resource} -> {:ok, __wrap_resource__(resource)}
       {:error, err} -> {:error, err}
+      resource -> {:ok, __wrap_resource__(resource)}
     end
   end
 

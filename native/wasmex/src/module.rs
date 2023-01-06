@@ -6,29 +6,24 @@ use rustler::{
 use std::{collections::HashMap, sync::Mutex};
 
 use wasmtime::{
-    Engine, ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, TableType, ValType,
+    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, TableType, ValType,
 };
 
 use crate::{
     atoms,
-    environment::{StoreOrCaller, StoreOrCallerResource},
+    engine::{unwrap_engine, EngineResource},
+    store::{StoreOrCaller, StoreOrCallerResource},
 };
 
 pub struct ModuleResource {
     pub inner: Mutex<Module>,
 }
 
-#[derive(NifTuple)]
-pub struct ModuleResourceResponse {
-    ok: rustler::Atom,
-    resource: ResourceArc<ModuleResource>,
-}
-
 #[rustler::nif(name = "module_compile")]
 pub fn compile(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     binary: Binary,
-) -> NifResult<ModuleResourceResponse> {
+) -> Result<ResourceArc<ModuleResource>, rustler::Error> {
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
@@ -45,10 +40,7 @@ pub fn compile(
             let resource = ResourceArc::new(ModuleResource {
                 inner: Mutex::new(module),
             });
-            Ok(ModuleResourceResponse {
-                ok: atoms::ok(),
-                resource,
-            })
+            Ok(resource)
         }
         Err(e) => Err(rustler::Error::Term(Box::new(format!(
             "Could not compile module: {:?}",
@@ -260,8 +252,11 @@ pub fn serialize(
 }
 
 #[rustler::nif(name = "module_unsafe_deserialize")]
-pub fn unsafe_deserialize(binary: Binary) -> NifResult<ModuleResourceResponse> {
-    let engine = Engine::default();
+pub fn unsafe_deserialize(
+    binary: Binary,
+    engine_resource: ResourceArc<EngineResource>,
+) -> Result<ResourceArc<ModuleResource>, rustler::Error> {
+    let engine = unwrap_engine(engine_resource)?;
     // Safety: This function is inherently unsafe as the provided bytes:
     // 1. Are going to be deserialized directly into Rust objects.
     // 2. Contains the function assembly bodies and, if intercepted, a malicious actor could inject code into executable memory.
@@ -275,8 +270,5 @@ pub fn unsafe_deserialize(binary: Binary) -> NifResult<ModuleResourceResponse> {
     let resource = ResourceArc::new(ModuleResource {
         inner: Mutex::new(module),
     });
-    Ok(ModuleResourceResponse {
-        ok: atoms::ok(),
-        resource,
-    })
+    Ok(resource)
 }

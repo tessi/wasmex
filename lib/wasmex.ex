@@ -165,18 +165,25 @@ defmodule Wasmex do
   def start_link(%{wasi: true} = opts),
     do: start_link(Map.merge(opts, %{wasi: %Wasmex.Wasi.WasiOptions{}}))
 
-  def start_link(%{bytes: bytes} = opts) do
-    with {:ok, store} <- build_store(opts),
-         {:ok, module} <- Wasmex.Module.compile(store, bytes) do
+  def start_link(%{bytes: bytes, store: store} = opts) when is_binary(bytes) do
+    with {:ok, module} <- Wasmex.Module.compile(store, bytes) do
       opts
       |> Map.delete(:bytes)
       |> Map.put(:module, module)
+      |> start_link()
+    end
+  end
+
+  def start_link(%{bytes: bytes} = opts) when is_binary(bytes) do
+    with {:ok, store} <- build_store(opts) do
+      opts
       |> Map.put(:store, store)
       |> start_link()
     end
   end
 
-  def start_link(%{store: store, module: module, imports: imports}) when is_map(imports) do
+  def start_link(%{store: store, module: module, imports: imports} = opts)
+      when is_map(imports) and not is_map_key(opts, :bytes) do
     GenServer.start_link(__MODULE__, %{
       store: store,
       module: module,
@@ -207,6 +214,7 @@ defmodule Wasmex do
       iex> Wasmex.function_exists(pid, "something_else")
       false
   """
+  @spec function_exists(pid(), String.t()) :: boolean()
   def function_exists(pid, name) do
     GenServer.call(pid, {:exported_function_exists, stringify(name)})
   end
@@ -300,6 +308,8 @@ defmodule Wasmex do
 
   In the example above, we specify a timeout of 10 seconds.
   """
+  @spec call_function(pid(), String.t() | atom(), list(number()), pos_integer()) ::
+          {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
     GenServer.call(pid, {:call_function, stringify(name), params}, timeout)
   end
@@ -312,6 +322,7 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.Memory{}} = Wasmex.memory(pid)
   """
+  @spec memory(pid()) :: {:ok, Wasmex.Memory.t()} | {:error, any()}
   def memory(pid), do: GenServer.call(pid, {:memory})
 
   @doc ~S"""
@@ -322,7 +333,19 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.store(pid)
   """
+  @spec store(pid()) :: {:ok, Wasmex.StoreOrCaller.t()} | {:error, any()}
   def store(pid), do: GenServer.call(pid, {:store})
+
+  @doc ~S"""
+  Returns the `Wasmex.Module` of the WASM instance.
+
+  ## Example
+
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, %Wasmex.Module{}} = Wasmex.module(pid)
+  """
+  @spec module(pid()) :: {:ok, Wasmex.Module.t()} | {:error, any()}
+  def module(pid), do: GenServer.call(pid, {:module})
 
   defp stringify_keys(struct) when is_struct(struct), do: struct
 
@@ -356,6 +379,11 @@ defmodule Wasmex do
   @impl true
   def handle_call({:store}, _from, %{store: store} = state) do
     {:reply, {:ok, store}, state}
+  end
+
+  @impl true
+  def handle_call({:module}, _from, %{module: module} = state) do
+    {:reply, {:ok, module}, state}
   end
 
   @impl true

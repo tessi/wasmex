@@ -66,6 +66,7 @@ defmodule Wasmex.ModuleTest do
         "__heap_base" => {:global, %{mutability: :const, type: :i32}},
         "arity_0" => {:fn, [], [:i32]},
         "bool_casted_to_i32" => {:fn, [], [:i32]},
+        "divide" => {:fn, [:i32, :i32], [:i32]},
         "endless_loop" => {:fn, [], []},
         "f32_f32" => {:fn, [:f32], [:f32]},
         "f64_f64" => {:fn, [:f64], [:f64]},

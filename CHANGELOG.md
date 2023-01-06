@@ -16,14 +16,32 @@ Types of changes
 
 ## [0.8.1] - unreleased
 
+This release makes running user-provided WASM binaries a whole bunch safter by providing restrictions on memory and CPU usage.
+
+Have a look at `Wasmex.StoreLimits` for memory restrictions and `Wasmer.EngineConfig` on how to limit fuel (CPU usage quota).
+
+The new `Wasmex.EngineConfig` allows better reporting when WASM execution fails -- setting `wasm_backtrace_details` enables error backtraces to include file and line number information if that debug info is available in the running WASM file.
+
+A `Wasmex.EngineConfig` is used to create a `Wasmex.Engine`, which holds configuration for a `Wasmex.Store`. It allows us to selectively enable/disable more WASM option (e.g. enabling certain WASM proposals).
+Today, a `Wasmex.Engine` already gives us a faster way to precompile modules without the need to instantiate them through `Wasmex.Engine.precompile_module/2`.
+
 ### Added
 
 * Added precompiled binary for `aarch64-unknown-linux-musl`
 * Added support for setting store limits. This allows users to limit memory usage, instance creation, table sizes and more. See `Wasmex.StoreLimits` for details.
+* Added support for metering/fuel_consumption. This allows users to limit CPU usage. A `Wasmex.Store` can be given fuel, where each WASM instruction  of a running WASM binary uses a certain amount of fuel. If no fuel remains, execution stops. See `Wasmex.EngineConfig` for details.
+* Added `Wasmex.EngineConfig` as a place for more complex WASM settings. With this release an engine can be configured to provide more detailed backtraces on errors during WASM execution by setting the `wasm_backtrace_details` flag.
+* Added `Wasmex.Engine.precompile_module/2` which allows module precompilation from a .wat or .wasm binary without the need to instantiate said module. A precompiled module can be hydrated with `Module.unsafe_deserialize/2`.
+* Added `Wasmex.module/1` and `Wasmex.store/1` to access the module and store of a running Wasmex GenServer process.
 
 ### Changed
 
 * `mix.exs` now also requires at least Elixir 1.12
+* `Module.unsafe_deserialize/2` now accepts a `Wasmex.Engine` in addition to the serialized module binary. It's best to hydrate a module using the same engine config used to serialize or precompile it. It has no harsh consequences today, but will be important when we add more WASM features (e.g. SIMD support) in the future.
+* added typespecs for all public `Wasmex` methods
+* improved documentation and typespecs
+* allow starting the `Wasmex` GenServer with a `%{bytes: bytes, store: store}` map as a convenience to spare users the task of manually compiling a `Wasmex.Module`
+
 
 ## [0.8.0] - 2023-01-03
 
