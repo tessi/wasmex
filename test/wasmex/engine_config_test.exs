@@ -18,7 +18,9 @@ defmodule Wasmex.EngineConfigTest do
       config = %EngineConfig{}
       assert %{cranelift_opt_level: :none} = EngineConfig.cranelift_opt_level(config, :none)
       assert %{cranelift_opt_level: :speed} = EngineConfig.cranelift_opt_level(config, :speed)
-      assert %{cranelift_opt_level: :speed_and_size} = EngineConfig.cranelift_opt_level(config, :speed_and_size)
+
+      assert %{cranelift_opt_level: :speed_and_size} =
+               EngineConfig.cranelift_opt_level(config, :speed_and_size)
     end
   end
 
