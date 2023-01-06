@@ -7,11 +7,14 @@ use rustler::{resource::ResourceArc, types::Binary, Error, OwnedBinary};
 use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
+use crate::atoms;
+
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
 pub struct ExEngineConfig {
     consume_fuel: bool,
     wasm_backtrace_details: bool,
+    cranelift_opt_level: rustler::Atom,
 }
 
 pub struct EngineResource {
@@ -52,10 +55,18 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
         true => WasmBacktraceDetails::Enable,
         false => WasmBacktraceDetails::Disable,
     };
+    let cranelift_opt_level = if engine_config.cranelift_opt_level == atoms::speed() {
+        wasmtime::OptLevel::Speed
+    } else if engine_config.cranelift_opt_level == atoms::speed_and_size() {
+        wasmtime::OptLevel::SpeedAndSize
+    } else {
+        wasmtime::OptLevel::None
+    };
 
     let mut config = Config::new();
     config.consume_fuel(engine_config.consume_fuel);
     config.wasm_backtrace_details(backtrace_details);
+    config.cranelift_opt_level(cranelift_opt_level);
     config
 }
 

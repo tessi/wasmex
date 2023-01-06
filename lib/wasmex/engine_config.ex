@@ -5,20 +5,24 @@ defmodule Wasmex.EngineConfig do
   ## Options
 
     * `:consume_fuel` - Whether or not to consume fuel when executing WASM instructions. This defaults to `false`.
+    * `:cranelift_opt_level` - Optimization level for the Cranelift code generator. This defaults to `:none`.
     * `:wasm_backtrace_details` - Whether or not backtraces in traps will parse debug info in the WASM file to have filename/line number information. This defaults to `false`.
 
   ## Example
 
       iex> _config = %Wasmex.EngineConfig{}
       ...>           |> Wasmex.EngineConfig.consume_fuel(true)
+      ...>           |> Wasmex.EngineConfig.cranelift_opt_level(:speed)
       ...>           |> Wasmex.EngineConfig.wasm_backtrace_details(false)
   """
 
   defstruct consume_fuel: false,
+            cranelift_opt_level: :none,
             wasm_backtrace_details: false
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),
+          cranelift_opt_level: :none | :speed | :speed_and_size,
           wasm_backtrace_details: boolean()
         }
 
@@ -44,6 +48,21 @@ defmodule Wasmex.EngineConfig do
   @spec consume_fuel(t(), boolean()) :: t()
   def consume_fuel(%__MODULE__{} = config, consume_fuel) do
     %__MODULE__{config | consume_fuel: consume_fuel}
+  end
+
+  @doc """
+  Configures the Cranelift code generator optimization level.
+
+  Allows one of the following values:
+
+  * `:none` - No optimizations performed, minimizes compilation time by disabling most optimizations.
+  * `:speed` - Generates the fastest possible code, but may take longer.
+  * `:speed_and_size` - Similar to `speed`, but also performs transformations aimed at reducing code size.
+  """
+  @spec cranelift_opt_level(t(), :none | :speed | :speed_and_size) :: t()
+  def cranelift_opt_level(%__MODULE__{} = config, cranelift_opt_level)
+      when cranelift_opt_level in [:none, :speed, :speed_and_size] do
+    %__MODULE__{config | cranelift_opt_level: cranelift_opt_level}
   end
 
   @doc ~S"""

@@ -40,4 +40,9 @@ rustler::atoms! {
     // calls to erlang processes
     returned_function_call,
     invoke_callback,
+
+    // engine config - cranelift_opt_level
+    none,
+    speed,
+    speed_and_size,
 }

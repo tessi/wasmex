@@ -33,6 +33,7 @@ Today, a `Wasmex.Engine` already gives us a faster way to precompile modules wit
 * Added `Wasmex.EngineConfig` as a place for more complex WASM settings. With this release an engine can be configured to provide more detailed backtraces on errors during WASM execution by setting the `wasm_backtrace_details` flag.
 * Added `Wasmex.Engine.precompile_module/2` which allows module precompilation from a .wat or .wasm binary without the need to instantiate said module. A precompiled module can be hydrated with `Module.unsafe_deserialize/2`.
 * Added `Wasmex.module/1` and `Wasmex.store/1` to access the module and store of a running Wasmex GenServer process.
+* Added option to `Wasmex.EngineConfig` to configure the `cranelift_opt_level` (:none, :speed, :speed_and_size) allowing users to trade compilation time against execution speed
 
 ### Changed
 
