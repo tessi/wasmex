@@ -13,6 +13,17 @@ defmodule Wasmex.EngineConfigTest do
     end
   end
 
+  describe t(&EngineConfig.cranelift_opt_level/1) do
+    test "sets the cranelift_opt_level option" do
+      config = %EngineConfig{}
+      assert %{cranelift_opt_level: :none} = EngineConfig.cranelift_opt_level(config, :none)
+      assert %{cranelift_opt_level: :speed} = EngineConfig.cranelift_opt_level(config, :speed)
+
+      assert %{cranelift_opt_level: :speed_and_size} =
+               EngineConfig.cranelift_opt_level(config, :speed_and_size)
+    end
+  end
+
   describe t(&EngineConfig.wasm_backtrace_details/1) do
     test "sets the wasm_backtrace_details option" do
       config = %EngineConfig{}
