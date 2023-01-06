@@ -16,23 +16,14 @@ Types of changes
 
 ## [0.8.1] - unreleased
 
-This release makes running user-provided WASM binaries a whole bunch safter by
-providing restrictions on memory and CPU usage.
+This release makes running user-provided WASM binaries a whole bunch safter by providing restrictions on memory and CPU usage.
 
-Have a look at `Wasmex.StoreLimits` for memory restrictions and
-`Wasmer.EngineConfig` on how to limit fuel (CPU usage quota).
+Have a look at `Wasmex.StoreLimits` for memory restrictions and `Wasmer.EngineConfig` on how to limit fuel (CPU usage quota).
 
-The new `Wasmex.EngineConfig` allows better reporting when
-WASM execution fails -- setting `wasm_backtrace_details` enables
-error backtraces to include file and line number information
-if that debug info is available in the running WASM file.
+The new `Wasmex.EngineConfig` allows better reporting when WASM execution fails -- setting `wasm_backtrace_details` enables error backtraces to include file and line number information if that debug info is available in the running WASM file.
 
-A `Wasmex.EngineConfig` is used to create a `Wasmex.Engine`, which
-holds configuration for a `Wasmex.Store`. It allows us to selectively
-enable/disable more WASM option (e.g. enabling certain WASM proposals).
-Today, a `Wasmex.Engine` already gives us a faster way to precompile
-modules without the need to instantiate them through
-`Wasmex.Engine.precompile_module/2`.
+A `Wasmex.EngineConfig` is used to create a `Wasmex.Engine`, which holds configuration for a `Wasmex.Store`. It allows us to selectively enable/disable more WASM option (e.g. enabling certain WASM proposals).
+Today, a `Wasmex.Engine` already gives us a faster way to precompile modules without the need to instantiate them through `Wasmex.Engine.precompile_module/2`.
 
 ### Added
 
@@ -48,7 +39,7 @@ modules without the need to instantiate them through
 * `mix.exs` now also requires at least Elixir 1.12
 * `Module.unsafe_deserialize/2` now accepts a `Wasmex.Engine` in addition to the serialized module binary. It's best to hydrate a module using the same engine config used to serialize or precompile it. It has no harsh consequences today, but will be important when we add more WASM features (e.g. SIMD support) in the future.
 * added typespecs for all public `Wasmex` methods
-* improved documentation
+* improved documentation and typespecs
 * allow starting the `Wasmex` GenServer with a `%{bytes: bytes, store: store}` map as a convenience to spare users the task of manually compiling a `Wasmex.Module`
 
 

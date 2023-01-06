@@ -104,8 +104,6 @@ I´m looking forward to your contributions. Please open a PR containing the moti
 Any changes should be covered by tests, they can be run with `mix test`.
 In addition to tests, we expect the formatters and linters (`cargo fmt`, `cargo clippy`, `mix format`, `mix dialyzer`, `mix credo`) to pass.
 
-Your contributions will be licenced under the same license as this project.
-
 ### Release
 
 To release this package, make sure CI is green, increase the package version, and:
