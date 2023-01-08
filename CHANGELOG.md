@@ -14,7 +14,11 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [0.8.1] - unreleased
+## unreleased
+
+put your changes here
+
+## [0.8.1] - 2023-01-08
 
 This release makes running user-provided WASM binaries a whole bunch safter by providing restrictions on memory and CPU usage.
 
