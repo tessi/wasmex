@@ -268,7 +268,7 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "string_first_byte", [index, String.length(string)])
       {:ok, [104]} # 104 is the letter "h" in ASCII/UTF-8 encoding
 
-  Please not that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
+  Please note that Elixir and Rust assume Strings to be valid UTF-8. Take care when handling other encodings.
 
   ### Strings as Function Return Values
 
