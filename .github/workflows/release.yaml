@@ -69,8 +69,6 @@ jobs:
       with:
         toolchain: stable
         target: ${{ matrix.job.target }}
-        override: true
-        profile: minimal
 
     - name: Show version information (Rust, cargo, GCC)
       run: |
@@ -150,7 +148,7 @@ jobs:
         echo "LIB_FINAL_NAME=${LIB_FINAL_NAME}.tar.gz" >> $GITHUB_OUTPUT
 
     - name: "Artifact upload"
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ steps.rename.outputs.LIB_FINAL_NAME }}
         path: ${{ steps.rename.outputs.LIB_FINAL_PATH }}
