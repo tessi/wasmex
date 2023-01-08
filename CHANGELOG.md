@@ -18,6 +18,12 @@ Types of changes
 
 put your changes here
 
+## [0.8.2] - 2023-01-08
+
+## Added
+
+* list `aarch64-unknown-linux-musl` in rustler targets, so we actually include it in our releases
+
 ## [0.8.1] - 2023-01-08
 
 This release makes running user-provided WASM binaries a whole bunch safter by providing restrictions on memory and CPU usage.
