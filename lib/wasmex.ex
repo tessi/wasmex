@@ -2,12 +2,12 @@ defmodule Wasmex do
   @moduledoc ~S"""
   Wasmex is a fast and secure [WebAssembly](https://webassembly.org/) and [WASI](https://github.com/WebAssembly/WASI) runtime for Elixir.
   It enables lightweight WebAssembly containers to be run in your Elixir backend.
-  This is the main module, providing most of the needed API to run WASM binaries.
+  This is the main module, providing most of the needed API to run Wasm binaries.
 
-  It uses [wasmtime](https://wasmtime.dev) to execute WASM binaries through a [Rust](https://www.rust-lang.org) NIF.
+  It uses [wasmtime](https://wasmtime.dev) to execute Wasm binaries through a [Rust](https://www.rust-lang.org) NIF.
 
-  Each WASM module must be compiled from a `.wasm` or '.wat' file.
-  A compiled WASM module can be instantiated which usually happens in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).
+  Each Wasm module must be compiled from a `.wasm` or '.wat' file.
+  A compiled Wasm module can be instantiated which usually happens in a [GenServer](https://hexdocs.pm/elixir/master/GenServer.html).
   To start the GenServer, `start_link/1` is used:
 
       iex> bytes = File.read!(TestHelper.wasm_test_file_path())
@@ -15,7 +15,7 @@ defmodule Wasmex do
       iex> Wasmex.call_function(instance_pid, "sum", [50, -8])
       {:ok, [42]}
 
-  Memory of a WASM instance can be read/written using `Wasmex.Memory`:
+  Memory of a Wasm instance can be read/written using `Wasmex.Memory`:
 
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, store} = Wasmex.store(pid)
@@ -25,14 +25,14 @@ defmodule Wasmex do
       iex> Wasmex.Memory.get_byte(store, memory, index)
       42
 
-  See `start_link/1` for starting and configuring a WASM instance and `call_function/3` for details about calling WASM functions.
+  See `start_link/1` for starting and configuring a Wasm instance and `call_function/3` for details about calling Wasm functions.
   """
   use GenServer
 
   # Client
 
   @doc ~S"""
-  Starts a GenServer which compiles and instantiates a WASM module from the given `.wasm` or `.wat` bytes.
+  Starts a GenServer which compiles and instantiates a Wasm module from the given `.wasm` or `.wat` bytes.
 
       iex> bytes = File.read!(TestHelper.wasm_test_file_path())
       iex> {:ok, _pid} = Wasmex.start_link(%{bytes: bytes})
@@ -45,7 +45,7 @@ defmodule Wasmex do
 
   ### Imports
 
-  WASM imports may be given as an additional option.
+  Wasm imports may be given as an additional option.
   Imports are a map of namespace-name to namespaces.
   Each namespace is in turn a map of import-name to import.
 
@@ -79,7 +79,7 @@ defmodule Wasmex do
 
   The `caller` MUST be used instead of a `store` in Wasmex API functions.
   Wasmex might deadlock if the `store` is used instead of the `caller`
-  (because running the WASM instance holds a Mutex lock on the `store` so
+  (because running the Wasm instance holds a Mutex lock on the `store` so
   we cannot use that store again during the execution of an imported function).
   The caller, however, MUST NOT be used outside of the imported functions scope.
 
@@ -200,7 +200,7 @@ defmodule Wasmex do
   end
 
   @doc ~S"""
-  Returns whether a function export with the given `name` exists in the WASM instance.
+  Returns whether a function export with the given `name` exists in the Wasm instance.
 
   ## Examples
 
@@ -220,7 +220,7 @@ defmodule Wasmex do
   end
 
   @doc ~S"""
-  Calls a function with the given `name` and `params` on the WASM instance
+  Calls a function with the given `name` and `params` on the Wasm instance
   and returns its results.
 
   ## Example
@@ -236,15 +236,15 @@ defmodule Wasmex do
   ## String Handling
 
   Strings are common candidates for function parameters and return values.
-  However, they can not be used directly when calling WASM functions,
-  because WASM only knows number data types.
+  However, they can not be used directly when calling Wasm functions,
+  because Wasm only knows number data types.
   Since Strings are just "a bunch of bytes", we can write these bytes into memory
-  and give our WASM function a pointer to that memory location.
+  and give our Wasm function a pointer to that memory location.
 
   ### Strings as Function Parameters
 
   Given we have the following Rust function that returns the first byte of a string input
-  compiled to WASM:
+  compiled to Wasm:
 
   ```rust
   #[no_mangle]
@@ -257,7 +257,7 @@ defmodule Wasmex do
   }
   ```
 
-  This WASM function can be called from Elixir:
+  This Wasm function can be called from Elixir:
 
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, store} = Wasmex.store(pid)
@@ -272,7 +272,7 @@ defmodule Wasmex do
 
   ### Strings as Function Return Values
 
-  Given we have the following Rust function compiled to WASM (again, copied from our test code):
+  Given we have the following Rust function compiled to Wasm (again, copied from our test code):
 
   ```rust
   #[no_mangle]
@@ -315,7 +315,7 @@ defmodule Wasmex do
   end
 
   @doc ~S"""
-  Returns the exported `Wasmex.Memory` of the given WASM instance.
+  Returns the exported `Wasmex.Memory` of the given Wasm instance.
 
   ## Example
 
@@ -326,7 +326,7 @@ defmodule Wasmex do
   def memory(pid), do: GenServer.call(pid, {:memory})
 
   @doc ~S"""
-  Returns the `Wasmex.Store` of the WASM instance.
+  Returns the `Wasmex.Store` of the Wasm instance.
 
   ## Example
 
@@ -337,7 +337,7 @@ defmodule Wasmex do
   def store(pid), do: GenServer.call(pid, {:store})
 
   @doc ~S"""
-  Returns the `Wasmex.Module` of the WASM instance.
+  Returns the `Wasmex.Module` of the Wasm instance.
 
   ## Example
 

@@ -1,6 +1,6 @@
 defmodule Wasmex.Memory do
   @moduledoc ~S"""
-  Memory is a linear array of bytes to store WASM values. The `Memory` module provides functions to read and write to this array.
+  Memory is a linear array of bytes to store Wasm values. The `Memory` module provides functions to read and write to this array.
 
   `Memory` is accessible through `Wasmex.Instance.memory/2`,
   `Wasmex.Memory.from_instance/2`, or as the caller context
@@ -13,7 +13,7 @@ defmodule Wasmex.Memory do
       iex> Wasmex.Memory.get_byte(store, memory, 0)
       42
 
-  WASM memory is organized in pages of 64kb and may be grown by additional pages.
+  Wasm memory is organized in pages of 64kb and may be grown by additional pages.
   """
 
   @type t :: %__MODULE__{

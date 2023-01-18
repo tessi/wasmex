@@ -2,10 +2,10 @@ defmodule Wasmex.StoreOrCaller do
   @moduledoc ~S"""
   Either a `Wasmex.Store` or "Caller" for imported functions.
 
-  A Store is a collection of WASM instances and host-defined state, see `Wasmex.Store`.
+  A Store is a collection of Wasm instances and host-defined state, see `Wasmex.Store`.
   A Caller takes the place of a Store in imported function calls. If a Store is needed in
   Elixir-provided imported functions, always use the provided Caller because
-  using the Store will cause a deadlock (the running WASM instance locks the Stores Mutex).
+  using the Store will cause a deadlock (the running Wasm instance locks the Stores Mutex).
 
   When configured, a StoreOrCaller can consume fuel to halt or yield execution as desired.
   See `Wasmex.EngineConfig.consume_fuel/2` for more information on fuel consumption.
@@ -32,22 +32,22 @@ defmodule Wasmex.StoreOrCaller do
   end
 
   @doc ~S"""
-  Adds fuel to this Store for WASM to consume while executing.
+  Adds fuel to this Store for Wasm to consume while executing.
 
   For this method to work, fuel consumption must be enabled via
   `Wasmex.EngineConfig.consume_fuel/2. By default a `Wasmex.Store`
-  starts with 0 fuel for WASM to execute with (meaning it will
+  starts with 0 fuel for Wasm to execute with (meaning it will
   immediately trap and halt execution). This function must be
   called for the store to have some fuel to allow WebAssembly
   to execute.
 
-  Most WASM instructions consume 1 unit of fuel. Some
+  Most Wasm instructions consume 1 unit of fuel. Some
   instructions, such as `nop`, `drop`, `block`, and `loop`, consume 0
   units, as any execution cost associated with them involves other
   instructions which do consume fuel.
 
   Note that at this time when fuel is entirely consumed it will cause
-  WASM to trap.
+  Wasm to trap.
 
   ## Errors
 

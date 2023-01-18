@@ -1,6 +1,6 @@
 defmodule Wasmex.Instance do
   @moduledoc ~S"""
-  Instantiates a WASM module and allows calling exported functions on it.
+  Instantiates a Wasm module and allows calling exported functions on it.
 
   In the majority of cases, you will not need to use this module directly
   but use the main module `Wasmex` instead.
@@ -28,11 +28,11 @@ defmodule Wasmex.Instance do
   end
 
   @doc ~S"""
-  Instantiates a WASM module with the given imports.
+  Instantiates a Wasm module with the given imports.
 
-  Returns the instantiated WASM instance.
+  Returns the instantiated Wasm instance.
 
-  The `import` parameter is a nested map of WASM namespaces.
+  The `import` parameter is a nested map of Wasm namespaces.
   Each namespace consists of a name and a map of function names to function signatures.
 
   Function signatures are a tuple of the form `{:fn, arg_types, return_types, callback}`.
@@ -41,12 +41,12 @@ defmodule Wasmex.Instance do
   Each `callback` function receives a `context` map as the first argument followed by the arguments specified in its signature.
   `context` has the following keys:
 
-    * `:memory` - The default exported `Wasmex.Memory` of the WASM instance
-    * `:caller` - The caller of the WASM instance which MUST be used instead of a `Wasmex.Store` in all Wasmex functions called from within the callback. Failure to do so will result in a deadlock. The `caller` MUST NOT be used outside of the callback.
+    * `:memory` - The default exported `Wasmex.Memory` of the Wasm instance
+    * `:caller` - The caller of the Wasm instance which MUST be used instead of a `Wasmex.Store` in all Wasmex functions called from within the callback. Failure to do so will result in a deadlock. The `caller` MUST NOT be used outside of the callback.
 
   ## Example
 
-  This example instantiates a WASM module with one namespace `env` having
+  This example instantiates a Wasm module with one namespace `env` having
   three imported functions `imported_sum3`, `imported_sumf`, and `imported_void`.
 
   The imported function `imported_sum3` takes three `:i32` (32 bit integer) arguments and returns a `:i32` number.
@@ -78,7 +78,7 @@ defmodule Wasmex.Instance do
   end
 
   @doc ~S"""
-  Whether the WASM `instance` exports a function with the given `name`.
+  Whether the Wasm `instance` exports a function with the given `name`.
 
   ## Example
 
@@ -103,9 +103,9 @@ defmodule Wasmex.Instance do
   end
 
   @doc ~S"""
-  Calls a function the given `name` exported by the WASM `instance` with the given `params`.
+  Calls a function the given `name` exported by the Wasm `instance` with the given `params`.
 
-  The WASM function will be invoked asynchronously in a new OS thread.
+  The Wasm function will be invoked asynchronously in a new OS thread.
   The calling Process/GenServer will receive a `{:returned_function_call, result, from}`
   message once execution finishes.
   The result either is an `{:error, reason}` or `:ok`.
@@ -118,7 +118,7 @@ defmodule Wasmex.Instance do
 
   ## Function parameters
 
-  Parameters for WASM functions are automatically casted to WASM values.
+  Parameters for Wasm functions are automatically casted to Wasm values.
   Note that WebAssembly only knows number datatypes (floats and integers of various sizes).
 
   You can pass arbitrary data to WebAssembly by writing that data into an instances `Wasmex.Memory`.
@@ -159,7 +159,7 @@ defmodule Wasmex.Instance do
   end
 
   @doc ~S"""
-  Returns the `Wasmex.Memory` of the WASM `instance`.
+  Returns the `Wasmex.Memory` of the Wasm `instance`.
 
   ## Example
 

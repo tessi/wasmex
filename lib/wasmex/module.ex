@@ -2,7 +2,7 @@ defmodule Wasmex.Module do
   @moduledoc ~S"""
   A compiled WebAssembly module.
 
-  A WASM Module contains stateless WebAssembly code that has
+  A Wasm Module contains stateless WebAssembly code that has
   already been compiled and can be instantiated multiple times.
   """
 
@@ -29,17 +29,17 @@ defmodule Wasmex.Module do
   end
 
   @doc ~S"""
-  Compiles a WASM module from it's WASM (a .wasm file) or WAT (a .wat file) representation.
+  Compiles a Wasm module from it's Wasm (a .wasm file) or WAT (a .wat file) representation.
 
   Compiled modules can be instantiated using `Wasmex.start_link/1` or `Instance.new/3`.
 
   Since module compilation takes time and resources but instantiation is
   comparatively cheap, it may be a good idea to compile a module once and
-  instantiate it often if you want to run a WASM binary multiple times.
+  instantiate it often if you want to run a Wasm binary multiple times.
 
   ## Example
 
-  Read a WASM file and compile it into a WASM module.
+  Read a Wasm file and compile it into a Wasm module.
   Use the compiled module to start a running `Wasmex.Instance`.
 
       iex> {:ok, store} = Wasmex.Store.new()
@@ -65,12 +65,12 @@ defmodule Wasmex.Module do
   @doc ~S"""
   Returns the name of the current module if a name is given.
 
-  This name is normally set in the WASM bytecode by some compilers.
+  This name is normally set in the Wasm bytecode by some compilers.
 
   ## Example
 
       iex> {:ok, store} = Wasmex.Store.new()
-      iex> wat = "(module $hiFromTheDocs)" # minimal and not very useful WASM module
+      iex> wat = "(module $hiFromTheDocs)" # minimal and not very useful Wasm module
       iex> {:ok, module} = Wasmex.Module.compile(store, wat)
       iex> Wasmex.Module.name(module)
       "hiFromTheDocs"
@@ -84,7 +84,7 @@ defmodule Wasmex.Module do
   end
 
   @doc ~S"""
-  Lists all exports of a WASM module.
+  Lists all exports of a Wasm module.
 
   Returns a map which has the exports name (string) as key and export info-tuples as values.
   Info tuples always start with an atom indicating the exports type:
@@ -98,7 +98,7 @@ defmodule Wasmex.Module do
 
   ## Example
 
-  List the exported function "hello_world()" of a WASM module:
+  List the exported function "hello_world()" of a Wasm module:
 
       iex> {:ok, store} = Wasmex.Store.new()
       iex> wat = "(module
@@ -133,7 +133,7 @@ defmodule Wasmex.Module do
 
   ## Example
 
-  Show that the WASM module imports a function "inspect" from the "IO" namespace:
+  Show that the Wasm module imports a function "inspect" from the "IO" namespace:
 
       iex> {:ok, store} = Wasmex.Store.new()
       iex> wat = "(module
@@ -153,7 +153,7 @@ defmodule Wasmex.Module do
   end
 
   @doc ~S"""
-  Serializes a compiled WASM module into a binary.
+  Serializes a compiled Wasm module into a binary.
 
   The generated binary can be deserialized back into a module using `unsafe_deserialize/1`.
   It is unsafe do alter the binary in any way. See `unsafe_deserialize/1` for safety considerations.

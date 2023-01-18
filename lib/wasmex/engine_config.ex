@@ -4,9 +4,9 @@ defmodule Wasmex.EngineConfig do
 
   ## Options
 
-    * `:consume_fuel` - Whether or not to consume fuel when executing WASM instructions. This defaults to `false`.
+    * `:consume_fuel` - Whether or not to consume fuel when executing Wasm instructions. This defaults to `false`.
     * `:cranelift_opt_level` - Optimization level for the Cranelift code generator. This defaults to `:none`.
-    * `:wasm_backtrace_details` - Whether or not backtraces in traps will parse debug info in the WASM file to have filename/line number information. This defaults to `false`.
+    * `:wasm_backtrace_details` - Whether or not backtraces in traps will parse debug info in the Wasm file to have filename/line number information. This defaults to `false`.
 
   ## Example
 
@@ -66,13 +66,13 @@ defmodule Wasmex.EngineConfig do
   end
 
   @doc ~S"""
-  Configures whether backtraces in traps will parse debug info in the WASM
+  Configures whether backtraces in traps will parse debug info in the Wasm
   file to have filename/line number information.
 
   When enabled this will causes modules to retain debugging information
-  found in WASM binaries. This debug information will be used when a trap
+  found in Wasm binaries. This debug information will be used when a trap
   happens to symbolicate each stack frame and attempt to print a
-  filename/line number for each WASM frame in the stack trace.
+  filename/line number for each Wasm frame in the stack trace.
 
   ## Example
 

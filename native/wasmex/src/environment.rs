@@ -64,9 +64,9 @@ fn link_import(
     Err(Error::Atom("unknown import type"))
 }
 
-// Creates a wrapper function used in a WASM import object.
-// The `definition` term must contain a function signature matching the signature if the WASM import.
-// Once the imported function is called during WASM execution, the following happens:
+// Creates a wrapper function used in a Wasm import object.
+// The `definition` term must contain a function signature matching the signature if the Wasm import.
+// Once the imported function is called during Wasm execution, the following happens:
 // 1. the rust wrapper we define here is called
 // 2. it creates a callback token containing a Mutex for storing the call result and a Condvar
 // 3. the rust wrapper sends an :invoke_callback message to elixir containing the token and call params

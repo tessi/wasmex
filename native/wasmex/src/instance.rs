@@ -24,11 +24,11 @@ pub struct InstanceResource {
     pub inner: Mutex<Instance>,
 }
 
-// creates a new instance from the given WASM bytes
+// creates a new instance from the given Wasm bytes
 // expects the following elixir params
 //
 // * store (StoreResource): the store the module was compiled with
-// * module (ModuleResource): the compiled WASM module
+// * module (ModuleResource): the compiled Wasm module
 // * imports (map): a map defining eventual instance imports, may be empty if there are none.
 //   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
 #[rustler::nif(name = "instance_new")]

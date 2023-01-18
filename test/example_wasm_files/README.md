@@ -1,6 +1,6 @@
-# Example WASM Files
+# Example Wasm Files
 
-This directory contains a number of pre-compiled WASM files (if possible with their sources in WAT format).
+This directory contains a number of pre-compiled Wasm files (if possible with their sources in WAT format).
 
 To compile WAT files either install the [WebAssembly Binary Toolki](https://github.com/webassembly/wabt) or try the [online compiler](https://webassembly.github.io/wabt/demo/wat2wasm/).
 

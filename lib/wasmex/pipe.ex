@@ -1,6 +1,6 @@
 defmodule Wasmex.Pipe do
   @moduledoc ~S"""
-  A Pipe is a memory buffer that can be used in exchange for a WASM file.
+  A Pipe is a memory buffer that can be used in exchange for a Wasm file.
 
   Pipes have a read and write position which can be set using `seek/2`.
 

@@ -1,6 +1,6 @@
 defmodule Wasmex.Engine do
   @moduledoc ~S"""
-  An `Engine` which is a global context for compilation and management of WASM
+  An `Engine` which is a global context for compilation and management of Wasm
   modules.
 
   Engines store global configuration preferences such as compilation settings,

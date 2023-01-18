@@ -1,8 +1,8 @@
 defmodule Wasmex.Store do
   @moduledoc ~S"""
-  A Store is a collection of WASM instances and host-defined state.
+  A Store is a collection of Wasm instances and host-defined state.
 
-  All WASM instances and items will be attached to and refer to a Store.
+  All Wasm instances and items will be attached to and refer to a Store.
   For example instances, functions, globals, and tables are all attached to a Store.
   Instances are created by instantiating a Module within a Store.
   Many functions of the Wasmex API require a Store in the form of a `Wasmex.StoreOrCaller`
@@ -22,7 +22,7 @@ defmodule Wasmex.Store do
   alias Wasmex.Wasi.WasiOptions
 
   @doc ~S"""
-  Creates a new WASM store.
+  Creates a new Wasm store.
 
   Returns a `Wasmex.StoreOrCaller` even though we know it’s definitely a Store.
   This allows Elixir-provided imported functions, which only have a "Caller", to use the same Wasmex APIs.
@@ -48,7 +48,7 @@ defmodule Wasmex.Store do
   end
 
   @doc ~S"""
-  Creates a new WASM store with WASI support.
+  Creates a new Wasm store with WASI support.
 
   Returns a `Wasmex.StoreOrCaller` even though we know it’s definitely a Store.
   This allows Elixir-provided imported functions, which only have a "Caller", to use the same Wasmex APIs.

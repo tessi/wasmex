@@ -18,7 +18,7 @@ defmodule WasiTest do
     {dir, filename, Path.join(dir, filename)}
   end
 
-  test "running a WASM/WASI module while overriding some WASI methods" do
+  test "running a Wasm/WASI module while overriding some WASI methods" do
     imports = %{
       wasi_snapshot_preview1: %{
         clock_time_get:

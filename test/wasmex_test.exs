@@ -261,7 +261,7 @@ defmodule WasmexTest do
   end
 
   describe "error handling" do
-    test "handles errors occuring during WASM execution with default engine config" do
+    test "handles errors occuring during Wasm execution with default engine config" do
       config =
         %Wasmex.EngineConfig{}
         |> Wasmex.EngineConfig.wasm_backtrace_details(false)
@@ -288,7 +288,7 @@ defmodule WasmexTest do
       assert Wasmex.call_function(pid, :divide, [1, 0]) == {:error, String.trim(expected_reason)}
     end
 
-    test "handles errors occuring during WASM execution with wasm_backtrace_details enabled" do
+    test "handles errors occuring during Wasm execution with wasm_backtrace_details enabled" do
       config =
         %Wasmex.EngineConfig{}
         |> Wasmex.EngineConfig.wasm_backtrace_details(true)
