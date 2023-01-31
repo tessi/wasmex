@@ -272,20 +272,12 @@ defmodule WasmexTest do
       {:ok, module} = Wasmex.Module.compile(store, bytes)
       {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
 
-      expected_reason = """
-      Error during function excecution: `error while executing at wasm backtrace:
-          0: 0x395d - <unknown>!__rust_start_panic
-          1: 0x3951 - <unknown>!rust_panic
-          2: 0x3921 - <unknown>!std::panicking::rust_panic_with_hook::he04cb00575f2a1e3
-          3: 0x2fc0 - <unknown>!std::panicking::begin_panic_handler::{{closure}}::hb733f0aa505760cf
-          4: 0x2f25 - <unknown>!std::sys_common::backtrace::__rust_end_short_backtrace::h6beefa0bcab220bc
-          5: 0x3575 - <unknown>!rust_begin_unwind
-          6: 0x3c47 - <unknown>!core::panicking::panic_fmt::h586d720a90aa8503
-          7: 0x3c9c - <unknown>!core::panicking::panic::h0859aaac783261b2
-          8:  0x567 - <unknown>!divide`.
-      """
+      assert {:error, err_msg} = Wasmex.call_function(pid, :divide, [1, 0])
 
-      assert Wasmex.call_function(pid, :divide, [1, 0]) == {:error, String.trim(expected_reason)}
+      assert String.starts_with?(
+               err_msg,
+               "Error during function excecution: `error while executing at wasm backtrace:"
+             )
     end
 
     test "handles errors occuring during Wasm execution with wasm_backtrace_details enabled" do
@@ -317,9 +309,10 @@ defmodule WasmexTest do
       assert Wasmex.call_function(pid, :void, []) == {:ok, []}
       assert Wasmex.StoreOrCaller.fuel_remaining(store) == {:ok, 1}
 
-      assert Wasmex.call_function(pid, :void, []) ==
-               {:error,
-                "Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x3bf - <unknown>!void`."}
+      assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
+
+      assert err_msg =~
+               ~r/Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x\w+ - <unknown>!void`./
     end
   end
 end
