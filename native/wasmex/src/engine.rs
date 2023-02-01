@@ -38,11 +38,11 @@ pub fn precompile_module<'a>(
     binary: Binary<'a>,
 ) -> Result<Binary<'a>, rustler::Error> {
     let engine: &Engine = &*(engine_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock engine resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock engine resource: {e}")))
     })?);
     let bytes = binary.as_slice();
     let serialized_module = engine.precompile_module(bytes).map_err(|err| {
-        rustler::Error::Term(Box::new(format!("Could not precompile module: {}", err)))
+        rustler::Error::Term(Box::new(format!("Could not precompile module: {err}")))
     })?;
     let mut binary = OwnedBinary::new(serialized_module.len())
         .ok_or_else(|| rustler::Error::Term(Box::new("not enough memory")))?;
@@ -78,8 +78,7 @@ pub(crate) fn unwrap_engine(
         .lock()
         .map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock engine resource as the mutex was poisoned: {}",
-                e
+                "Could not unlock engine resource as the mutex was poisoned: {e}"
             )))
         })?
         .clone();
