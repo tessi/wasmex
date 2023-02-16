@@ -261,7 +261,7 @@ defmodule WasmexTest do
   end
 
   describe "error handling" do
-    test "handles errors occuring during Wasm execution with default engine config" do
+    test "handles errors occurring during Wasm execution with default engine config" do
       config =
         %Wasmex.EngineConfig{}
         |> Wasmex.EngineConfig.wasm_backtrace_details(false)
