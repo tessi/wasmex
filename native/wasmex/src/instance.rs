@@ -39,15 +39,13 @@ pub fn new(
 ) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock module resource as the mutex was poisoned: {e}"
         )))
     })?;
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {}",
-                e
+                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
             )))
         })?);
 
@@ -83,15 +81,13 @@ pub fn function_export_exists(
 ) -> NifResult<bool> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock instance resource as the mutex was poisoned: {e}"
         )))
     })?);
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock instance/store resource as the mutex was poisoned: {}",
-                e
+                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
             )))
         })?);
 
@@ -100,8 +96,8 @@ pub fn function_export_exists(
 }
 
 #[rustler::nif(name = "instance_call_exported_function", schedule = "DirtyCpu")]
-pub fn call_exported_function<'a>(
-    env: rustler::Env<'a>,
+pub fn call_exported_function(
+    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
@@ -155,7 +151,7 @@ fn execute_function(
         None => {
             return make_error_tuple(
                 &thread_env,
-                &format!("exported function `{}` not found", function_name),
+                &format!("exported function `{function_name}` not found"),
                 from,
             )
         }
@@ -181,7 +177,7 @@ fn execute_function(
     match call_result {
         Ok(_) => (),
         Err(err) => {
-            let reason = format!("Error during function excecution: `{}`.", err);
+            let reason = format!("Error during function excecution: `{err}`.");
             return make_error_tuple(&thread_env, &reason, from);
         }
     };
@@ -346,8 +342,7 @@ pub fn receive_callback_result(
             Ok(v) => v,
             Err(reason) => {
                 return Err(Error::Term(Box::new(format!(
-                    "could not convert callback result param to expected return signature: {}",
-                    reason
+                    "could not convert callback result param to expected return signature: {reason}"
                 ))));
             }
         }

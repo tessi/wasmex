@@ -214,7 +214,7 @@ pub fn fuel_consumed(
 ) -> Result<Option<u64>, rustler::Error> {
     let store_or_caller: &StoreOrCaller =
         &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => Ok(store.fuel_consumed()),
@@ -235,7 +235,7 @@ pub fn add_fuel(
 ) -> Result<(), rustler::Error> {
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.add_fuel(fuel),
@@ -247,7 +247,7 @@ pub fn add_fuel(
             })
             .map(|c| c.add_fuel(fuel))?,
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not add fuel to store: {}", e))))
+    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not add fuel to store: {e}"))))
 }
 
 #[rustler::nif(name = "store_or_caller_consume_fuel")]
@@ -257,7 +257,7 @@ pub fn consume_fuel(
 ) -> Result<u64, rustler::Error> {
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.consume_fuel(fuel),
@@ -269,7 +269,7 @@ pub fn consume_fuel(
             })
             .map(|c| c.consume_fuel(fuel))?,
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not consume fuel: {}", e))))
+    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not consume fuel: {e}"))))
 }
 
 fn add_pipe(

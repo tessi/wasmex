@@ -27,14 +27,12 @@ pub fn compile(
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {}",
-                e
+                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
             )))
         })?);
     let bytes = binary.as_slice();
-    let bytes = wat::parse_bytes(bytes).map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Error while parsing bytes: {}.", e)))
-    })?;
+    let bytes = wat::parse_bytes(bytes)
+        .map_err(|e| rustler::Error::Term(Box::new(format!("Error while parsing bytes: {e}."))))?;
     match Module::new(store_or_caller.engine(), bytes) {
         Ok(module) => {
             let resource = ResourceArc::new(ModuleResource {
@@ -43,8 +41,7 @@ pub fn compile(
             Ok(resource)
         }
         Err(e) => Err(rustler::Error::Term(Box::new(format!(
-            "Could not compile module: {:?}",
-            e
+            "Could not compile module: {e:?}"
         )))),
     }
 }
@@ -53,8 +50,7 @@ pub fn compile(
 pub fn name(module_resource: ResourceArc<ModuleResource>) -> NifResult<String> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock module resource as the mutex was poisoned: {e}"
         )))
     })?;
     let name = module
@@ -67,8 +63,7 @@ pub fn name(module_resource: ResourceArc<ModuleResource>) -> NifResult<String> {
 pub fn exports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) -> NifResult<Term> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock module resource as the mutex was poisoned: {e}"
         )))
     })?;
     let mut map = rustler::Term::map_new(env);
@@ -89,8 +84,7 @@ pub fn exports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) 
 pub fn imports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) -> NifResult<Term> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock module resource as the mutex was poisoned: {e}"
         )))
     })?;
     let mut namespaces = HashMap::new();
@@ -238,13 +232,12 @@ pub fn serialize(
 ) -> NifResult<Binary> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {}",
-            e
+            "Could not unlock module resource as the mutex was poisoned: {e}"
         )))
     })?;
-    let serialized_module: Vec<u8> = module.serialize().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not serialize module: {}", e)))
-    })?;
+    let serialized_module: Vec<u8> = module
+        .serialize()
+        .map_err(|e| rustler::Error::Term(Box::new(format!("Could not serialize module: {e}"))))?;
     let mut binary = OwnedBinary::new(serialized_module.len())
         .ok_or_else(|| rustler::Error::Term(Box::new("not enough memory")))?;
     binary.copy_from_slice(&serialized_module);
@@ -264,7 +257,7 @@ pub fn unsafe_deserialize(
     // However, there isn't much we can do about it here, we will warn users in elixir-land about this, though.
     let module = unsafe {
         Module::deserialize(&engine, binary.as_slice()).map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not deserialize module: {}", e)))
+            rustler::Error::Term(Box::new(format!("Could not deserialize module: {e}")))
         })?
     };
     let resource = ResourceArc::new(ModuleResource {

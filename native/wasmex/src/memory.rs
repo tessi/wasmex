@@ -21,16 +21,12 @@ pub fn from_instance(
     instance_resource: ResourceArc<instance::InstanceResource>,
 ) -> Result<ResourceArc<MemoryResource>, rustler::Error> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource: {}",
-            e
-        )))
+        rustler::Error::Term(Box::new(format!("Could not unlock instance resource: {e}")))
     })?);
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {}",
-                e
+                "Could not unlock store_or_caller resource: {e}"
             )))
         })?);
     let memory = memory_from_instance(&instance, store_or_caller)?;
@@ -48,10 +44,10 @@ pub fn size(
 ) -> NifResult<usize> {
     let store_or_caller: &StoreOrCaller =
         &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     let memory = memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?;
     let length = memory.data_size(store_or_caller);
     Ok(length)
@@ -66,12 +62,11 @@ pub fn grow(
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {}",
-                e
+                "Could not unlock store_or_caller resource: {e}"
             )))
         })?);
     let memory = memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?;
     let store = match store_or_caller {
         StoreOrCaller::Store(store) => store,
@@ -91,7 +86,7 @@ fn grow_by_pages<T>(
 ) -> Result<u64, Error> {
     memory
         .grow(store, number_of_pages)
-        .map_err(|err| Error::Term(Box::new(format!("Failed to grow the memory: {}.", err))))
+        .map_err(|err| Error::Term(Box::new(format!("Failed to grow the memory: {err}."))))
 }
 
 #[rustler::nif(name = "memory_get_byte")]
@@ -101,10 +96,10 @@ pub fn get_byte(
     index: usize,
 ) -> NifResult<u8> {
     let store_or_caller = &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
     })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?);
 
     let mut buffer = [0];
@@ -123,10 +118,10 @@ pub fn set_byte(
     value: Term,
 ) -> NifResult<Atom> {
     let store_or_caller = &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
     })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?);
     let value = value.decode()?;
     memory
@@ -157,12 +152,11 @@ pub fn read_binary(
     let store_or_caller: &StoreOrCaller =
         &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {}",
-                e
+                "Could not unlock store_or_caller resource: {e}"
             )))
         })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?);
     let mut buffer = vec![0u8; len];
 
@@ -186,12 +180,11 @@ pub fn write_binary(
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {}",
-                e
+                "Could not unlock store_or_caller resource: {e}"
             )))
         })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {}", e)))
+        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
     })?);
     memory
         .write(store_or_caller, index, binary.as_slice())
