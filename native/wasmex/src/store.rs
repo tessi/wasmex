@@ -33,7 +33,6 @@ pub struct ExPipe {
 
 #[derive(NifStruct)]
 #[module = "Wasmex.Wasi.WasiOptions"]
-#[rustler(decode)]
 pub struct ExWasiOptions {
     args: Vec<String>,
     env: HashMap<String, String>,
