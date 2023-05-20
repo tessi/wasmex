@@ -18,7 +18,14 @@ Types of changes
 
 put your changes here
 
+## Added
+
 * added support for `riscv64gc-unknown-linux-gnu`
+* added support for OTP 26
+
+## Changed
+
+* updated rustler from 0.27.0 to 0.28.0
 
 ## [0.8.2] - 2023-01-08
 

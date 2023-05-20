@@ -31,8 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         nif:
+          # see: https://github.com/erlang/otp/blob/master/erts/emulator/beam/erl_nif.h
           - "2.15" # OTP 22, OTP 23
-          - "2.16" # OTP 24, OTP 24, OTP 25
+          - "2.16" # OTP 24, OTP 25
+          - "2.17" # OTP 26
         job:
           # cranelift-codegen panics at 'error when identifying target: "no supported isa found for arch `arm`"'
           # - { target: arm-unknown-linux-gnueabihf , os: ubuntu-20.04 , use-cross: true }
