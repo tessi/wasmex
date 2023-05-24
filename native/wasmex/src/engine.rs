@@ -4,6 +4,7 @@
 #![allow(clippy::needless_borrow)]
 
 use rustler::{resource::ResourceArc, types::Binary, Error, OwnedBinary};
+use std::ops::Deref;
 use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
@@ -74,6 +75,7 @@ pub(crate) fn unwrap_engine(
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<Engine, rustler::Error> {
     let engine: Engine = engine_resource
+        .deref()
         .inner
         .lock()
         .map_err(|e| {
