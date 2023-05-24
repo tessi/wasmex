@@ -18,14 +18,17 @@ Types of changes
 
 put your changes here
 
-## Added
+## [0.8.3] - 22023-05-24
+
+### Added
 
 * added support for `riscv64gc-unknown-linux-gnu`
 * added support for OTP 26
 
-## Changed
+### Changed
 
 * updated rustler from 0.27.0 to 0.28.0
+* updated wasmtime from 4.0.1 to 9.0.1
 
 ## [0.8.2] - 2023-01-08
 
