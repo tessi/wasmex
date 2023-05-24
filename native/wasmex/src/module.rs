@@ -19,7 +19,7 @@ pub struct ModuleResource {
     pub inner: Mutex<Module>,
 }
 
-#[rustler::nif(name = "module_compile")]
+#[rustler::nif(name = "module_compile", schedule = "DirtyCpu")]
 pub fn compile(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     binary: Binary,
