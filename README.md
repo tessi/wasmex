@@ -25,7 +25,7 @@ dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:wasmex, "~> 0.8.2"}
+    {:wasmex, "~> 0.8.3"}
   ]
 end
 ```
