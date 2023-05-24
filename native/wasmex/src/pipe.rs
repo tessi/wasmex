@@ -75,15 +75,15 @@ impl WasiFile for Pipe {
         self
     }
 
-    async fn get_filetype(&mut self) -> Result<FileType, Error> {
+    async fn get_filetype(&self) -> Result<FileType, Error> {
         Ok(FileType::Unknown)
     }
 
-    async fn get_fdflags(&mut self) -> Result<FdFlags, Error> {
+    async fn get_fdflags(&self) -> Result<FdFlags, Error> {
         Ok(FdFlags::APPEND)
     }
 
-    async fn write_vectored<'a>(&mut self, bufs: &[io::IoSlice<'a>]) -> Result<u64, Error> {
+    async fn write_vectored<'a>(&self, bufs: &[io::IoSlice<'a>]) -> Result<u64, Error> {
         let buffer = &mut *(self.borrow());
         buffer
             .write_vectored(bufs)
@@ -91,7 +91,7 @@ impl WasiFile for Pipe {
             .map_err(wasi_common::Error::from)
     }
 
-    async fn read_vectored<'a>(&mut self, bufs: &mut [io::IoSliceMut<'a>]) -> Result<u64, Error> {
+    async fn read_vectored<'a>(&self, bufs: &mut [io::IoSliceMut<'a>]) -> Result<u64, Error> {
         let buffer = &mut *(self.borrow());
         buffer
             .read_vectored(bufs)
@@ -99,7 +99,7 @@ impl WasiFile for Pipe {
             .map_err(wasi_common::Error::from)
     }
 
-    fn isatty(&mut self) -> bool {
+    fn isatty(&self) -> bool {
         false
     }
 }
