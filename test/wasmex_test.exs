@@ -123,7 +123,7 @@ defmodule WasmexTest do
       store: store,
       instance: instance
     } do
-      {:ok, [pointer, length]} = Wasmex.call_function(instance, :to_string, [54321])
+      {:ok, [pointer, length]} = Wasmex.call_function(instance, :to_string, [54_321])
       {:ok, memory} = Wasmex.memory(instance)
       assert Wasmex.Memory.read_string(store, memory, pointer, length) == "54321"
     end
