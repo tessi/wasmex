@@ -119,6 +119,15 @@ defmodule WasmexTest do
       assert Wasmex.Memory.read_string(store, memory, pointer, 13) == "Hello, World!"
     end
 
+    test t(&Wasmex.call_function/3) <> " to_string(i32) -> string function", %{
+      store: store,
+      instance: instance
+    } do
+      {:ok, [pointer, length]} = Wasmex.call_function(instance, :to_string, [54321])
+      {:ok, memory} = Wasmex.memory(instance)
+      assert Wasmex.Memory.read_string(store, memory, pointer, length) == "54321"
+    end
+
     test t(&Wasmex.call_function/3) <> " string_first_byte(string_pointer) -> u8 function", %{
       store: store,
       instance: instance
@@ -312,7 +321,99 @@ defmodule WasmexTest do
       assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
 
       assert err_msg =~
-               ~r/Error during function excecution: `error while executing at wasm backtrace:\n    0:  0x\w+ - <unknown>!void`./
+               ~r/Error during function excecution: `error while executing at wasm backtrace:\n.+0:.+0x.+ - \<unknown\>\!void`\./
+    end
+  end
+
+  describe "multi-value function calls" do
+    test "calls a function with multi-value params and return" do
+      wat = """
+      (module
+        (func $call (export "call") (param i32 i64) (result i64 i32)
+          (local.get 1) (local.get 0)
+        )
+      )
+      """
+
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      pid = start_supervised!({Wasmex, %{store: store, module: module}})
+      assert Wasmex.call_function(pid, :call, [1, 2]) == {:ok, [2, 1]}
+    end
+
+    test "calling an imported function that has multi-value params and return values" do
+      wat = """
+      (module
+        (func $reorder (import "env" "reorder") (param i32 i64) (result i64 i32))
+
+        (func $call (export "call") (param i32 i64) (result i64 i32)
+          (call $reorder (local.get 0) (local.get 1))
+        )
+      )
+      """
+
+      imports = %{
+        env: %{reorder: {:fn, [:i32, :i64], [:i64, :i32], fn _context, a, b -> [b, a] end}}
+      }
+
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      pid = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
+      assert Wasmex.call_function(pid, :call, [1, 2]) == {:ok, [2, 1]}
+    end
+
+    test "calling multi-value functions with more than two values" do
+      wat = """
+      (module
+        (func $reverse
+          (export "reverse")
+          (param i64 i64 i64 i64 i64 i64 i64 i64 i64 i64)
+          (result i64 i64 i64 i64 i64 i64 i64 i64 i64 i64)
+
+          local.get 9
+          local.get 8
+          local.get 7
+          local.get 6
+          local.get 5
+          local.get 4
+          local.get 3
+          local.get 2
+          local.get 1
+          local.get 0
+        )
+      )
+      """
+
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      pid = start_supervised!({Wasmex, %{store: store, module: module}})
+
+      assert Wasmex.call_function(pid, :reverse, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) ==
+               {:ok, [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]}
+    end
+
+    test "using multi-value params to encode strings" do
+      wat = """
+      (module
+        (memory $memory 1)
+        ;; Store the Hello World (null terminated) string at byte offset 42
+        (data (i32.const 42) "Hello World!")
+
+        (export "memory" (memory $memory))
+        (func $call (export "call") (result i32 i32)
+          ;; return the byte offset (address in memory) of the string and its length as two separate values
+          (i32.const 42) (i32.const 12)
+        )
+      )
+      """
+
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      pid = start_supervised!({Wasmex, %{store: store, module: module}})
+      assert {:ok, [string_ptr, length]} = Wasmex.call_function(pid, :call, [])
+
+      {:ok, memory} = Wasmex.memory(pid)
+      assert Wasmex.Memory.read_string(store, memory, string_ptr, length) == "Hello World!"
     end
   end
 end

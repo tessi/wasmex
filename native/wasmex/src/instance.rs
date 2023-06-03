@@ -6,6 +6,7 @@ use rustler::{
     types::ListIterator,
     Encoder, Env as RustlerEnv, Error, MapIterator, NifResult, Term,
 };
+use std::ops::Deref;
 use std::sync::Mutex;
 use std::thread;
 
@@ -143,8 +144,8 @@ fn execute_function(
         Ok(vec) => vec,
         Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),
     };
-    let instance: Instance = *(instance_resource.inner.lock().unwrap());
-    let mut store_or_caller = store_or_caller_resource.inner.lock().unwrap();
+    let instance: Instance = *(instance_resource.deref().inner.lock().unwrap());
+    let mut store_or_caller = store_or_caller_resource.deref().inner.lock().unwrap();
     let function_result = functions::find(&instance, &mut store_or_caller, &function_name);
     let function = match function_result {
         Some(func) => func,

@@ -426,25 +426,28 @@ defmodule Wasmex do
         }
       )
 
-    {success, return_value} =
+    {success, results} =
       try do
-        {:fn, _params, _returns, callback} =
+        {:fn, _param_signature, result_signature, callback} =
           imports
           |> Map.get(namespace_name, %{})
           |> Map.get(import_name)
 
-        {true, apply(callback, [context | params])}
+        callback_results = apply(callback, [context | params])
+
+        results =
+          case result_signature do
+            [] -> []
+            [_] -> [callback_results]
+            [_ | _] when is_list(callback_results) -> callback_results
+          end
+
+        {true, results}
       rescue
-        e in RuntimeError -> {false, e.message}
+        e in RuntimeError -> {false, [e.message]}
       end
 
-    return_values =
-      case return_value do
-        nil -> []
-        _ -> [return_value]
-      end
-
-    :ok = Wasmex.Native.instance_receive_callback_result(token, success, return_values)
+    :ok = Wasmex.Native.instance_receive_callback_result(token, success, results)
     {:noreply, state}
   end
 end
