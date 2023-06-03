@@ -77,6 +77,7 @@ defmodule Wasmex.ModuleTest do
         "string" => {:fn, [], [:i32]},
         "string_first_byte" => {:fn, [:i32, :i32], [:i32]},
         "sum" => {:fn, [:i32, :i32], [:i32]},
+        "to_string" => {:fn, [:i32], [:i32, :i32]},
         "void" => {:fn, [], []}
       }
 

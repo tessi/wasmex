@@ -4,7 +4,7 @@ use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
     Term,
 };
-use wasmtime::{Caller, Extern, FuncType, Linker, Val, ValType};
+use wasmtime::{Caller, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use crate::{
@@ -119,10 +119,9 @@ fn link_imported_function(
                     },
                 });
 
-                let memory = match caller.get_export("memory") {
-                    Some(Extern::Memory(mem)) => mem,
-                    _ => return Err(anyhow!("failed to find host memory")),
-                };
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|memory| memory.into_memory());
 
                 let caller_token = set_caller(caller);
 
@@ -151,13 +150,15 @@ fn link_imported_function(
                     // This will allow Elixir callback to operate on these objects.
                     let callback_context = Term::map_new(env);
 
-                    let memory_resource = ResourceArc::new(MemoryResource {
-                        inner: Mutex::new(memory),
+                    let memory = memory.map(|memory| {
+                        ResourceArc::new(MemoryResource {
+                            inner: Mutex::new(memory),
+                        })
                     });
                     let callback_context = Term::map_put(
                         callback_context,
                         atoms::memory().encode(env),
-                        memory_resource.encode(env),
+                        memory.encode(env),
                     )
                     .unwrap();
 

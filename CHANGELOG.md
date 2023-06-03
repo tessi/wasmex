@@ -18,7 +18,13 @@ Types of changes
 
 put your changes here
 
-## [0.8.3] - 22023-05-24
+## [0.8.4] - 2023-06-??
+
+### Added
+
+* added support for multi-value returns from WASM and elixir callbacks. This enables passing string return values safely by pointer and length, for example.
+
+## [0.8.3] - 2023-05-24
 
 ### Added
 
