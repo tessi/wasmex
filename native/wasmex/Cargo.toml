@@ -16,7 +16,7 @@ crate-type = ["dylib"]
 
 [dependencies]
 rustler = "0.28.0"
-once_cell = "1.17.2"
+once_cell = "1.18.0"
 rand = "0.8.5"
 wasmtime = "9.0.3"
 wasmtime-wasi = "9.0.1"
