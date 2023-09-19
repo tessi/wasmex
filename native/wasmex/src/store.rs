@@ -292,17 +292,15 @@ fn wasi_preopen_directories(
     preopens: Vec<ExWasiPreopenOptions>,
     builder: WasiCtxBuilder,
 ) -> Result<WasiCtxBuilder, rustler::Error> {
-    let builder = preopens.iter().fold(Ok(builder), |builder, preopen| {
+    preopens.iter().try_fold(builder, |builder, preopen| {
         preopen_directory(builder, preopen)
-    })?;
-    Ok(builder)
+    })
 }
 
 fn preopen_directory(
-    builder: Result<WasiCtxBuilder, Error>,
+    builder: WasiCtxBuilder,
     preopen: &ExWasiPreopenOptions,
 ) -> Result<WasiCtxBuilder, Error> {
-    let builder = builder?;
     let path = &preopen.path;
     let dir = wasmtime_wasi::Dir::from_std_file(
         std::fs::File::open(path).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?,
