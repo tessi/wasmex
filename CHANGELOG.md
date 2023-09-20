@@ -20,7 +20,7 @@ put your changes here
 
 ### Changes
 
-* Dependency updates (most notably wasmtime)
+* Dependency updates (most notably wasmtime and rustler)
 
 ## [0.8.4] - 2023-06-??
 
