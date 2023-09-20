@@ -18,7 +18,15 @@ Types of changes
 
 put your changes here
 
-### Changes
+### Added
+
+* official support for Elixir 1.15 (though it did work before, but now we test on CI)
+
+### Removed
+
+* official support for Elixir 1.12
+
+### Changed
 
 * Dependency updates (most notably wasmtime and rustler)
 
