@@ -2,6 +2,8 @@ name: Rust CI
 
 on:
   pull_request:
+    paths:
+      - "native/wasmex/**"
   push:
     branches:
       - main

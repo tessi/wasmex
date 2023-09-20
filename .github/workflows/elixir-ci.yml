@@ -7,8 +7,8 @@ on:
       - main
 
 env:
-  ELIXIR_VERSION: 1.14.4
-  OTP_VERSION: 26.0
+  ELIXIR_VERSION: 1.15.6
+  OTP_VERSION: 26.1
   MIX_ENV: test
   WASMEX_BUILD: true
 

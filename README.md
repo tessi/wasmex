@@ -5,8 +5,8 @@
   <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/tessi/wasmex.svg" alt="License">
   </a>
-  <a href="https://github.com/tessi/wasmex/actions/workflows/elixir-ci.yaml">
-    <img src="https://github.com/tessi/wasmex/actions/workflows/elixir-ci.yaml/badge.svg?branch=main" alt="CI">
+  <a href="https://github.com/tessi/wasmex/actions/workflows/elixir-ci.yml">
+    <img src="https://github.com/tessi/wasmex/actions/workflows/elixir-ci.yml/badge.svg?branch=main" alt="CI">
   </a>
 </p>
 
