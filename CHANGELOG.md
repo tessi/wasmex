@@ -18,6 +18,10 @@ Types of changes
 
 put your changes here
 
+### Changes
+
+* Dependency updates (most notably wasmtime)
+
 ## [0.8.4] - 2023-06-??
 
 ### Added
