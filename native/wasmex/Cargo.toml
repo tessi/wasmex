@@ -18,7 +18,7 @@ crate-type = ["dylib"]
 rustler = { version = "0.29", default-features = false, features = ["derive", "nif_version_2_15"] }
 once_cell = "1.18.0"
 rand = "0.8.5"
-wasmtime = "12.0.2"
+wasmtime = "13.0.1"
 wasmtime-wasi = "12.0.2"
 wasi-common = "12.0.2"
 wiggle = "12.0.2"
