@@ -244,7 +244,7 @@ pub fn decode_function_param_terms(
         .enumerate()
     {
         let value = match (param, given_param.get_type()) {
-            (ValType::I32, TermType::Number) => match given_param.decode::<i32>() {
+            (ValType::I32, TermType::Integer) => match given_param.decode::<i32>() {
                 Ok(value) => WasmValue::I32(value),
                 Err(_) => {
                     return Err(format!(
@@ -253,7 +253,7 @@ pub fn decode_function_param_terms(
                     ));
                 }
             },
-            (ValType::I64, TermType::Number) => match given_param.decode::<i64>() {
+            (ValType::I64, TermType::Integer) => match given_param.decode::<i64>() {
                 Ok(value) => WasmValue::I64(value),
                 Err(_) => {
                     return Err(format!(
@@ -262,7 +262,7 @@ pub fn decode_function_param_terms(
                     ));
                 }
             },
-            (ValType::F32, TermType::Number) => match given_param.decode::<f32>() {
+            (ValType::F32, TermType::Float) => match given_param.decode::<f32>() {
                 Ok(value) => {
                     if value.is_finite() {
                         WasmValue::F32(value)
@@ -280,7 +280,7 @@ pub fn decode_function_param_terms(
                     ));
                 }
             },
-            (ValType::F64, TermType::Number) => match given_param.decode::<f64>() {
+            (ValType::F64, TermType::Float) => match given_param.decode::<f64>() {
                 Ok(value) => WasmValue::F64(value),
                 Err(_) => {
                     return Err(format!(
