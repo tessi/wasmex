@@ -88,7 +88,7 @@ defmodule Wasmex.ModuleTest do
       {:ok, store} = Wasmex.Store.new()
 
       {:ok, module} =
-        Wasmex.Module.compile(store, "(module (table (export \"myTable\") 2 anyfunc))")
+        Wasmex.Module.compile(store, "(module (table (export \"myTable\") 2 funcref))")
 
       expected = %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}
       assert expected == Wasmex.Module.exports(module)
@@ -140,7 +140,7 @@ defmodule Wasmex.ModuleTest do
       {:ok, module} =
         Wasmex.Module.compile(
           store,
-          "(module (table (import \"env\" \"myTable\") 2 anyfunc))"
+          "(module (table (import \"env\" \"myTable\") 2 funcref))"
         )
 
       expected = %{"env" => %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}}
@@ -182,7 +182,7 @@ defmodule Wasmex.ModuleTest do
         (import "env" "MyMemory" (memory (;0;) 256 256))
         (import "global" "Infinity" (global (;8;) f64))
         (import "global" "NaN" (global (;7;) f64))
-        (import "env" "MyTable" (table (;0;) 10 10 anyfunc))
+        (import "env" "MyTable" (table (;0;) 10 10 funcref))
       )
       """
 
