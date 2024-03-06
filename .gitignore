@@ -33,10 +33,6 @@ test/wasm_source/target/*
 wapm_packages/*
 wapm.lock
 
-# The PLT files for `dialyzer`
-/priv/plts/*.plt
-/priv/plts/*.plt.hash
-
 # ignore local builds
 checksum-Elixir.Wasmex.Native.exs
 *.so

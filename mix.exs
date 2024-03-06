@@ -12,10 +12,7 @@ defmodule Wasmex.MixProject do
       name: "wasmex",
       description: description(),
       package: package(),
-      deps: deps(),
-      dialyzer: [
-        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
-      ]
+      deps: deps()
     ]
   end
 
@@ -32,7 +29,6 @@ defmodule Wasmex.MixProject do
       {:rustler_precompiled, "~> 0.7.1"},
       {:rustler, "~> 0.30.0"},
       {:ex_doc, "~> 0.30.2", only: [:dev, :test]},
-      {:dialyxir, "~> 1.4.1", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
   end
