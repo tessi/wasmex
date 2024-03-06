@@ -18,17 +18,20 @@ Types of changes
 
 put your changes here
 
+* Thanks to @RoyalIcing for helping us keeping our dependencies up to date for this release 💜
+
 ### Added
 
-* official support for Elixir 1.15 (though it did work before, but now we test on CI)
+* official support for Elixir 1.15 and 1.16
 
 ### Removed
 
-* official support for Elixir 1.12
+* removed support for Elixir 1.12
 
 ### Changed
 
 * Dependency updates (most notably wasmtime and rustler)
+* removed dialyzer
 
 ## [0.8.4] - 2023-06-??
 
