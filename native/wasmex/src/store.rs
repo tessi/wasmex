@@ -171,20 +171,24 @@ pub fn new_wasi(
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect::<Vec<_>>();
 
-    let builder = WasiCtxBuilder::new()
+    let mut builder = WasiCtxBuilder::new();
+
+    builder
         .args(&options.args)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?
         .envs(wasi_env)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
 
-    let builder = add_pipe(options.stdin, builder, |pipe, builder| builder.stdin(pipe))?;
-    let builder = add_pipe(options.stdout, builder, |pipe, builder| {
-        builder.stdout(pipe)
+    add_pipe(options.stdin, &mut builder, |pipe, builder| {
+        builder.stdin(pipe);
     })?;
-    let builder = add_pipe(options.stderr, builder, |pipe, builder| {
-        builder.stderr(pipe)
+    add_pipe(options.stdout, &mut builder, |pipe, builder| {
+        builder.stdout(pipe);
     })?;
-    let builder = wasi_preopen_directories(options.preopen, builder)?;
+    add_pipe(options.stderr, &mut builder, |pipe, builder| {
+        builder.stderr(pipe);
+    })?;
+    wasi_preopen_directories(options.preopen, &mut builder)?;
     let wasi_ctx = builder.build();
 
     let engine = unwrap_engine(engine_resource)?;
@@ -273,9 +277,9 @@ pub fn consume_fuel(
 
 fn add_pipe(
     pipe: Option<ExPipe>,
-    builder: WasiCtxBuilder,
-    f: fn(Box<Pipe>, WasiCtxBuilder) -> WasiCtxBuilder,
-) -> Result<WasiCtxBuilder, rustler::Error> {
+    builder: &mut WasiCtxBuilder,
+    f: fn(Box<Pipe>, &mut WasiCtxBuilder) -> (),
+) -> Result<(), rustler::Error> {
     if let Some(ExPipe { resource }) = pipe {
         let pipe = resource.pipe.lock().map_err(|_e| {
             rustler::Error::Term(Box::new(
@@ -283,31 +287,31 @@ fn add_pipe(
             ))
         })?;
         let pipe = Box::new(pipe.clone());
-        return Ok(f(pipe, builder));
+        f(pipe, builder);
     }
-    Ok(builder)
+    Ok(())
 }
 
 fn wasi_preopen_directories(
     preopens: Vec<ExWasiPreopenOptions>,
-    builder: WasiCtxBuilder,
-) -> Result<WasiCtxBuilder, rustler::Error> {
-    preopens.iter().try_fold(builder, |builder, preopen| {
-        preopen_directory(builder, preopen)
-    })
+    builder: &mut WasiCtxBuilder,
+) -> Result<(), rustler::Error> {
+    preopens
+        .iter()
+        .try_fold((), |_acc, preopen| preopen_directory(builder, preopen))
 }
 
 fn preopen_directory(
-    builder: WasiCtxBuilder,
+    builder: &mut WasiCtxBuilder,
     preopen: &ExWasiPreopenOptions,
-) -> Result<WasiCtxBuilder, Error> {
+) -> Result<(), Error> {
     let path = &preopen.path;
     let dir = wasmtime_wasi::Dir::from_std_file(
         std::fs::File::open(path).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?,
     );
     let guest_path = preopen.alias.as_ref().unwrap_or(path);
-    let builder = builder
+    builder
         .preopened_dir(dir, guest_path)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-    Ok(builder)
+    Ok(())
 }
