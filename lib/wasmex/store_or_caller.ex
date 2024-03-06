@@ -32,7 +32,7 @@ defmodule Wasmex.StoreOrCaller do
   end
 
   @doc ~S"""
-  Adds fuel to this Store for Wasm to consume while executing.
+  Sets fuel to for Wasm to consume while executing.
 
   For this method to work, fuel consumption must be enabled via
   `Wasmex.EngineConfig.consume_fuel/2. By default a `Wasmex.Store`
@@ -58,52 +58,14 @@ defmodule Wasmex.StoreOrCaller do
 
       iex> {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
       iex> {:ok, store} = Wasmex.Store.new(nil, engine)
-      iex> Wasmex.StoreOrCaller.add_fuel(store, 10)
+      iex> Wasmex.StoreOrCaller.set_fuel(store, 10)
       :ok
   """
-  @spec add_fuel(__MODULE__.t(), pos_integer()) :: :ok | {:error, binary()}
-  def add_fuel(%__MODULE__{resource: resource}, fuel) do
-    case Wasmex.Native.store_or_caller_add_fuel(resource, fuel) do
+  @spec set_fuel(__MODULE__.t(), pos_integer()) :: :ok | {:error, binary()}
+  def set_fuel(%__MODULE__{resource: resource}, fuel) do
+    case Wasmex.Native.store_or_caller_set_fuel(resource, fuel) do
       {} -> :ok
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  @doc ~S"""
-  Synthetically consumes fuel from this Store.
-
-  For this method to work fuel, consumption must be enabled via
-  `Wasmex.EngineConfig.consume_fuel/2`.
-
-  WebAssembly execution will automatically consume fuel but if so desired
-  the embedder can also consume fuel manually to account for relative
-  costs of host functions, for example.
-
-  This function will attempt to consume `fuel` units of fuel from within
-  this store. If the remaining amount of fuel allows this then `{:ok, N}`
-  is returned where `N` is the amount of remaining fuel. Otherwise an
-  error is returned and no fuel is consumed.
-
-  ## Errors
-
-  This function will return an error either if fuel consumption is not
-  enabled via `Wasmex.EngineConfig.consume_fuel/2` or if `fuel` exceeds
-  the amount of remaining fuel within this store.
-
-  ## Examples
-
-      iex> {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
-      iex> {:ok, store} = Wasmex.Store.new(nil, engine)
-      iex> Wasmex.StoreOrCaller.add_fuel(store, 10)
-      iex> Wasmex.StoreOrCaller.fuel_remaining(store)
-      {:ok, 10}
-  """
-  @spec consume_fuel(__MODULE__.t(), pos_integer() | 0) ::
-          {:ok, pos_integer()} | {:error, binary()}
-  def consume_fuel(%__MODULE__{resource: resource}, fuel) do
-    case Wasmex.Native.store_or_caller_consume_fuel(resource, fuel) do
-      {:error, reason} -> {:error, reason}
-      fuel_remaining -> {:ok, fuel_remaining}
     end
   end
 
@@ -114,44 +76,15 @@ defmodule Wasmex.StoreOrCaller do
 
       iex> {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
       iex> {:ok, store} = Wasmex.Store.new(nil, engine)
-      iex> Wasmex.StoreOrCaller.add_fuel(store, 10)
-      iex> Wasmex.StoreOrCaller.fuel_remaining(store)
+      iex> Wasmex.StoreOrCaller.set_fuel(store, 10)
+      iex> Wasmex.StoreOrCaller.get_fuel(store)
       {:ok, 10}
   """
-  @spec fuel_remaining(__MODULE__.t()) :: {:ok, pos_integer()} | {:error, binary()}
-  def fuel_remaining(%__MODULE__{} = store_or_caller) do
-    consume_fuel(store_or_caller, 0)
-  end
-
-  @doc ~S"""
-  Returns the amount of fuel consumed by this store's execution so far.
-
-  Note that fuel, if enabled, must be initially added via
-  `Wasmex.StoreOrCaller.add_fuel/2`.
-
-  ## Errors
-
-  If fuel consumption is not enabled via
-  `Wasmex.EngineConfig.consume_fuel/2` then this function will return
-  an error tuple.
-
-  ## Examples
-
-      iex> {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
-      iex> {:ok, store} = Wasmex.Store.new(nil, engine)
-      iex> Wasmex.StoreOrCaller.fuel_consumed(store)
-      {:ok, 0}
-      iex> Wasmex.StoreOrCaller.add_fuel(store, 10)
-      iex> {:ok, _fuel} = Wasmex.StoreOrCaller.consume_fuel(store, 8)
-      iex> Wasmex.StoreOrCaller.fuel_consumed(store)
-      {:ok, 8}
-  """
-  @spec fuel_consumed(__MODULE__.t()) :: {:ok, pos_integer()} | {:error, binary()}
-  def fuel_consumed(%__MODULE__{resource: resource}) do
-    case Wasmex.Native.store_or_caller_fuel_consumed(resource) do
+  @spec get_fuel(__MODULE__.t()) :: {:ok, pos_integer()} | {:error, binary()}
+  def get_fuel(%__MODULE__{resource: resource}) do
+    case Wasmex.Native.store_or_caller_get_fuel(resource) do
       {:error, reason} -> {:error, reason}
-      nil -> {:error, "Could not consume fuel: fuel is not configured in this store"}
-      fuel_consumed -> {:ok, fuel_consumed}
+      get_fuel -> {:ok, get_fuel}
     end
   end
 end

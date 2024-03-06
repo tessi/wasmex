@@ -36,7 +36,7 @@ defmodule Wasmex.EngineConfig do
 
   Note that a `Wasmex.Store` starts with no fuel, so if you enable this option
   you'll have to be sure to pour some fuel into `Wasmex.Store` before
-  executing some code. See `Wasmex.StoreOrCaller.add_fuel/2`.
+  executing some code. See `Wasmex.StoreOrCaller.set_fuel/2`.
 
   ## Example
 

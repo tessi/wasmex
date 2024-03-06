@@ -313,10 +313,10 @@ defmodule WasmexTest do
       {:ok, store} = Wasmex.Store.new(nil, engine)
       bytes = File.read!(TestHelper.wasm_test_file_path())
       pid = start_supervised!({Wasmex, %{store: store, bytes: bytes}})
-      Wasmex.StoreOrCaller.add_fuel(store, 2)
+      Wasmex.StoreOrCaller.set_fuel(store, 2)
 
       assert Wasmex.call_function(pid, :void, []) == {:ok, []}
-      assert Wasmex.StoreOrCaller.fuel_remaining(store) == {:ok, 1}
+      assert Wasmex.StoreOrCaller.get_fuel(store) == {:ok, 1}
 
       assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
 
