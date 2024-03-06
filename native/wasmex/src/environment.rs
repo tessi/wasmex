@@ -47,7 +47,7 @@ fn link_import(
     let import_tuple = tuple::get_tuple(definition)?;
 
     let import_type = import_tuple
-        .get(0)
+        .first()
         .ok_or(Error::Atom("missing_import_type"))?;
     let import_type =
         Atom::from_term(*import_type).map_err(|_| Error::Atom("import type must be an atom"))?;
@@ -126,7 +126,7 @@ fn link_imported_function(
                 let caller_token = set_caller(caller);
 
                 let mut msg_env = OwnedEnv::new();
-                msg_env.send_and_clear(&pid.clone(), |env| {
+                let result = msg_env.send_and_clear(&pid.clone(), |env| {
                     let mut callback_params: Vec<Term> = Vec::with_capacity(params.len());
                     for value in params {
                         callback_params.push(match value {
@@ -182,6 +182,8 @@ fn link_imported_function(
                     )
                         .encode(env)
                 });
+
+                result.expect("expect no send error");
 
                 // Wait for the thread to start up - `receive_callback_result` is responsible for that.
                 let mut result = callback_token.token.return_values.lock().unwrap();
