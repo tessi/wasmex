@@ -211,28 +211,8 @@ pub fn new_wasi(
     Ok(resource)
 }
 
-#[rustler::nif(name = "store_or_caller_fuel_consumed")]
-pub fn fuel_consumed(
-    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
-) -> Result<Option<u64>, rustler::Error> {
-    let store_or_caller: &StoreOrCaller =
-        &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-        })?);
-    match store_or_caller {
-        StoreOrCaller::Store(store) => Ok(store.fuel_consumed()),
-        StoreOrCaller::Caller(token) => get_caller(token)
-            .ok_or_else(|| {
-                rustler::Error::Term(Box::new(
-                    "Caller is not valid. Only use a caller within its own function scope.",
-                ))
-            })
-            .map(|c| c.fuel_consumed()),
-    }
-}
-
-#[rustler::nif(name = "store_or_caller_add_fuel")]
-pub fn add_fuel(
+#[rustler::nif(name = "store_or_caller_set_fuel")]
+pub fn set_fuel(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     fuel: u64,
 ) -> Result<(), rustler::Error> {
@@ -241,38 +221,37 @@ pub fn add_fuel(
             rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     match store_or_caller {
-        StoreOrCaller::Store(store) => store.add_fuel(fuel),
+        StoreOrCaller::Store(store) => store.set_fuel(fuel),
         StoreOrCaller::Caller(token) => get_caller_mut(token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",
                 ))
             })
-            .map(|c| c.add_fuel(fuel))?,
+            .map(|c| c.set_fuel(fuel))?,
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not add fuel to store: {e}"))))
+    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not set fuel: {e}"))))
 }
 
-#[rustler::nif(name = "store_or_caller_consume_fuel")]
-pub fn consume_fuel(
+#[rustler::nif(name = "store_or_caller_get_fuel")]
+pub fn get_fuel(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
-    fuel: u64,
 ) -> Result<u64, rustler::Error> {
     let store_or_caller: &mut StoreOrCaller =
         &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     match store_or_caller {
-        StoreOrCaller::Store(store) => store.consume_fuel(fuel),
+        StoreOrCaller::Store(store) => store.get_fuel(),
         StoreOrCaller::Caller(token) => get_caller_mut(token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",
                 ))
             })
-            .map(|c| c.consume_fuel(fuel))?,
+            .map(|c| c.get_fuel())?,
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not consume fuel: {e}"))))
+    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not get fuel: {e}"))))
 }
 
 fn add_pipe(

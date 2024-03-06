@@ -14,19 +14,24 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## unreleased
+## [0.9.0 - unreleased]
 
-put your changes here
+Wasmtime rewrote their fuel-related API and simplified it. To remain consistent with Wasmtime, we follow this change in this release. A Wasmex `Store` now only implements `set_fuel/2` and `get_fuel/1`. All other methods are removed with this release.
+
+The underlying implementation of the fuel system got rewritten as well. If you are using fuel in your app,
+please check your fuel consumption values.
 
 * Thanks to @RoyalIcing for helping us keeping our dependencies up to date for this release 💜
 
 ### Added
 
 * official support for Elixir 1.15 and 1.16
+* fuel-related API got rewritten, because the underlying Wasm library (wasmtime) changed their API and we want to be consistent. Added `Store.get_fuel/1` and `Store.set_fuel/2` which is a much simpler API than before.
 
 ### Removed
 
 * removed support for Elixir 1.12
+* with the fuel-related API changed, the existing methods on `Store` (`consume_fuel`, `fuel_remaining`, `add_fuel`) were removed. Please call `set_fuel/2` and `get_fuel/1` instead.
 
 ### Changed
 
