@@ -27,7 +27,7 @@ defmodule Wasmex.MixProject do
   defp deps do
     [
       {:rustler_precompiled, "~> 0.7.1"},
-      {:rustler, "~> 0.30.0"},
+      {:rustler, "~> 0.31.0"},
       {:ex_doc, "~> 0.30.2", only: [:dev, :test]},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
