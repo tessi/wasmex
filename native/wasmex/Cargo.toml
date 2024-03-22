@@ -15,7 +15,7 @@ path = "src/lib.rs"
 crate-type = ["dylib"]
 
 [dependencies]
-rustler = { version = "0.31", default-features = false, features = [
+rustler = { version = "0.32", default-features = false, features = [
     "derive",
     "nif_version_2_15",
 ] }
