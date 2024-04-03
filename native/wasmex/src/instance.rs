@@ -362,65 +362,23 @@ pub fn decode_function_param_terms(
         .zip(function_param_terms.into_iter())
         .enumerate()
     {
-        let value = match (param, given_param.get_type()) {
-            (ValType::I32, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<i32>() {
-                    Ok(value) => WasmValue::I32(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly i32 value.",
-                            nth + 1
-                        ));
-                    }
-                }
+        let value = match (
+            decode_term_as_wasm_value(param.clone(), given_param),
+            given_param.get_type(),
+        ) {
+            (Some(value), _) => value,
+            (_, TermType::Integer | TermType::Float) => {
+                return Err(format!(
+                    "Cannot convert argument #{} to a WebAssembly {} value.",
+                    nth + 1,
+                    format!("{:?}", param).to_lowercase()
+                ))
             }
-            (ValType::I64, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<i64>() {
-                    Ok(value) => WasmValue::I64(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly i64 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (ValType::F32, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<f32>() {
-                    Ok(value) => {
-                        if value.is_finite() {
-                            WasmValue::F32(value)
-                        } else {
-                            return Err(format!(
-                                "Cannot convert argument #{} to a WebAssembly f32 value.",
-                                nth + 1
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f32 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (ValType::F64, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<f64>() {
-                    Ok(value) => WasmValue::F64(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f64 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (val_type, term_type) => {
+            (_, term_type) => {
                 return Err(format!(
                     "Cannot convert argument #{} to a WebAssembly {:?} value. Given `{:?}`.",
                     nth + 1,
-                    val_type,
+                    param,
                     PrintableTermType::PrintTerm(term_type)
                 ));
             }
