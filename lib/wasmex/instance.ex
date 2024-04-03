@@ -187,6 +187,10 @@ defmodule Wasmex.Instance do
       instance_resource,
       global_name
     )
+    |> case do
+      {:error, _reason} = term -> term
+      result when is_number(result) -> {:ok, result}
+    end
   end
 
   @doc ~S"""
