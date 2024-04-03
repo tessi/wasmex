@@ -74,8 +74,8 @@ fn link_and_create_instance(
         .map_err(|err| Error::Term(Box::new(err.to_string())))
 }
 
-#[rustler::nif(name = "instance_read_global", schedule = "DirtyCpu")]
-pub fn read_global(
+#[rustler::nif(name = "instance_get_global_value", schedule = "DirtyCpu")]
+pub fn get_global_value(
     env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
@@ -119,8 +119,8 @@ pub fn read_global(
     }
 }
 
-#[rustler::nif(name = "instance_write_global", schedule = "DirtyCpu")]
-pub fn write_global(
+#[rustler::nif(name = "instance_set_global_value", schedule = "DirtyCpu")]
+pub fn set_global_value(
     env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,

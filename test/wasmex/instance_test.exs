@@ -205,29 +205,29 @@ defmodule Wasmex.InstanceTest do
       %{instance: instance, store: store}
     end
 
-    test "getting a global value", context do
+    test t(&Wasmex.Instance.get_global_value/3), context do
       store = context[:store]
       instance = context[:instance]
 
       assert {:error, "exported global `unknown_global` not found"} =
-               Wasmex.Instance.read_global(store, instance, "unknown_global")
+               Wasmex.Instance.get_global_value(store, instance, "unknown_global")
 
-      assert 42 = Wasmex.Instance.read_global(store, instance, "meaning_of_life")
-      assert 0 = Wasmex.Instance.read_global(store, instance, "count")
+      assert 42 = Wasmex.Instance.get_global_value(store, instance, "meaning_of_life")
+      assert 0 = Wasmex.Instance.get_global_value(store, instance, "count")
     end
 
-    test "setting a global value", context do
+    test t(&Wasmex.Instance.set_global_value/4), context do
       store = context[:store]
       instance = context[:instance]
 
       assert {:error, "exported global `unknown_global` not found"} =
-               Wasmex.Instance.write_global(store, instance, "unknown_global", 0)
+               Wasmex.Instance.set_global_value(store, instance, "unknown_global", 0)
 
       assert {:error, "Could not set global: immutable global cannot be set"} =
-               Wasmex.Instance.write_global(store, instance, "meaning_of_life", 0)
+               Wasmex.Instance.set_global_value(store, instance, "meaning_of_life", 0)
 
-      assert :ok = Wasmex.Instance.write_global(store, instance, "count", 99)
-      assert 99 = Wasmex.Instance.read_global(store, instance, "count")
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count", 99)
+      assert 99 = Wasmex.Instance.get_global_value(store, instance, "count")
     end
   end
 end

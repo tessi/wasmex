@@ -52,10 +52,10 @@ defmodule Wasmex.Native do
       ),
       do: error()
 
-  def instance_read_global(_store_or_caller_resource, _instance_resource, _global_name),
+  def instance_get_global_value(_store_or_caller_resource, _instance_resource, _global_name),
     do: error()
 
-  def instance_write_global(
+  def instance_set_global_value(
         _store_or_caller_resource,
         _instance_resource,
         _global_name,

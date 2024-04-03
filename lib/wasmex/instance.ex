@@ -176,13 +176,13 @@ defmodule Wasmex.Instance do
   @doc ~S"""
   Reads the value of an exported global.
   """
-  @spec read_global(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
+  @spec get_global_value(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
           {:ok, number()} | {:error, binary()}
-  def read_global(store_or_caller, instance, global_name) do
+  def get_global_value(store_or_caller, instance, global_name) do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
 
-    Wasmex.Native.instance_read_global(
+    Wasmex.Native.instance_get_global_value(
       store_or_caller_resource,
       instance_resource,
       global_name
@@ -192,13 +192,13 @@ defmodule Wasmex.Instance do
   @doc ~S"""
   Sets the value of an exported mutable global.
   """
-  @spec write_global(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary(), number()) ::
+  @spec set_global_value(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary(), number()) ::
           {:ok, number()} | {:error, binary()}
-  def write_global(store_or_caller, instance, global_name, new_value) do
+  def set_global_value(store_or_caller, instance, global_name, new_value) do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
 
-    Wasmex.Native.instance_write_global(
+    Wasmex.Native.instance_set_global_value(
       store_or_caller_resource,
       instance_resource,
       global_name,
