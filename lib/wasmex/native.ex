@@ -52,6 +52,9 @@ defmodule Wasmex.Native do
       ),
       do: error()
 
+  def instance_read_global(_store_or_caller_resource, _instance_resource, _global_name),
+    do: error()
+
   def memory_from_instance(_store_resource, _memory_resource), do: error()
   def memory_size(_store_resource, _memory_resource), do: error()
   def memory_grow(_store_resource, _memory_resource, _pages), do: error()

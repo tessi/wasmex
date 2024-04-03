@@ -74,6 +74,51 @@ fn link_and_create_instance(
         .map_err(|err| Error::Term(Box::new(err.to_string())))
 }
 
+#[rustler::nif(name = "instance_read_global", schedule = "DirtyCpu")]
+pub fn read_global(
+    env: rustler::Env,
+    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    instance_resource: ResourceArc<InstanceResource>,
+    global_name: String,
+) -> NifResult<Term> {
+    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock instance resource as the mutex was poisoned: {e}"
+        )))
+    })?);
+    let mut store_or_caller: &mut StoreOrCaller =
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
+            )))
+        })?);
+
+    let global_val = instance
+        .get_global(&mut store_or_caller, &global_name)
+        .map(|g| g.get(&mut store_or_caller));
+
+    let value = global_val.ok_or_else(|| {
+        rustler::Error::Term(Box::new(format!(
+            "exported global `{global_name}` not found"
+        )))
+    })?;
+
+    match value {
+        Val::I32(i) => Ok(i.encode(env)),
+        Val::I64(i) => Ok(i.encode(env)),
+        Val::F32(i) => Ok(f32::from_bits(i).encode(env)),
+        Val::F64(i) => Ok(f64::from_bits(i).encode(env)),
+        // encoding V128 is not yet supported by rustler
+        Val::V128(_) => Err(rustler::Error::Term(Box::new("unable_to_return_v128_type"))),
+        Val::FuncRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_func_ref_type",
+        ))),
+        Val::ExternRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_extern_ref_type",
+        ))),
+    }
+}
+
 #[rustler::nif(name = "instance_function_export_exists")]
 pub fn function_export_exists(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,

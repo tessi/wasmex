@@ -195,4 +195,20 @@ defmodule Wasmex.InstanceTest do
       {:ok, %Wasmex.Memory{resource: _}} = Wasmex.Instance.memory(store, instance)
     end
   end
+
+  describe "globals" do
+    test "can read global" do
+      bytes = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wasm")
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, bytes)
+      {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+
+      assert {:error, "exported global `unknown_global` not found"} =
+               Wasmex.Instance.read_global(store, instance, "unknown_global")
+
+      assert 42 = Wasmex.Instance.read_global(store, instance, "meaning_of_life")
+
+      assert 0 = Wasmex.Instance.read_global(store, instance, "count")
+    end
+  end
 end

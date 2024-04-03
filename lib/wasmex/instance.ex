@@ -172,6 +172,22 @@ defmodule Wasmex.Instance do
   def memory(store, instance) do
     Wasmex.Memory.from_instance(store, instance)
   end
+
+  @doc ~S"""
+  Reads a global.
+  """
+  @spec read_global(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
+          {:ok, number()} | {:error, binary()}
+  def read_global(store_or_caller, instance, global_name) do
+    %{resource: store_or_caller_resource} = store_or_caller
+    %__MODULE__{resource: instance_resource} = instance
+
+    Wasmex.Native.instance_read_global(
+      store_or_caller_resource,
+      instance_resource,
+      global_name
+    )
+  end
 end
 
 defimpl Inspect, for: Wasmex.Instance do
