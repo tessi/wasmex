@@ -121,7 +121,6 @@ pub fn get_global_value(
 
 #[rustler::nif(name = "instance_set_global_value", schedule = "DirtyCpu")]
 pub fn set_global_value(
-    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     global_name: String,
@@ -149,9 +148,8 @@ pub fn set_global_value(
 
     let global_type = global.ty(&store_or_caller).content().clone();
 
-    let new_value = decode_term_as_wasm_value(global_type, new_value).ok_or_else(|| {
-        rustler::Error::Term(Box::new(format!("Cannot convert to a WebAssembly value.")))
-    })?;
+    let new_value = decode_term_as_wasm_value(global_type, new_value)
+        .ok_or_else(|| rustler::Error::Term(Box::new("Cannot convert to a WebAssembly value.")))?;
 
     let val: Val = match new_value {
         WasmValue::I32(value) => value.into(),
