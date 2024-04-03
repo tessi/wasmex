@@ -174,7 +174,7 @@ defmodule Wasmex.Instance do
   end
 
   @doc ~S"""
-  Reads a global.
+  Reads the value of an exported global.
   """
   @spec read_global(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
           {:ok, number()} | {:error, binary()}
@@ -187,6 +187,27 @@ defmodule Wasmex.Instance do
       instance_resource,
       global_name
     )
+  end
+
+  @doc ~S"""
+  Sets the value of an exported mutable global.
+  """
+  @spec write_global(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary(), number()) ::
+          {:ok, number()} | {:error, binary()}
+  def write_global(store_or_caller, instance, global_name, new_value) do
+    %{resource: store_or_caller_resource} = store_or_caller
+    %__MODULE__{resource: instance_resource} = instance
+
+    Wasmex.Native.instance_write_global(
+      store_or_caller_resource,
+      instance_resource,
+      global_name,
+      new_value
+    )
+    |> case do
+      {} -> :ok
+      {:error, _reason} = term -> term
+    end
   end
 end
 

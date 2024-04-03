@@ -21,6 +21,7 @@ rustler::init! {
         engine::new,
         engine::precompile_module,
         instance::read_global,
+        instance::write_global,
         instance::call_exported_function,
         instance::function_export_exists,
         instance::new,

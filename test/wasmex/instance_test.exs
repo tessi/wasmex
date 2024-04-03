@@ -197,18 +197,37 @@ defmodule Wasmex.InstanceTest do
   end
 
   describe "globals" do
-    test "can read global" do
-      bytes = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wasm")
+    setup do
+      source = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wat")
       {:ok, store} = Wasmex.Store.new()
-      {:ok, module} = Wasmex.Module.compile(store, bytes)
+      {:ok, module} = Wasmex.Module.compile(store, source)
       {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      %{instance: instance, store: store}
+    end
+
+    test "getting a global value", context do
+      store = context[:store]
+      instance = context[:instance]
 
       assert {:error, "exported global `unknown_global` not found"} =
                Wasmex.Instance.read_global(store, instance, "unknown_global")
 
       assert 42 = Wasmex.Instance.read_global(store, instance, "meaning_of_life")
-
       assert 0 = Wasmex.Instance.read_global(store, instance, "count")
+    end
+
+    test "setting a global value", context do
+      store = context[:store]
+      instance = context[:instance]
+
+      assert {:error, "exported global `unknown_global` not found"} =
+               Wasmex.Instance.write_global(store, instance, "unknown_global", 0)
+
+      assert {:error, "Could not set global: immutable global cannot be set"} =
+               Wasmex.Instance.write_global(store, instance, "meaning_of_life", 0)
+
+      assert :ok = Wasmex.Instance.write_global(store, instance, "count", 99)
+      assert 99 = Wasmex.Instance.read_global(store, instance, "count")
     end
   end
 end
