@@ -93,15 +93,15 @@ pub fn get_global_value(
             )))
         })?);
 
-    let global_val = instance
+    let global = instance
         .get_global(&mut store_or_caller, &global_name)
-        .map(|g| g.get(&mut store_or_caller));
+        .ok_or_else(|| {
+            rustler::Error::Term(Box::new(format!(
+                "exported global `{global_name}` not found"
+            )))
+        })?;
 
-    let value = global_val.ok_or_else(|| {
-        rustler::Error::Term(Box::new(format!(
-            "exported global `{global_name}` not found"
-        )))
-    })?;
+    let value = global.get(&mut store_or_caller);
 
     match value {
         Val::I32(i) => Ok(i.encode(env)),
