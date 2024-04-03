@@ -148,8 +148,13 @@ pub fn set_global_value(
 
     let global_type = global.ty(&store_or_caller).content().clone();
 
-    let new_value = decode_term_as_wasm_value(global_type, new_value)
-        .ok_or_else(|| rustler::Error::Term(Box::new("Cannot convert to a WebAssembly value.")))?;
+    let new_value = decode_term_as_wasm_value(global_type.clone(), new_value).ok_or_else(|| {
+        rustler::Error::Term(Box::new(format!(
+            "Cannot convert to a WebAssembly {:?} value. Given `{:?}`.",
+            global_type,
+            PrintableTermType::PrintTerm(new_value.get_type())
+        )))
+    })?;
 
     let val: Val = match new_value {
         WasmValue::I32(value) => value.into(),

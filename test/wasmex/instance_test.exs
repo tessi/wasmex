@@ -227,6 +227,9 @@ defmodule Wasmex.InstanceTest do
       assert {:error, "Could not set global: immutable global cannot be set"} =
                Wasmex.Instance.set_global_value(store, instance, "meaning_of_life", 0)
 
+      assert {:error, "Cannot convert to a WebAssembly I32 value. Given `Atom`."} =
+               Wasmex.Instance.set_global_value(store, instance, "count_32", :abc)
+
       assert :ok = Wasmex.Instance.set_global_value(store, instance, "count_32", 99)
       assert {:ok, 99} = Wasmex.Instance.get_global_value(store, instance, "count_32")
 
