@@ -213,7 +213,8 @@ defmodule Wasmex.InstanceTest do
                Wasmex.Instance.get_global_value(store, instance, "unknown_global")
 
       assert 42 = Wasmex.Instance.get_global_value(store, instance, "meaning_of_life")
-      assert 0 = Wasmex.Instance.get_global_value(store, instance, "count")
+      assert -32 = Wasmex.Instance.get_global_value(store, instance, "count_32")
+      assert -64 = Wasmex.Instance.get_global_value(store, instance, "count_64")
     end
 
     test t(&Wasmex.Instance.set_global_value/4), context do
@@ -226,8 +227,17 @@ defmodule Wasmex.InstanceTest do
       assert {:error, "Could not set global: immutable global cannot be set"} =
                Wasmex.Instance.set_global_value(store, instance, "meaning_of_life", 0)
 
-      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count", 99)
-      assert 99 = Wasmex.Instance.get_global_value(store, instance, "count")
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count_32", 99)
+      assert 99 = Wasmex.Instance.get_global_value(store, instance, "count_32")
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count_64", 17)
+      assert 17 = Wasmex.Instance.get_global_value(store, instance, "count_64")
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "bad_pi_32", 3.14)
+      assert_in_delta 3.14, Wasmex.Instance.get_global_value(store, instance, "bad_pi_32"), 0.01
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "bad_pi_64", 3.14)
+      assert_in_delta 3.14, Wasmex.Instance.get_global_value(store, instance, "bad_pi_64"), 0.01
     end
   end
 end
