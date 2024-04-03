@@ -198,9 +198,9 @@ defmodule Wasmex.InstanceTest do
 
   describe "globals" do
     setup do
-      source = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wat")
+      wat = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wat")
       {:ok, store} = Wasmex.Store.new()
-      {:ok, module} = Wasmex.Module.compile(store, source)
+      {:ok, module} = Wasmex.Module.compile(store, wat)
       {:ok, instance} = Wasmex.Instance.new(store, module, %{})
       %{instance: instance, store: store}
     end
