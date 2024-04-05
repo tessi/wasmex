@@ -215,6 +215,12 @@ defmodule Wasmex.InstanceTest do
       assert {:ok, 42} = Wasmex.Instance.get_global_value(store, instance, "meaning_of_life")
       assert {:ok, -32} = Wasmex.Instance.get_global_value(store, instance, "count_32")
       assert {:ok, -64} = Wasmex.Instance.get_global_value(store, instance, "count_64")
+
+      assert {:error, "unable_to_return_extern_ref_type"} =
+               Wasmex.Instance.get_global_value(store, instance, "externref")
+
+      assert {:error, "unable_to_return_func_ref_type"} =
+               Wasmex.Instance.get_global_value(store, instance, "funcref")
     end
 
     test t(&Wasmex.Instance.set_global_value/4), context do
