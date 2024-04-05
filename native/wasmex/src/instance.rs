@@ -74,6 +74,100 @@ fn link_and_create_instance(
         .map_err(|err| Error::Term(Box::new(err.to_string())))
 }
 
+#[rustler::nif(name = "instance_get_global_value", schedule = "DirtyCpu")]
+pub fn get_global_value(
+    env: rustler::Env,
+    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    instance_resource: ResourceArc<InstanceResource>,
+    global_name: String,
+) -> NifResult<Term> {
+    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock instance resource as the mutex was poisoned: {e}"
+        )))
+    })?);
+    let mut store_or_caller: &mut StoreOrCaller =
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
+            )))
+        })?);
+
+    let global = instance
+        .get_global(&mut store_or_caller, &global_name)
+        .ok_or_else(|| {
+            rustler::Error::Term(Box::new(format!(
+                "exported global `{global_name}` not found"
+            )))
+        })?;
+
+    let value = global.get(&mut store_or_caller);
+
+    match value {
+        Val::I32(i) => Ok(i.encode(env)),
+        Val::I64(i) => Ok(i.encode(env)),
+        Val::F32(i) => Ok(f32::from_bits(i).encode(env)),
+        Val::F64(i) => Ok(f64::from_bits(i).encode(env)),
+        // encoding V128 is not yet supported by rustler
+        Val::V128(_) => Err(rustler::Error::Term(Box::new("unable_to_return_v128_type"))),
+        Val::FuncRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_func_ref_type",
+        ))),
+        Val::ExternRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_extern_ref_type",
+        ))),
+    }
+}
+
+#[rustler::nif(name = "instance_set_global_value", schedule = "DirtyCpu")]
+pub fn set_global_value(
+    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    instance_resource: ResourceArc<InstanceResource>,
+    global_name: String,
+    new_value: Term,
+) -> NifResult<()> {
+    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock instance resource as the mutex was poisoned: {e}"
+        )))
+    })?);
+    let mut store_or_caller: &mut StoreOrCaller =
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
+            )))
+        })?);
+
+    let global = instance
+        .get_global(&mut store_or_caller, &global_name)
+        .ok_or_else(|| {
+            rustler::Error::Term(Box::new(format!(
+                "exported global `{global_name}` not found"
+            )))
+        })?;
+
+    let global_type = global.ty(&store_or_caller).content().clone();
+
+    let new_value = decode_term_as_wasm_value(global_type.clone(), new_value).ok_or_else(|| {
+        rustler::Error::Term(Box::new(format!(
+            "Cannot convert to a WebAssembly {:?} value. Given `{:?}`.",
+            global_type,
+            PrintableTermType::PrintTerm(new_value.get_type())
+        )))
+    })?;
+
+    let val: Val = match new_value {
+        WasmValue::I32(value) => value.into(),
+        WasmValue::I64(value) => value.into(),
+        WasmValue::F32(value) => value.into(),
+        WasmValue::F64(value) => value.into(),
+    };
+
+    global
+        .set(&mut store_or_caller, val)
+        .map_err(|e| rustler::Error::Term(Box::new(format!("Could not set global: {e}"))))
+}
+
 #[rustler::nif(name = "instance_function_export_exists")]
 pub fn function_export_exists(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
@@ -225,6 +319,36 @@ pub enum WasmValue {
     F64(f64),
 }
 
+fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmValue> {
+    let value = match (expected_type, term.get_type()) {
+        (ValType::I32, TermType::Integer | TermType::Float) => match term.decode::<i32>() {
+            Ok(value) => WasmValue::I32(value),
+            Err(_) => return None,
+        },
+        (ValType::I64, TermType::Integer | TermType::Float) => match term.decode::<i64>() {
+            Ok(value) => WasmValue::I64(value),
+            Err(_) => return None,
+        },
+        (ValType::F32, TermType::Integer | TermType::Float) => match term.decode::<f32>() {
+            Ok(value) => {
+                if value.is_finite() {
+                    WasmValue::F32(value)
+                } else {
+                    return None;
+                }
+            }
+            Err(_) => return None,
+        },
+        (ValType::F64, TermType::Integer | TermType::Float) => match term.decode::<f64>() {
+            Ok(value) => WasmValue::F64(value),
+            Err(_) => return None,
+        },
+        (_val_type, _term_type) => return None,
+    };
+
+    Some(value)
+}
+
 pub fn decode_function_param_terms(
     params: &[ValType],
     function_param_terms: Vec<Term>,
@@ -243,65 +367,23 @@ pub fn decode_function_param_terms(
         .zip(function_param_terms.into_iter())
         .enumerate()
     {
-        let value = match (param, given_param.get_type()) {
-            (ValType::I32, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<i32>() {
-                    Ok(value) => WasmValue::I32(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly i32 value.",
-                            nth + 1
-                        ));
-                    }
-                }
+        let value = match (
+            decode_term_as_wasm_value(param.clone(), given_param),
+            given_param.get_type(),
+        ) {
+            (Some(value), _) => value,
+            (_, TermType::Integer | TermType::Float) => {
+                return Err(format!(
+                    "Cannot convert argument #{} to a WebAssembly {} value.",
+                    nth + 1,
+                    format!("{:?}", param).to_lowercase()
+                ))
             }
-            (ValType::I64, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<i64>() {
-                    Ok(value) => WasmValue::I64(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly i64 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (ValType::F32, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<f32>() {
-                    Ok(value) => {
-                        if value.is_finite() {
-                            WasmValue::F32(value)
-                        } else {
-                            return Err(format!(
-                                "Cannot convert argument #{} to a WebAssembly f32 value.",
-                                nth + 1
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f32 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (ValType::F64, TermType::Integer | TermType::Float) => {
-                match given_param.decode::<f64>() {
-                    Ok(value) => WasmValue::F64(value),
-                    Err(_) => {
-                        return Err(format!(
-                            "Cannot convert argument #{} to a WebAssembly f64 value.",
-                            nth + 1
-                        ));
-                    }
-                }
-            }
-            (val_type, term_type) => {
+            (_, term_type) => {
                 return Err(format!(
                     "Cannot convert argument #{} to a WebAssembly {:?} value. Given `{:?}`.",
                     nth + 1,
-                    val_type,
+                    param,
                     PrintableTermType::PrintTerm(term_type)
                 ));
             }

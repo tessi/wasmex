@@ -172,6 +172,75 @@ defmodule Wasmex.Instance do
   def memory(store, instance) do
     Wasmex.Memory.from_instance(store, instance)
   end
+
+  @doc ~S"""
+  Reads the value of an exported global.
+
+  ## Examples
+
+      iex> wat = "(module
+      ...>          (global $answer i32 (i32.const 42))
+      ...>          (export \"answer\" (global $answer))
+      ...>        )"
+      iex> {:ok, store} = Wasmex.Store.new()
+      iex> {:ok, module} = Wasmex.Module.compile(store, wat)
+      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      iex> Wasmex.Instance.get_global_value(store, instance, "answer")
+      {:ok, 42}
+      iex> Wasmex.Instance.get_global_value(store, instance, "not_a_global")
+      {:error, "exported global `not_a_global` not found"}
+  """
+  @spec get_global_value(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary()) ::
+          {:ok, number()} | {:error, binary()}
+  def get_global_value(store_or_caller, instance, global_name) do
+    %{resource: store_or_caller_resource} = store_or_caller
+    %__MODULE__{resource: instance_resource} = instance
+
+    Wasmex.Native.instance_get_global_value(
+      store_or_caller_resource,
+      instance_resource,
+      global_name
+    )
+    |> case do
+      {:error, _reason} = term -> term
+      result when is_number(result) -> {:ok, result}
+    end
+  end
+
+  @doc ~S"""
+  Sets the value of an exported mutable global.
+
+  ## Examples
+
+      iex> wat = "(module
+      ...>          (global $count (mut i32) (i32.const 0))
+      ...>          (export \"count\" (global $count))
+      ...>        )"
+      iex> {:ok, store} = Wasmex.Store.new()
+      iex> {:ok, module} = Wasmex.Module.compile(store, wat)
+      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      iex> Wasmex.Instance.set_global_value(store, instance, "count", 1)
+      :ok
+      iex> Wasmex.Instance.get_global_value(store, instance, "count")
+      {:ok, 1}
+  """
+  @spec set_global_value(Wasmex.StoreOrCaller.t(), __MODULE__.t(), binary(), number()) ::
+          {:ok, number()} | {:error, binary()}
+  def set_global_value(store_or_caller, instance, global_name, new_value) do
+    %{resource: store_or_caller_resource} = store_or_caller
+    %__MODULE__{resource: instance_resource} = instance
+
+    Wasmex.Native.instance_set_global_value(
+      store_or_caller_resource,
+      instance_resource,
+      global_name,
+      new_value
+    )
+    |> case do
+      {} -> :ok
+      {:error, _reason} = term -> term
+    end
+  end
 end
 
 defimpl Inspect, for: Wasmex.Instance do

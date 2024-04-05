@@ -195,4 +195,64 @@ defmodule Wasmex.InstanceTest do
       {:ok, %Wasmex.Memory{resource: _}} = Wasmex.Instance.memory(store, instance)
     end
   end
+
+  describe "globals" do
+    setup do
+      wat = File.read!("#{Path.dirname(__ENV__.file)}/../example_wasm_files/globals.wat")
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      %{instance: instance, store: store}
+    end
+
+    test t(&Wasmex.Instance.get_global_value/3), context do
+      store = context[:store]
+      instance = context[:instance]
+
+      assert {:error, "exported global `unknown_global` not found"} =
+               Wasmex.Instance.get_global_value(store, instance, "unknown_global")
+
+      assert {:ok, 42} = Wasmex.Instance.get_global_value(store, instance, "meaning_of_life")
+      assert {:ok, -32} = Wasmex.Instance.get_global_value(store, instance, "count_32")
+      assert {:ok, -64} = Wasmex.Instance.get_global_value(store, instance, "count_64")
+
+      assert {:error, "unable_to_return_extern_ref_type"} =
+               Wasmex.Instance.get_global_value(store, instance, "externref")
+
+      assert {:error, "unable_to_return_func_ref_type"} =
+               Wasmex.Instance.get_global_value(store, instance, "funcref")
+    end
+
+    test t(&Wasmex.Instance.set_global_value/4), context do
+      store = context[:store]
+      instance = context[:instance]
+
+      assert {:error, "exported global `unknown_global` not found"} =
+               Wasmex.Instance.set_global_value(store, instance, "unknown_global", 0)
+
+      assert {:error, "Could not set global: immutable global cannot be set"} =
+               Wasmex.Instance.set_global_value(store, instance, "meaning_of_life", 0)
+
+      assert {:error, "Cannot convert to a WebAssembly I32 value. Given `Atom`."} =
+               Wasmex.Instance.set_global_value(store, instance, "count_32", :abc)
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count_32", 99)
+      assert {:ok, 99} = Wasmex.Instance.get_global_value(store, instance, "count_32")
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "count_64", 17)
+      assert {:ok, 17} = Wasmex.Instance.get_global_value(store, instance, "count_64")
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "bad_pi_32", 3.14)
+
+      assert_in_delta 3.14,
+                      elem(Wasmex.Instance.get_global_value(store, instance, "bad_pi_32"), 1),
+                      0.01
+
+      assert :ok = Wasmex.Instance.set_global_value(store, instance, "bad_pi_64", 3.14)
+
+      assert_in_delta 3.14,
+                      elem(Wasmex.Instance.get_global_value(store, instance, "bad_pi_64"), 1),
+                      0.01
+    end
+  end
 end
