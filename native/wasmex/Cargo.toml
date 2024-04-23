@@ -21,7 +21,7 @@ rustler = { version = "0.31", default-features = false, features = [
 ] }
 once_cell = "1.19.0"
 rand = "0.8.5"
-wasmtime = "18.0.2"
+wasmtime = "20.0.0"
 wasmtime-wasi = "18.0.2"
 wasi-common = "18.0.2"
 wiggle = "18.0.2"
