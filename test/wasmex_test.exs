@@ -260,7 +260,8 @@ defmodule WasmexTest do
     } do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
 
-      assert reason =~ ~r/Error during function excecution: `error while executing at wasm backtrace:\n\s*0:\s*0x.* - .*\!using_imported_sum3`\./
+      assert reason =~
+               ~r/Error during function excecution: `error while executing at wasm backtrace:\n\s*0:\s*0x.* - .*\!using_imported_sum3`\./
     end
   end
 
