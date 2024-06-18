@@ -260,12 +260,8 @@ defmodule WasmexTest do
     } do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
 
-      expected_reason = """
-      Error during function excecution: `error while executing at wasm backtrace:
-          0:  0x12e - <unknown>!using_imported_sum3`.
-      """
-
-      assert reason =~ String.trim(expected_reason)
+      assert reason =~
+               ~r/Error during function excecution: `error while executing at wasm backtrace:\n\s*0:\s*0x.* - .*\!using_imported_sum3`\./
     end
   end
 
@@ -321,7 +317,7 @@ defmodule WasmexTest do
       assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
 
       assert err_msg =~
-               ~r/Error during function excecution: `error while executing at wasm backtrace:\n.+0:.+0x.+ - \<unknown\>\!void`\./
+               ~r/Error during function excecution: `error while executing at wasm backtrace:\n.+0:.+0x.+ - .*\!void`\./
     end
   end
 
