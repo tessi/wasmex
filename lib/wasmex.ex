@@ -92,6 +92,16 @@ defmodule Wasmex do
   - `:f32` a 32 bit float
   - `:f64` a 64 bit float
 
+  ### Linking
+
+  Wasm links may be given as an additional option.
+  Links is an array of module name-bytes pair.
+
+      iex> wasm = File.read!(TestHelper.wasm_link_test_file_path())
+      iex> linked_wasm = File.read!(TestHelper.wasm_test_file_path())
+      iex> links = [%{name: "utils", bytes: linked_wasm}]
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: wasm, links: links})
+
   ### WASI
 
   Optionally, modules can be run with WebAssembly System Interface (WASI) support.
@@ -159,6 +169,9 @@ defmodule Wasmex do
   def start_link(%{} = opts) when not is_map_key(opts, :imports),
     do: start_link(Map.merge(opts, %{imports: %{}}))
 
+  def start_link(%{} = opts) when not is_map_key(opts, :links),
+    do: start_link(Map.merge(opts, %{links: []}))
+
   def start_link(%{} = opts) when is_map_key(opts, :module) and not is_map_key(opts, :store),
     do: {:error, :must_specify_store_used_to_compile_module}
 
@@ -182,11 +195,29 @@ defmodule Wasmex do
     end
   end
 
-  def start_link(%{store: store, module: module, imports: imports} = opts)
-      when is_map(imports) and not is_map_key(opts, :bytes) do
+  def start_link(%{links: links, store: store} = opts)
+      when is_list(links) and not is_map_key(opts, :compiled_links) do
+    compiled_links =
+      links
+      |> Enum.map(fn %{name: name, bytes: bytes} ->
+        with {:ok, %Wasmex.Module{resource: module_resource}} <-
+               Wasmex.Module.compile(store, bytes) do
+          %{name: name, module_resource: module_resource}
+        end
+      end)
+
+    opts
+    |> Map.delete(:links)
+    |> Map.put(:compiled_links, compiled_links)
+    |> start_link()
+  end
+
+  def start_link(%{store: store, module: module, imports: imports, compiled_links: links} = opts)
+      when is_map(imports) and is_list(links) and not is_map_key(opts, :bytes) do
     GenServer.start_link(__MODULE__, %{
       store: store,
       module: module,
+      links: stringify_keys(links),
       imports: stringify_keys(imports)
     })
   end
@@ -353,6 +384,10 @@ defmodule Wasmex do
     for {key, val} <- map, into: %{}, do: {stringify(key), stringify_keys(val)}
   end
 
+  defp stringify_keys(list) when is_list(list) do
+    for val <- list, into: [], do: stringify_keys(val)
+  end
+
   defp stringify_keys(value), do: value
 
   defp stringify(s) when is_binary(s), do: s
@@ -361,8 +396,9 @@ defmodule Wasmex do
   # Server
 
   @impl true
-  def init(%{store: store, module: module, imports: imports} = state) when is_map(imports) do
-    case Wasmex.Instance.new(store, module, imports) do
+  def init(%{store: store, module: module, imports: imports, links: links} = state)
+      when is_map(imports) and is_list(links) do
+    case Wasmex.Instance.new(store, module, imports, links) do
       {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
       {:error, reason} -> {:error, reason}
     end

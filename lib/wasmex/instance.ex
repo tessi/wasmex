@@ -35,6 +35,8 @@ defmodule Wasmex.Instance do
   The `import` parameter is a nested map of Wasm namespaces.
   Each namespace consists of a name and a map of function names to function signatures.
 
+  The `links` parameter is a list of name-module pairs that are dynamically linked to the instance.
+
   Function signatures are a tuple of the form `{:fn, arg_types, return_types, callback}`.
   Where `arg_types` and `return_types` are lists of `:i32`, `:i64`, `:f32`, `:f64`.
 
@@ -61,17 +63,22 @@ defmodule Wasmex.Instance do
       ...>       "imported_void" => {:fn, [], [], fn _context -> nil end}
       ...>     }
       ...> }
-      iex> {:ok, %Wasmex.Instance{}} = Wasmex.Instance.new(store, module, imports)
+      ...> links = []
+      iex> {:ok, %Wasmex.Instance{}} = Wasmex.Instance.new(store, module, imports, links)
   """
-  @spec new(Wasmex.StoreOrCaller.t(), Wasmex.Module.t(), %{
-          optional(binary()) => (... -> any())
-        }) ::
+  @spec new(
+          Wasmex.StoreOrCaller.t(),
+          Wasmex.Module.t(),
+          %{optional(binary()) => (... -> any())},
+          [%{optional(binary()) => Wasmex.Module.t()}] | []
+        ) ::
           {:ok, __MODULE__.t()} | {:error, binary()}
-  def new(store_or_caller, module, imports) when is_map(imports) do
+  def new(store_or_caller, module, imports, links \\ [])
+      when is_map(imports) and is_list(links) do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %Wasmex.Module{resource: module_resource} = module
 
-    case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports) do
+    case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports, links) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}
     end

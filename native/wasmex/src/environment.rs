@@ -1,4 +1,7 @@
-use std::sync::{Condvar, Mutex};
+use std::{
+    iter::Map,
+    sync::{Condvar, Mutex},
+};
 
 use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
@@ -8,10 +11,11 @@ use wasmtime::{Caller, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use crate::{
-    atoms::{self},
+    atoms,
     caller::{remove_caller, set_caller},
     instance::{map_wasm_values_to_vals, WasmValue},
     memory::MemoryResource,
+    module::ModuleResource,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
 
@@ -23,6 +27,19 @@ pub struct CallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<ValType>,
     pub return_values: Mutex<Option<(bool, Vec<WasmValue>)>>,
+}
+
+pub fn link_modules(_linker: &mut Linker<StoreData>, links: ListIterator) -> Result<(), Error> {
+    for link in links {
+        let link = link.decode::<MapIterator>()?;
+
+        for (key, value) in link {
+            println!("key: {:?}", key);
+            println!("value: {:?}", value);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn link_imports(linker: &mut Linker<StoreData>, imports: MapIterator) -> Result<(), Error> {
