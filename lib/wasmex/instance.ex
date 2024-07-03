@@ -78,6 +78,12 @@ defmodule Wasmex.Instance do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %Wasmex.Module{resource: module_resource} = module
 
+    links =
+      links
+      |> Enum.map(fn %{"name" => name, "module" => module} ->
+        %{"name" => name, "module_resource" => module.resource}
+      end)
+
     case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports, links) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}

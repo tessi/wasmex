@@ -245,17 +245,13 @@ defmodule Wasmex do
 
   defp build_compiled_links({name, %{bytes: bytes} = opts}, store)
        when not is_map_key(opts, :module) do
-    with {:ok, %Wasmex.Module{resource: module_resource}} <-
-           Wasmex.Module.compile(store, bytes) do
-      %{name: stringify(name), module_resource: module_resource}
+    with {:ok, module} <- Wasmex.Module.compile(store, bytes) do
+      %{name: stringify(name), module: module}
     end
   end
 
-  defp build_compiled_links(
-         {name, %{module: %Wasmex.Module{resource: module_resource}}},
-         _store
-       ) do
-    %{name: stringify(name), module_resource: module_resource}
+  defp build_compiled_links({name, %{module: module}}, _store) do
+    %{name: stringify(name), module: module}
   end
 
   @doc ~S"""
