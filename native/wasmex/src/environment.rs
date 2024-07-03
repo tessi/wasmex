@@ -47,10 +47,10 @@ pub fn link_modules(
             }
         }
 
-        let module_name = name_value.ok_or(Error::Atom("missing_name"))?;
+        let module_name = name_value.ok_or(Error::Atom("missing_linked_module_name"))?;
 
         let module_resource =
-            module_resource_value.ok_or(Error::Atom("missing_module_resource"))?;
+            module_resource_value.ok_or(Error::Atom("missing_linked_module_resource"))?;
 
         let module = module_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
@@ -59,7 +59,9 @@ pub fn link_modules(
         })?;
 
         let instance = linker.instantiate(&mut *store, &module).map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not instantiate module: {e}")))
+            rustler::Error::Term(Box::new(format!(
+                "Could not instantiate linked module: {e}"
+            )))
         })?;
 
         linker
