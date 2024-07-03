@@ -1,7 +1,4 @@
-use std::{
-    iter::Map,
-    sync::{Condvar, Mutex},
-};
+use std::sync::{Condvar, Mutex};
 
 use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
@@ -29,14 +26,45 @@ pub struct CallbackToken {
     pub return_values: Mutex<Option<(bool, Vec<WasmValue>)>>,
 }
 
-pub fn link_modules(_linker: &mut Linker<StoreData>, links: ListIterator) -> Result<(), Error> {
+pub fn link_modules(
+    linker: &mut Linker<StoreData>,
+    store: &mut StoreOrCaller,
+    links: ListIterator,
+) -> Result<(), Error> {
     for link in links {
         let link = link.decode::<MapIterator>()?;
 
+        let mut name_value: Option<String> = None;
+        let mut module_resource_value: Option<ResourceArc<ModuleResource>> = None;
+
         for (key, value) in link {
-            println!("key: {:?}", key);
-            println!("value: {:?}", value);
+            let key = key.decode::<String>()?;
+
+            if key == "name" {
+                name_value = Some(value.decode::<String>()?);
+            } else if key == "module_resource" {
+                module_resource_value = Some(value.decode::<ResourceArc<ModuleResource>>()?);
+            }
         }
+
+        let module_name = name_value.ok_or(Error::Atom("missing_name"))?;
+
+        let module_resource =
+            module_resource_value.ok_or(Error::Atom("missing_module_resource"))?;
+
+        let module = module_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock linked module resource as the mutex was poisoned: {e}"
+            )))
+        })?;
+
+        let instance = linker.instantiate(&mut *store, &module).map_err(|e| {
+            rustler::Error::Term(Box::new(format!("Could not instantiate module: {e}")))
+        })?;
+
+        linker
+            .instance(&mut *store, &module_name, instance)
+            .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
 
     Ok(())

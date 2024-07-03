@@ -100,7 +100,9 @@ defmodule Wasmex do
       iex> wasm = File.read!(TestHelper.wasm_link_test_file_path())
       iex> linked_wasm = File.read!(TestHelper.wasm_test_file_path())
       iex> links = [%{name: "utils", bytes: linked_wasm}]
-      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: wasm, links: links})
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wasm, links: links})
+      iex> Wasmex.call_function(pid, "sum_range", [1, 5])
+      {:ok, [15]}
 
   ### WASI
 
