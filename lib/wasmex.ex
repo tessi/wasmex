@@ -97,21 +97,21 @@ defmodule Wasmex do
   Wasm links may be given as an additional option.
   Links is an array of module name-bytes pair.
 
-      iex> wasm = File.read!(TestHelper.wasm_link_test_file_path())
-      iex> linked_wasm = File.read!(TestHelper.wasm_test_file_path())
-      iex> links = [%{name: "utils", bytes: linked_wasm}]
-      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wasm, links: links})
+      iex> calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
+      iex> utils_wasm = File.read!(TestHelper.wasm_test_file_path())
+      iex> links = %{utils: %{bytes: utils_wasm}}
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: calculator_wasm, links: links})
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
   It is also possible to link a module that was compiled for improved performance:
 
-      iex> wasm = File.read!(TestHelper.wasm_link_test_file_path())
-      iex> linked_wasm = File.read!(TestHelper.wasm_test_file_path())
+      iex> calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
+      iex> utils_wasm = File.read!(TestHelper.wasm_test_file_path())
       iex> {:ok, store} = Wasmex.Store.new()
-      iex> {:ok, compiled_module} = Wasmex.Module.compile(store, linked_wasm)
-      iex> links = [%{name: "utils", module: compiled_module}]
-      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wasm, links: links, store: store})
+      iex> {:ok, utils_module} = Wasmex.Module.compile(store, utils_wasm)
+      iex> links = %{utils: %{module: utils_module}}
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: calculator_wasm, links: links, store: store})
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
@@ -183,7 +183,7 @@ defmodule Wasmex do
     do: start_link(Map.merge(opts, %{imports: %{}}))
 
   def start_link(%{} = opts) when not is_map_key(opts, :links),
-    do: start_link(Map.merge(opts, %{links: []}))
+    do: start_link(Map.merge(opts, %{links: %{}}))
 
   def start_link(%{} = opts) when is_map_key(opts, :module) and not is_map_key(opts, :store),
     do: {:error, :must_specify_store_used_to_compile_module}
@@ -209,7 +209,7 @@ defmodule Wasmex do
   end
 
   def start_link(%{links: links, store: store} = opts)
-      when is_list(links) and not is_map_key(opts, :compiled_links) do
+      when is_map(links) and not is_map_key(opts, :compiled_links) do
     compiled_links =
       links |> Enum.map(&build_compiled_links(&1, store))
 
@@ -237,19 +237,19 @@ defmodule Wasmex do
     end
   end
 
-  defp build_compiled_links(%{name: name, bytes: bytes} = link, store)
-       when not is_map_key(link, :module) do
+  defp build_compiled_links({name, %{bytes: bytes} = opts}, store)
+       when not is_map_key(opts, :module) do
     with {:ok, %Wasmex.Module{resource: module_resource}} <-
            Wasmex.Module.compile(store, bytes) do
-      %{name: name, module_resource: module_resource}
+      %{name: stringify(name), module_resource: module_resource}
     end
   end
 
   defp build_compiled_links(
-         %{name: name, module: %Wasmex.Module{resource: module_resource}},
+         {name, %{module: %Wasmex.Module{resource: module_resource}}},
          _store
        ) do
-    %{name: name, module_resource: module_resource}
+    %{name: stringify(name), module_resource: module_resource}
   end
 
   @doc ~S"""
