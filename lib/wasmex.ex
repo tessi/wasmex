@@ -104,6 +104,17 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
+  It is also possible to link a module that was compiled for improved performance:
+
+      iex> wasm = File.read!(TestHelper.wasm_link_test_file_path())
+      iex> linked_wasm = File.read!(TestHelper.wasm_test_file_path())
+      iex> {:ok, store} = Wasmex.Store.new()
+      iex> {:ok, compiled_module} = Wasmex.Module.compile(store, linked_wasm)
+      iex> links = [%{name: "utils", module: compiled_module}]
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: wasm, links: links, store: store})
+      iex> Wasmex.call_function(pid, "sum_range", [1, 5])
+      {:ok, [15]}
+
   ### WASI
 
   Optionally, modules can be run with WebAssembly System Interface (WASI) support.
@@ -200,13 +211,7 @@ defmodule Wasmex do
   def start_link(%{links: links, store: store} = opts)
       when is_list(links) and not is_map_key(opts, :compiled_links) do
     compiled_links =
-      links
-      |> Enum.map(fn %{name: name, bytes: bytes} ->
-        with {:ok, %Wasmex.Module{resource: module_resource}} <-
-               Wasmex.Module.compile(store, bytes) do
-          %{name: name, module_resource: module_resource}
-        end
-      end)
+      links |> Enum.map(&build_compiled_links(&1, store))
 
     opts
     |> Map.delete(:links)
@@ -230,6 +235,21 @@ defmodule Wasmex do
     else
       Wasmex.Store.new()
     end
+  end
+
+  defp build_compiled_links(%{name: name, bytes: bytes} = link, store)
+       when not is_map_key(link, :module) do
+    with {:ok, %Wasmex.Module{resource: module_resource}} <-
+           Wasmex.Module.compile(store, bytes) do
+      %{name: name, module_resource: module_resource}
+    end
+  end
+
+  defp build_compiled_links(
+         %{name: name, module: %Wasmex.Module{resource: module_resource}},
+         _store
+       ) do
+    %{name: name, module_resource: module_resource}
   end
 
   @doc ~S"""
