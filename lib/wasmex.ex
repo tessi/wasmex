@@ -115,6 +115,12 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
+  **Notes:**
+  1. Make sure to use the same store for the linked modules and the main module.
+  2. This library does not currently support dependencies between linked modules.
+     For example: if Module A links to Module B, and Module B links to the Main module, this will not work.
+     Workaround: Link both Module A and B to the Main module directly.
+
   ### WASI
 
   Optionally, modules can be run with WebAssembly System Interface (WASI) support.
