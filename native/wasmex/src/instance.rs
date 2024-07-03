@@ -62,7 +62,7 @@ fn link_and_create_instance(
     store_or_caller: &mut StoreOrCaller,
     module: &Module,
     imports: MapIterator,
-    links: ListIterator,
+    linked_module: ListIterator,
 ) -> Result<Instance, Error> {
     let mut linker = Linker::new(store_or_caller.engine());
     if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
@@ -70,7 +70,7 @@ fn link_and_create_instance(
         wasmtime_wasi::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
             .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
-    link_modules(&mut linker, store_or_caller, links)?;
+    link_modules(&mut linker, store_or_caller, linked_module)?;
     link_imports(&mut linker, imports)?;
     linker
         .instantiate(store_or_caller, module)

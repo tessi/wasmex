@@ -29,15 +29,15 @@ pub struct CallbackToken {
 pub fn link_modules(
     linker: &mut Linker<StoreData>,
     store: &mut StoreOrCaller,
-    links: ListIterator,
+    linked_modules: ListIterator,
 ) -> Result<(), Error> {
-    for link in links {
-        let link = link.decode::<MapIterator>()?;
+    for linked_module in linked_modules {
+        let linked_module = linked_module.decode::<MapIterator>()?;
 
         let mut name_value: Option<String> = None;
         let mut module_resource_value: Option<ResourceArc<ModuleResource>> = None;
 
-        for (key, value) in link {
+        for (key, value) in linked_module {
             let key = key.decode::<String>()?;
 
             if key == "name" {
