@@ -116,11 +116,30 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
-  **Notes:**
-  1. Make sure to use the same store for the linked modules and the main module.
-  2. This library does not currently support dependencies between linked modules.
-     For example: if Module A links to Module B, and Module B links to the Main module, this will not work.
-     Workaround: Link both Module A and B to the Main module directly.
+  **Important:** Make sure to use the same store for the linked modules and the main module.
+
+  When linking multiple Wasm modules, it is important to handle their dependencies properly.
+  This can be achieved by providing a map of module names to their respective Wasm modules in the `links` option.
+
+  For example, if we have a main module that depends on a calculator module, and the calculator module depends on a utils module, we can link them as follows:
+
+      iex> main_wasm = File.read!(TestHelper.wasm_link_dep_test_file_path())
+      iex> calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
+      iex> utils_wasm = File.read!(TestHelper.wasm_test_file_path())
+      iex> links = %{
+      ...>   calculator: %{
+      ...>     bytes: calculator_wasm,
+      ...>     links: %{
+      ...>       utils: %{bytes: utils_wasm}
+      ...>     }
+      ...>   }
+      ...> }
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: main_wasm, links: links})
+
+  In this example, the `links` map specifies that the `calculator` module depends on the `utils` module.
+  The `links` map is a nested map, where each module name is associated with a map that contains the Wasm module bytes and its dependencies.
+
+  The `links` map can also be used to link an already compiled module, as shown in the previous examples.
 
   ### WASI
 
@@ -218,7 +237,11 @@ defmodule Wasmex do
   def start_link(%{links: links, store: store} = opts)
       when is_map(links) and not is_map_key(opts, :compiled_links) do
     compiled_links =
-      links |> Enum.map(&build_compiled_links(&1, store))
+      links
+      |> flatten_links()
+      |> Enum.reverse()
+      |> Enum.uniq_by(&elem(&1, 0))
+      |> Enum.map(&build_compiled_links(&1, store))
 
     opts
     |> Map.delete(:links)
@@ -234,6 +257,16 @@ defmodule Wasmex do
       links: links,
       imports: stringify_keys(imports)
     })
+  end
+
+  defp flatten_links(links) do
+    Enum.flat_map(links, fn {name, opts} ->
+      if Map.has_key?(opts, :links) do
+        [{name, Map.drop(opts, [:links])} | flatten_links(opts.links)]
+      else
+        [{name, opts}]
+      end
+    end)
   end
 
   defp build_store(opts) do
