@@ -92,10 +92,10 @@ defmodule Wasmex do
   - `:f32` a 32 bit float
   - `:f64` a 64 bit float
 
-  ### Linking
+  ### Linking multiple Wasm modules
 
-  Wasm links may be given as an additional option.
-  Links is an array of module name-bytes pair.
+  Wasm module `links` may be given as an additional option.
+  Links is a map of module names to Wasm modules.
 
       iex> calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
       iex> utils_wasm = File.read!(TestHelper.wasm_test_file_path())
@@ -104,7 +104,8 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "sum_range", [1, 5])
       {:ok, [15]}
 
-  It is also possible to link a module that was compiled for improved performance:
+  It is also possible to link an already compiled module.
+  This improves performance if the same module is used many times by compiling it only once.
 
       iex> calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
       iex> utils_wasm = File.read!(TestHelper.wasm_test_file_path())
