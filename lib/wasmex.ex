@@ -230,7 +230,7 @@ defmodule Wasmex do
     GenServer.start_link(__MODULE__, %{
       store: store,
       module: module,
-      links: stringify_keys(links),
+      links: links,
       imports: stringify_keys(imports)
     })
   end

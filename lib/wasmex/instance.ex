@@ -80,8 +80,8 @@ defmodule Wasmex.Instance do
 
     links =
       links
-      |> Enum.map(fn %{"name" => name, "module" => module} ->
-        %{"name" => name, "module_resource" => module.resource}
+      |> Enum.map(fn %{name: name, module: module} ->
+        %{name: name, module_resource: module.resource}
       end)
 
     case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports, links) do

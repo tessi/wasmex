@@ -2,9 +2,8 @@ use rustler::{
     dynamic::TermType,
     env::{OwnedEnv, SavedTerm},
     resource::ResourceArc,
-    types::tuple::make_tuple,
-    types::ListIterator,
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifResult, Term,
+    types::{tuple::make_tuple, ListIterator},
+    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, Term,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -20,6 +19,12 @@ use crate::{
     printable_term_type::PrintableTermType,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
+
+#[derive(NifMap)]
+pub struct LinkedModule {
+    pub name: String,
+    pub module_resource: ResourceArc<ModuleResource>,
+}
 
 pub struct InstanceResource {
     pub inner: Mutex<Instance>,
@@ -37,7 +42,7 @@ pub fn new(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     module_resource: ResourceArc<ModuleResource>,
     imports: MapIterator,
-    linked_modules: ListIterator,
+    linked_modules: Vec<LinkedModule>,
 ) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
@@ -62,7 +67,7 @@ fn link_and_create_instance(
     store_or_caller: &mut StoreOrCaller,
     module: &Module,
     imports: MapIterator,
-    linked_modules: ListIterator,
+    linked_modules: Vec<LinkedModule>,
 ) -> Result<Instance, Error> {
     let mut linker = Linker::new(store_or_caller.engine());
     if let Some(_wasi_ctx) = &store_or_caller.data().wasi {

@@ -10,9 +10,8 @@ use wiggle::anyhow::{self, anyhow};
 use crate::{
     atoms,
     caller::{remove_caller, set_caller},
-    instance::{map_wasm_values_to_vals, WasmValue},
+    instance::{map_wasm_values_to_vals, LinkedModule, WasmValue},
     memory::MemoryResource,
-    module::ModuleResource,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
 
@@ -29,30 +28,11 @@ pub struct CallbackToken {
 pub fn link_modules(
     linker: &mut Linker<StoreData>,
     store: &mut StoreOrCaller,
-    linked_modules: ListIterator,
+    linked_modules: Vec<LinkedModule>,
 ) -> Result<(), Error> {
     for linked_module in linked_modules {
-        let linked_module = linked_module.decode::<MapIterator>()?;
-
-        let mut name_value: Option<String> = None;
-        let mut module_resource_value: Option<ResourceArc<ModuleResource>> = None;
-
-        for (key, value) in linked_module {
-            let key = key.decode::<String>()?;
-
-            if key == "name" {
-                name_value = Some(value.decode::<String>()?);
-            } else if key == "module_resource" {
-                module_resource_value = Some(value.decode::<ResourceArc<ModuleResource>>()?);
-            }
-        }
-
-        let module_name = name_value.ok_or(Error::Atom("missing_linked_module_name"))?;
-
-        let module_resource =
-            module_resource_value.ok_or(Error::Atom("missing_linked_module_resource"))?;
-
-        let module = module_resource.inner.lock().map_err(|e| {
+        let module_name = linked_module.name;
+        let module = linked_module.module_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
                 "Could not unlock linked module resource as the mutex was poisoned: {e}"
             )))
