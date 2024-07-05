@@ -32,7 +32,7 @@ defmodule Wasmex.Native do
   def module_serialize(_module_resource), do: error()
   def module_unsafe_deserialize(_binary, _engine_resource), do: error()
 
-  def instance_new(_store_or_caller_resource, _module_resource, _imports), do: error()
+  def instance_new(_store_or_caller_resource, _module_resource, _imports, _links), do: error()
 
   def instance_function_export_exists(
         _store_or_caller_resource,

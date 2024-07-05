@@ -28,6 +28,7 @@ please check your fuel consumption values.
 - official support for Elixir 1.15 and 1.16
 - fuel-related API got rewritten, because the underlying Wasm library (wasmtime) changed their API and we want to be consistent. Added `Store.get_fuel/1` and `Store.set_fuel/2` which is a much simpler API than before.
 - read and write a global’s value with `Instance.get_global_value/3` and `Instance.set_global_value/4` ([#540](https://github.com/tessi/wasmex/pull/540))
+- ability to dynamically link wasm modules ([#596](https://github.com/tessi/wasmex/pull/596))
 
 ### Removed
 

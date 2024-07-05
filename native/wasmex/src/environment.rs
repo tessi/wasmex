@@ -8,9 +8,9 @@ use wasmtime::{Caller, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use crate::{
-    atoms::{self},
+    atoms,
     caller::{remove_caller, set_caller},
-    instance::{map_wasm_values_to_vals, WasmValue},
+    instance::{map_wasm_values_to_vals, LinkedModule, WasmValue},
     memory::MemoryResource,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
@@ -23,6 +23,33 @@ pub struct CallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<ValType>,
     pub return_values: Mutex<Option<(bool, Vec<WasmValue>)>>,
+}
+
+pub fn link_modules(
+    linker: &mut Linker<StoreData>,
+    store: &mut StoreOrCaller,
+    linked_modules: Vec<LinkedModule>,
+) -> Result<(), Error> {
+    for linked_module in linked_modules {
+        let module_name = linked_module.name;
+        let module = linked_module.module_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock linked module resource as the mutex was poisoned: {e}"
+            )))
+        })?;
+
+        let instance = linker.instantiate(&mut *store, &module).map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not instantiate linked module: {e}"
+            )))
+        })?;
+
+        linker
+            .instance(&mut *store, &module_name, instance)
+            .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    }
+
+    Ok(())
 }
 
 pub fn link_imports(linker: &mut Linker<StoreData>, imports: MapIterator) -> Result<(), Error> {

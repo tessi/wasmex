@@ -1,10 +1,19 @@
 defmodule TestHelper do
   @wasm_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_test"
+  @wasm_link_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_link_test"
+  @wasm_link_dep_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_link_dep_test"
   @wasm_import_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_import_test"
   @wasi_test_source_dir "#{Path.dirname(__ENV__.file)}/wasi_test"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
+
+  def wasm_link_test_file_path,
+    do: "#{@wasm_link_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
+
+  def wasm_link_dep_test_file_path,
+    do:
+      "#{@wasm_link_dep_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_link_dep_test.wasm"
 
   def wasm_import_test_file_path,
     do: "#{@wasm_import_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -16,6 +25,32 @@ defmodule TestHelper do
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasi_test_source_dir)
+
+    {"", 0} =
+      System.cmd(
+        "cargo",
+        [
+          "rustc",
+          "--target=wasm32-unknown-unknown",
+          "--",
+          "--extern",
+          "utils=../wasm_test/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
+        ],
+        cd: @wasm_link_test_source_dir
+      )
+
+    {"", 0} =
+      System.cmd(
+        "cargo",
+        [
+          "rustc",
+          "--target=wasm32-unknown-unknown",
+          "--",
+          "--extern",
+          "calculator=../wasm_link_test/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
+        ],
+        cd: @wasm_link_dep_test_source_dir
+      )
   end
 
   def wasm_module do
@@ -23,6 +58,24 @@ defmodule TestHelper do
 
     {:ok, wasm_module} =
       Wasmex.Module.compile(store, File.read!(TestHelper.wasm_test_file_path()))
+
+    %{store: store, module: wasm_module}
+  end
+
+  def wasm_link_module do
+    {:ok, store} = Wasmex.Store.new()
+
+    {:ok, wasm_module} =
+      Wasmex.Module.compile(store, File.read!(TestHelper.wasm_link_test_file_path()))
+
+    %{store: store, module: wasm_module}
+  end
+
+  def wasm_link_dep_module do
+    {:ok, store} = Wasmex.Store.new()
+
+    {:ok, wasm_module} =
+      Wasmex.Module.compile(store, File.read!(TestHelper.wasm_link_dep_test_file_path()))
 
     %{store: store, module: wasm_module}
   end

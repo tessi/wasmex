@@ -2,9 +2,8 @@ use rustler::{
     dynamic::TermType,
     env::{OwnedEnv, SavedTerm},
     resource::ResourceArc,
-    types::tuple::make_tuple,
-    types::ListIterator,
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifResult, Term,
+    types::{tuple::make_tuple, ListIterator},
+    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, Term,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -14,12 +13,18 @@ use wasmtime::{Instance, Linker, Module, Val, ValType};
 
 use crate::{
     atoms,
-    environment::{link_imports, CallbackTokenResource},
+    environment::{link_imports, link_modules, CallbackTokenResource},
     functions,
     module::ModuleResource,
     printable_term_type::PrintableTermType,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
+
+#[derive(NifMap)]
+pub struct LinkedModule {
+    pub name: String,
+    pub module_resource: ResourceArc<ModuleResource>,
+}
 
 pub struct InstanceResource {
     pub inner: Mutex<Instance>,
@@ -37,6 +42,7 @@ pub fn new(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     module_resource: ResourceArc<ModuleResource>,
     imports: MapIterator,
+    linked_modules: Vec<LinkedModule>,
 ) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
     let module = module_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
@@ -50,7 +56,7 @@ pub fn new(
             )))
         })?);
 
-    let instance = link_and_create_instance(store_or_caller, &module, imports)?;
+    let instance = link_and_create_instance(store_or_caller, &module, imports, linked_modules)?;
     let resource = ResourceArc::new(InstanceResource {
         inner: Mutex::new(instance),
     });
@@ -61,6 +67,7 @@ fn link_and_create_instance(
     store_or_caller: &mut StoreOrCaller,
     module: &Module,
     imports: MapIterator,
+    linked_modules: Vec<LinkedModule>,
 ) -> Result<Instance, Error> {
     let mut linker = Linker::new(store_or_caller.engine());
     if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
@@ -68,6 +75,7 @@ fn link_and_create_instance(
         wasmtime_wasi::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
             .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
+    link_modules(&mut linker, store_or_caller, linked_modules)?;
     link_imports(&mut linker, imports)?;
     linker
         .instantiate(store_or_caller, module)
