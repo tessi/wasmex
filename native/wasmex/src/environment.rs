@@ -4,7 +4,7 @@ use rustler::{
     resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
     Term,
 };
-use wasmtime::{Caller, FuncType, Linker, Val, ValType};
+use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use crate::{
@@ -52,20 +52,25 @@ pub fn link_modules(
     Ok(())
 }
 
-pub fn link_imports(linker: &mut Linker<StoreData>, imports: MapIterator) -> Result<(), Error> {
+pub fn link_imports(
+    engine: &Engine,
+    linker: &mut Linker<StoreData>,
+    imports: MapIterator,
+) -> Result<(), Error> {
     for (namespace_name, namespace_definition) in imports {
         let namespace_name = namespace_name.decode::<String>()?;
         let definition: MapIterator = namespace_definition.decode()?;
 
         for (import_name, import) in definition {
             let import_name = import_name.decode::<String>()?;
-            link_import(linker, &namespace_name, &import_name, import)?;
+            link_import(engine, linker, &namespace_name, &import_name, import)?;
         }
     }
     Ok(())
 }
 
 fn link_import(
+    engine: &Engine,
     linker: &mut Linker<StoreData>,
     namespace_name: &str,
     import_name: &str,
@@ -81,6 +86,7 @@ fn link_import(
 
     if atoms::__fn__().eq(&import_type) {
         return link_imported_function(
+            engine,
             linker,
             namespace_name.to_string(),
             import_name.to_string(),
@@ -92,8 +98,10 @@ fn link_import(
 }
 
 // Creates a wrapper function used in a Wasm import object.
-// The `definition` term must contain a function signature matching the signature if the Wasm import.
+//
+// The `definition` term must contain a function signature matching the signature of the Wasm import.
 // Once the imported function is called during Wasm execution, the following happens:
+//
 // 1. the rust wrapper we define here is called
 // 2. it creates a callback token containing a Mutex for storing the call result and a Condvar
 // 3. the rust wrapper sends an :invoke_callback message to elixir containing the token and call params
@@ -102,6 +110,7 @@ fn link_import(
 // 6. `receive_callback_result` saves the return values in the callback tokens mutex and signals the condvar,
 //    so that the original wrapper function can continue code execution
 fn link_imported_function(
+    engine: &Engine,
     linker: &mut Linker<StoreData>,
     namespace_name: String,
     import_name: String,
@@ -128,7 +137,7 @@ fn link_imported_function(
         .map(term_to_arg_type)
         .collect::<Result<Vec<ValType>, _>>()?;
 
-    let signature = FuncType::new(params_signature, results_signature.clone());
+    let signature = FuncType::new(engine, params_signature, results_signature.clone());
     linker
         .func_new(
             &namespace_name.clone(),
@@ -170,6 +179,9 @@ fn link_imported_function(
                             }
                             Val::FuncRef(_) => {
                                 (atoms::error(), "unable_to_convert_func_ref_type").encode(env)
+                            }
+                            Val::AnyRef(_) => {
+                                (atoms::error(), "unable_to_convert_any_ref_type").encode(env)
                             }
                         })
                     }

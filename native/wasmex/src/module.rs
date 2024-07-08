@@ -6,7 +6,7 @@ use rustler::{
 use std::{collections::HashMap, sync::Mutex};
 
 use wasmtime::{
-    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, TableType, ValType,
+    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, RefType, TableType, ValType,
 };
 
 use crate::{
@@ -139,8 +139,17 @@ fn val_type_to_atom(val_type: &ValType) -> Atom {
         ValType::F32 => atoms::f32(),
         ValType::F64 => atoms::f64(),
         ValType::V128 => atoms::v128(),
-        ValType::ExternRef => atoms::extern_ref(),
-        ValType::FuncRef => atoms::func_ref(),
+        ValType::Ref(_ref_type) => atoms::extern_ref(),
+    }
+}
+
+fn ref_type_to_atom(ref_type: &RefType) -> Atom {
+    let heap_type = ref_type.heap_type();
+
+    if heap_type.is_func() {
+        atoms::func_ref()
+    } else {
+        atoms::extern_ref()
     }
 }
 
@@ -185,7 +194,7 @@ fn table_info<'a>(env: rustler::Env<'a>, table_type: &TableType) -> Term<'a> {
             rustler::Encoder::encode(&table_type.minimum(), env),
         )
         .expect("cannot fail; is always a map");
-    let ty = val_type_to_atom(&table_type.element()).to_term(env);
+    let ty = ref_type_to_atom(table_type.element()).to_term(env);
     map = map
         .map_put(atoms::__type__().to_term(env), ty)
         .expect("cannot fail; is always a map");
