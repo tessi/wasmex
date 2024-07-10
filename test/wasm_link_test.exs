@@ -74,7 +74,7 @@ defmodule WasmLinkTest do
     utils_wasm = File.read!(TestHelper.wasm_link_import_test_file_path())
 
     imports = %{
-      utils: %{
+      env: %{
         imported_sum: {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end}
       }
     }
