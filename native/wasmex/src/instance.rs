@@ -75,8 +75,8 @@ fn link_and_create_instance(
         wasmtime_wasi::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
             .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
-    link_modules(&mut linker, store_or_caller, linked_modules)?;
     link_imports(&mut linker, imports)?;
+    link_modules(&mut linker, store_or_caller, linked_modules)?;
     linker
         .instantiate(store_or_caller, module)
         .map_err(|err| Error::Term(Box::new(err.to_string())))
