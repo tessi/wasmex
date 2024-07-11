@@ -68,4 +68,20 @@ defmodule WasmLinkTest do
 
     assert Wasmex.call_function(pid, "calc_seq", [1, 5]) == {:ok, [15]}
   end
+
+  test "linking wasm modules with imports" do
+    calculator_wasm = File.read!(TestHelper.wasm_link_test_file_path())
+    utils_wasm = File.read!(TestHelper.wasm_link_import_test_file_path())
+
+    imports = %{
+      env: %{
+        imported_sum: {:fn, [:i32, :i32], [:i32], fn _context, a, b -> a + b end}
+      }
+    }
+
+    links = %{utils: %{bytes: utils_wasm}}
+    {:ok, pid} = Wasmex.start_link(%{bytes: calculator_wasm, links: links, imports: imports})
+
+    assert Wasmex.call_function(pid, "sum_range", [1, 5]) == {:ok, [15]}
+  end
 end
