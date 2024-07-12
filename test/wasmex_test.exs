@@ -69,7 +69,6 @@ defmodule WasmexTest do
     test t(&Wasmex.call_function/3) <> " v128_v128(v128) -> v128 function", %{instance: instance} do
       assert {:ok, [42]} == Wasmex.call_function(instance, :v128_v128, [42])
 
-      # max 128 bit integer
       max_128_bit_int = 340_282_366_920_938_463_463_374_607_431_768_211_455
 
       assert {:ok, [max_128_bit_int]} ==
