@@ -715,6 +715,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -891,6 +897,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f958d3d68f4167080a18141e10381e7634563984a537f2a49a30fd8e53ac5767"
+
+[[package]]
 name = "io-extras"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -964,12 +976,6 @@ checksum = "29c15563dc2726973df627357ce0c9ddddbea194836909d655df6a75d2cf296d"
 dependencies = [
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "lazy_static"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "leb128"
@@ -1310,22 +1316,23 @@ dependencies = [
 
 [[package]]
 name = "rustler"
-version = "0.31.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a75d458f38f550976d0e4b347ca57241c192019777e46af7af73b27783287088"
+checksum = "e94bdfa68c0388cbd725f1ca54e975956482c262599e5cced04a903eec918b7f"
 dependencies = [
- "lazy_static",
+ "inventory",
  "rustler_codegen",
  "rustler_sys",
 ]
 
 [[package]]
 name = "rustler_codegen"
-version = "0.31.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbd46408f51c0ca6a68dc36aa4f90e3554960bd1b7cc513e6ff2ccad7dd92aff"
+checksum = "996dc019acb78b91b4e0c1bd6fa2cd509a835d309de762dc15213b97eac399da"
 dependencies = [
- "heck",
+ "heck 0.5.0",
+ "inventory",
  "proc-macro2",
  "quote",
  "syn",
@@ -1333,9 +1340,9 @@ dependencies = [
 
 [[package]]
 name = "rustler_sys"
-version = "2.3.2"
+version = "2.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff76ba8524729d7c9db2b3e80f2269d1fdef39b5a60624c33fd794797e69b558"
+checksum = "3914a75a147934353c3772a77b774c79fdf80ba84e8347f52a50df0c164aaff2"
 dependencies = [
  "regex",
  "unreachable",
@@ -2101,7 +2108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70dc077306b38288262e5ba01d4b21532a6987416cdc0aedf04bb06c22a68fdc"
 dependencies = [
  "anyhow",
- "heck",
+ "heck 0.4.1",
  "indexmap",
  "wit-parser",
 ]
@@ -2160,7 +2167,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "557567f2793508760cd855f7659b7a0b9dc4dbc451f53f1415d6943a15311ade"
 dependencies = [
  "anyhow",
- "heck",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "shellexpand",
