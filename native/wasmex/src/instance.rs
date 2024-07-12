@@ -367,7 +367,7 @@ fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmV
                         return None;
                     }
 
-                    // prepend 0 bytes to make it 16 bytes long, since to_bytes_be() only returns the bytes that are not 0
+                    // prepend 0 bytes to make it 16 bytes long. `to_bytes_be()` only returns leading non-zero bytes
                     while bytes_vec.len() < 16 {
                         bytes_vec.insert(0, 0);
                     }
