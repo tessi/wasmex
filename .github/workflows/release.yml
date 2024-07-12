@@ -67,7 +67,7 @@ jobs:
 
       - name: Build the project
         id: build-crate
-        uses: philss/rustler-precompiled-action@52c1b8dd1ed8c7fcd90ca71b177aabbd3b29b95b
+        uses: philss/rustler-precompiled-action@v1.1.4
         with:
           project-name: wasmex
           project-version: ${{ env.PROJECT_VERSION }}

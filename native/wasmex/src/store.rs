@@ -3,7 +3,7 @@
 // see: https://github.com/rust-lang/rust-clippy/issues/9778
 #![allow(clippy::needless_borrow)]
 
-use rustler::{resource::ResourceArc, Error};
+use rustler::{Error, ResourceArc};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::{sync::WasiCtxBuilder, WasiCtx};
 use wasmtime::{
@@ -102,6 +102,9 @@ pub enum StoreOrCaller {
 pub struct StoreOrCallerResource {
     pub inner: Mutex<StoreOrCaller>,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for StoreOrCallerResource {}
 
 impl StoreOrCaller {
     pub(crate) fn engine(&self) -> &Engine {
@@ -221,7 +224,7 @@ pub fn set_fuel(
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.set_fuel(fuel),
-        StoreOrCaller::Caller(token) => get_caller_mut(token)
+        StoreOrCaller::Caller(token) => get_caller_mut(&token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",
@@ -242,7 +245,7 @@ pub fn get_fuel(
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.get_fuel(),
-        StoreOrCaller::Caller(token) => get_caller_mut(token)
+        StoreOrCaller::Caller(token) => get_caller_mut(&token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",

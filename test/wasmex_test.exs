@@ -66,6 +66,22 @@ defmodule WasmexTest do
                Wasmex.call_function(instance, "i64_i64", [3_000_000_000])
     end
 
+    test t(&Wasmex.call_function/3) <> " v128_v128(v128) -> v128 function", %{instance: instance} do
+      assert {:ok, [42]} == Wasmex.call_function(instance, :v128_v128, [42])
+
+      # max 128 bit integer
+      max_128_bit_int = 340_282_366_920_938_463_463_374_607_431_768_211_455
+
+      assert {:ok, [max_128_bit_int]} ==
+               Wasmex.call_function(instance, "v128_v128", [max_128_bit_int])
+
+      assert {:error, "Cannot convert argument #1 to a WebAssembly v128 value."} ==
+               Wasmex.call_function(instance, :v128_v128, [max_128_bit_int + 1])
+
+      assert {:error, "Cannot convert argument #1 to a WebAssembly v128 value."} ==
+               Wasmex.call_function(instance, :v128_v128, [-1])
+    end
+
     test t(&Wasmex.call_function/3) <> " f32_f32(f32) -> f32 function", %{instance: instance} do
       {:ok, [result]} = Wasmex.call_function(instance, :f32_f32, [3.14])
 
@@ -299,7 +315,7 @@ defmodule WasmexTest do
       assert {:error, reason} = Wasmex.call_function(pid, :divide, [1, 0])
 
       # contains source file and line number
-      assert reason =~ "wasmex/test/wasm_test/src/lib.rs:67:5"
+      assert reason =~ "wasmex/test/wasm_test/src/lib.rs:75:5"
     end
   end
 

@@ -1,7 +1,6 @@
 use rustler::{
-    resource::ResourceArc,
     types::{binary::Binary, tuple::make_tuple},
-    Encoder, Env, NifResult, OwnedBinary, Term,
+    Encoder, Env, NifResult, OwnedBinary, ResourceArc, Term,
 };
 use std::{collections::HashMap, sync::Mutex};
 
@@ -18,6 +17,9 @@ use crate::{
 pub struct ModuleResource {
     pub inner: Mutex<Module>,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for ModuleResource {}
 
 #[rustler::nif(name = "module_compile", schedule = "DirtyCpu")]
 pub fn compile(
