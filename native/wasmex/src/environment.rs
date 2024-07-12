@@ -1,7 +1,7 @@
 use std::sync::{Condvar, Mutex};
 
 use rustler::{
-    resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
+    types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv, Resource, ResourceArc,
     Term,
 };
 use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
@@ -18,6 +18,9 @@ use crate::{
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
 }
+
+#[rustler::resource_impl]
+impl Resource for CallbackTokenResource {}
 
 pub struct CallbackToken {
     pub continue_signal: Condvar,

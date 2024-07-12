@@ -3,7 +3,7 @@
 // see: https://github.com/rust-lang/rust-clippy/issues/9778
 #![allow(clippy::needless_borrow)]
 
-use rustler::{resource::ResourceArc, Error};
+use rustler::{Error, NifStruct, Resource, ResourceArc};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::{sync::WasiCtxBuilder, WasiCtx};
 use wasmtime::{
@@ -102,6 +102,9 @@ pub enum StoreOrCaller {
 pub struct StoreOrCallerResource {
     pub inner: Mutex<StoreOrCaller>,
 }
+
+#[rustler::resource_impl]
+impl Resource for StoreOrCallerResource {}
 
 impl StoreOrCaller {
     pub(crate) fn engine(&self) -> &Engine {

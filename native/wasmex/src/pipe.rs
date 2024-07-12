@@ -1,14 +1,11 @@
 //! A Pipe is a file buffer hold in memory.
 //! It can, for example, be used to replace stdin/stdout/stderr of a WASI module.
 
+use rustler::{Encoder, Resource, ResourceArc, Term};
 use std::any::Any;
 use std::io::{self, Read, Seek};
 use std::io::{Cursor, Write};
 use std::sync::{Arc, Mutex, RwLock};
-
-use rustler::resource::ResourceArc;
-use rustler::{Encoder, Term};
-
 use wasi_common::file::{FdFlags, FileType};
 use wasi_common::Error;
 use wasi_common::WasiFile;
@@ -107,6 +104,9 @@ impl WasiFile for Pipe {
 pub struct PipeResource {
     pub pipe: Mutex<Pipe>,
 }
+
+#[rustler::resource_impl]
+impl Resource for PipeResource {}
 
 #[rustler::nif(name = "pipe_new")]
 pub fn new() -> Result<ResourceArc<PipeResource>, rustler::Error> {

@@ -1,9 +1,8 @@
 use rustler::{
     dynamic::TermType,
     env::{OwnedEnv, SavedTerm},
-    resource::ResourceArc,
     types::{tuple::make_tuple, ListIterator},
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, Term,
+    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, Resource, ResourceArc, Term,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -29,6 +28,9 @@ pub struct LinkedModule {
 pub struct InstanceResource {
     pub inner: Mutex<Instance>,
 }
+
+#[rustler::resource_impl]
+impl Resource for InstanceResource {}
 
 // creates a new instance from the given Wasm bytes
 // expects the following elixir params

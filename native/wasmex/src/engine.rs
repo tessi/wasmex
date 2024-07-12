@@ -3,7 +3,7 @@
 // see: https://github.com/rust-lang/rust-clippy/issues/9778
 #![allow(clippy::needless_borrow)]
 
-use rustler::{resource::ResourceArc, types::Binary, Error, OwnedBinary};
+use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
 use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
@@ -21,6 +21,9 @@ pub struct ExEngineConfig {
 pub struct EngineResource {
     pub inner: Mutex<Engine>,
 }
+
+#[rustler::resource_impl]
+impl Resource for EngineResource {}
 
 #[rustler::nif(name = "engine_new")]
 pub fn new(config: ExEngineConfig) -> Result<ResourceArc<EngineResource>, rustler::Error> {

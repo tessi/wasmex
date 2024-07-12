@@ -1,23 +1,23 @@
-use rustler::{
-    resource::ResourceArc,
-    types::{binary::Binary, tuple::make_tuple},
-    Encoder, Env, NifResult, OwnedBinary, Term,
-};
-use std::{collections::HashMap, sync::Mutex};
-
-use wasmtime::{
-    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, RefType, TableType, ValType,
-};
-
 use crate::{
     atoms,
     engine::{unwrap_engine, EngineResource},
     store::{StoreOrCaller, StoreOrCallerResource},
 };
+use rustler::{
+    types::tuple::make_tuple, Binary, Encoder, Env, NifResult, OwnedBinary, Resource, ResourceArc,
+    Term,
+};
+use std::{collections::HashMap, sync::Mutex};
+use wasmtime::{
+    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, RefType, TableType, ValType,
+};
 
 pub struct ModuleResource {
     pub inner: Mutex<Module>,
 }
+
+#[rustler::resource_impl]
+impl Resource for ModuleResource {}
 
 #[rustler::nif(name = "module_compile", schedule = "DirtyCpu")]
 pub fn compile(

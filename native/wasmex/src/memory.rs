@@ -1,19 +1,18 @@
 //! Memory API of an WebAssembly instance.
 
-use std::io::Write;
-use std::sync::Mutex;
-
-use rustler::resource::ResourceArc;
-use rustler::{Atom, Binary, Error, NewBinary, NifResult, Term};
-
-use wasmtime::{Instance, Memory, Store};
-
 use crate::store::{StoreOrCaller, StoreOrCallerResource};
 use crate::{atoms, instance};
+use rustler::{Atom, Binary, Error, NewBinary, NifResult, Resource, ResourceArc, Term};
+use std::io::Write;
+use std::sync::Mutex;
+use wasmtime::{Instance, Memory, Store};
 
 pub struct MemoryResource {
     pub inner: Mutex<Memory>,
 }
+
+#[rustler::resource_impl]
+impl Resource for MemoryResource {}
 
 #[rustler::nif(name = "memory_from_instance")]
 pub fn from_instance(
