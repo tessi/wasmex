@@ -10,7 +10,4 @@ pub mod pipe;
 pub mod printable_term_type;
 pub mod store;
 
-#[macro_use]
-extern crate rustler;
-
-rustler::init! {"Elixir.Wasmex.Native"}
+rustler::init!("Elixir.Wasmex.Native");

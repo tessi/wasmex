@@ -1,15 +1,3 @@
-use rustler::{
-    dynamic::TermType,
-    env::{OwnedEnv, SavedTerm},
-    types::{tuple::make_tuple, ListIterator},
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, ResourceArc, Term,
-};
-use std::ops::Deref;
-use std::sync::Mutex;
-use std::thread;
-
-use wasmtime::{Instance, Linker, Module, Val, ValType};
-
 use crate::{
     atoms,
     environment::{link_imports, link_modules, CallbackTokenResource},
@@ -18,6 +6,16 @@ use crate::{
     printable_term_type::PrintableTermType,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
+use rustler::{
+    env::SavedTerm,
+    types::{tuple::make_tuple, ListIterator},
+    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term,
+    TermType,
+};
+use std::ops::Deref;
+use std::sync::Mutex;
+use std::thread;
+use wasmtime::{Instance, Linker, Module, Val, ValType};
 
 #[derive(NifMap)]
 pub struct LinkedModule {

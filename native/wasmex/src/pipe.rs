@@ -1,16 +1,14 @@
 //! A Pipe is a file buffer hold in memory.
 //! It can, for example, be used to replace stdin/stdout/stderr of a WASI module.
 
-use std::any::Any;
-use std::io::{self, Read, Seek};
-use std::io::{Cursor, Write};
-use std::sync::{Arc, Mutex, RwLock};
-
 use rustler::{Encoder, ResourceArc, Term};
-
-use wasi_common::file::{FdFlags, FileType};
-use wasi_common::Error;
-use wasi_common::WasiFile;
+use std::any::Any;
+use std::io::{self, Cursor, Read, Seek, Write};
+use std::sync::{Arc, Mutex, RwLock};
+use wasi_common::{
+    file::{FdFlags, FileType},
+    Error, WasiFile,
+};
 
 use crate::atoms;
 

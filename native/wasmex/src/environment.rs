@@ -1,11 +1,3 @@
-use std::sync::{Condvar, Mutex};
-
-use rustler::{
-    types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv, ResourceArc, Term,
-};
-use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
-use wiggle::anyhow::{self, anyhow};
-
 use crate::{
     atoms,
     caller::{remove_caller, set_caller},
@@ -13,6 +5,12 @@ use crate::{
     memory::MemoryResource,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
+use rustler::{
+    types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv, ResourceArc, Term,
+};
+use std::sync::{Condvar, Mutex};
+use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
+use wiggle::anyhow::{self, anyhow};
 
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
