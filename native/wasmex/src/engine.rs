@@ -3,7 +3,7 @@
 // see: https://github.com/rust-lang/rust-clippy/issues/9778
 #![allow(clippy::needless_borrow)]
 
-use rustler::{types::Binary, Error, OwnedBinary, Resource, ResourceArc};
+use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
 use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};

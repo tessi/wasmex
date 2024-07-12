@@ -1,17 +1,14 @@
-use rustler::{
-    types::{binary::Binary, tuple::make_tuple},
-    Encoder, Env, NifResult, OwnedBinary, ResourceArc, Term,
-};
-use std::{collections::HashMap, sync::Mutex};
-
-use wasmtime::{
-    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, RefType, TableType, ValType,
-};
-
 use crate::{
     atoms,
     engine::{unwrap_engine, EngineResource},
     store::{StoreOrCaller, StoreOrCallerResource},
+};
+use rustler::{
+    types::tuple::make_tuple, Binary, Encoder, Env, NifResult, OwnedBinary, ResourceArc, Term,
+};
+use std::{collections::HashMap, sync::Mutex};
+use wasmtime::{
+    ExternType, FuncType, GlobalType, MemoryType, Module, Mutability, RefType, TableType, ValType,
 };
 
 pub struct ModuleResource {

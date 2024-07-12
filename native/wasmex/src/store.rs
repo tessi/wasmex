@@ -3,18 +3,17 @@
 // see: https://github.com/rust-lang/rust-clippy/issues/9778
 #![allow(clippy::needless_borrow)]
 
-use rustler::{Error, ResourceArc};
+use crate::{
+    caller::{get_caller, get_caller_mut},
+    engine::{unwrap_engine, EngineResource},
+    pipe::{Pipe, PipeResource},
+};
+use rustler::{Error, NifStruct, ResourceArc};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::{sync::WasiCtxBuilder, WasiCtx};
 use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
-};
-
-use crate::{
-    caller::{get_caller, get_caller_mut},
-    engine::{unwrap_engine, EngineResource},
-    pipe::{Pipe, PipeResource},
 };
 
 #[derive(Debug, NifStruct)]

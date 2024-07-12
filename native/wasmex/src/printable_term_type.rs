@@ -1,4 +1,4 @@
-use rustler::dynamic::TermType;
+use rustler::TermType;
 
 // PrintableTermType is a workaround for rustler::dynamic::TermType not having the Debug trait.
 pub enum PrintableTermType {
