@@ -1,7 +1,7 @@
 use rustler::{
     resource::ResourceArc,
     types::{binary::Binary, tuple::make_tuple},
-    Atom, NifResult, OwnedBinary, Term,
+    Encoder, Env, NifResult, OwnedBinary, Term,
 };
 use std::{collections::HashMap, sync::Mutex};
 
@@ -111,46 +111,68 @@ pub fn imports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) 
     Ok(map)
 }
 
+enum WasmValueType {
+    I32,
+    I64,
+    F32,
+    F64,
+    V128,
+    Ref(String),
+}
+
+impl<'a> Encoder for WasmValueType {
+    fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
+        match self {
+            Self::I32 => atoms::i32().encode(env),
+            Self::I64 => atoms::i64().encode(env),
+            Self::F32 => atoms::f32().encode(env),
+            Self::F64 => atoms::f64().encode(env),
+            Self::V128 => atoms::v128().encode(env),
+            Self::Ref(ref_type) => (atoms::reference(), ref_type).encode(env),
+        }
+    }
+}
+
+impl From<&ValType> for WasmValueType {
+    fn from(val_type: &ValType) -> Self {
+        match val_type {
+            ValType::I32 => Self::I32,
+            ValType::I64 => Self::I64,
+            ValType::F32 => Self::F32,
+            ValType::F64 => Self::F64,
+            ValType::V128 => Self::V128,
+            ValType::Ref(ref_type) => Self::Ref(ref_type.to_string()),
+        }
+    }
+}
+
+impl From<&RefType> for WasmValueType {
+    fn from(ref_type: &RefType) -> Self {
+        Self::Ref(ref_type.to_string())
+    }
+}
+
 fn function_info<'a>(env: rustler::Env<'a>, ty: &FuncType) -> Term<'a> {
     let params = ty
         .params()
-        .fold(Term::list_new_empty(env), |acc, param_type| {
-            acc.list_prepend(val_type_to_atom(&param_type).to_term(env))
+        .fold(Term::list_new_empty(env), |acc, ref param_type| {
+            let typ: WasmValueType = param_type.into();
+            acc.list_prepend(typ.encode(env))
         });
     let params = params
         .list_reverse()
         .expect("cannot fail, its always a list");
     let results = ty
         .results()
-        .fold(Term::list_new_empty(env), |acc, param_type| {
-            acc.list_prepend(val_type_to_atom(&param_type).to_term(env))
+        .fold(Term::list_new_empty(env), |acc, ref param_type| {
+            let typ: WasmValueType = param_type.into();
+            acc.list_prepend(typ.encode(env))
         });
     let results = results
         .list_reverse()
         .expect("cannot fail, its always a list");
     let terms = vec![atoms::__fn__().to_term(env), params, results];
     make_tuple(env, &terms)
-}
-
-fn val_type_to_atom(val_type: &ValType) -> Atom {
-    match val_type {
-        ValType::I32 => atoms::i32(),
-        ValType::I64 => atoms::i64(),
-        ValType::F32 => atoms::f32(),
-        ValType::F64 => atoms::f64(),
-        ValType::V128 => atoms::v128(),
-        ValType::Ref(_ref_type) => atoms::extern_ref(),
-    }
-}
-
-fn ref_type_to_atom(ref_type: &RefType) -> Atom {
-    let heap_type = ref_type.heap_type();
-
-    if heap_type.is_func() {
-        atoms::func_ref()
-    } else {
-        atoms::extern_ref()
-    }
 }
 
 fn global_info<'a>(env: rustler::Env<'a>, global_type: &GlobalType) -> Term<'a> {
@@ -170,9 +192,9 @@ fn global_info<'a>(env: rustler::Env<'a>, global_type: &GlobalType) -> Term<'a> 
                 .expect("cannot fail; is always a map")
         }
     }
-    let ty = val_type_to_atom(global_type.content()).to_term(env);
+    let ty: WasmValueType = global_type.content().into();
     map = map
-        .map_put(atoms::__type__().to_term(env), ty)
+        .map_put(atoms::__type__().to_term(env), ty.encode(env))
         .expect("cannot fail; is always a map");
     let terms = vec![atoms::global().to_term(env), map];
     make_tuple(env, &terms)
@@ -194,7 +216,7 @@ fn table_info<'a>(env: rustler::Env<'a>, table_type: &TableType) -> Term<'a> {
             rustler::Encoder::encode(&table_type.minimum(), env),
         )
         .expect("cannot fail; is always a map");
-    let ty = ref_type_to_atom(table_type.element()).to_term(env);
+    let ty: WasmValueType = table_type.element().into();
     map = map
         .map_put(atoms::__type__().to_term(env), ty)
         .expect("cannot fail; is always a map");
