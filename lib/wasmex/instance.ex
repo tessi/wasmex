@@ -38,7 +38,7 @@ defmodule Wasmex.Instance do
   The `links` parameter is a list of name-module pairs that are dynamically linked to the instance.
 
   Function signatures are a tuple of the form `{:fn, arg_types, return_types, callback}`.
-  Where `arg_types` and `return_types` are lists of `:i32`, `:i64`, `:f32`, `:f64`.
+  Where `arg_types` and `return_types` are lists of `:i32`, `:i64`, `:f32`, `:f64`, `:v128`.
 
   Each `callback` function receives a `context` map as the first argument followed by the arguments specified in its signature.
   `context` has the following keys:

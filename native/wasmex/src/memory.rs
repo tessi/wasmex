@@ -3,8 +3,7 @@
 use std::io::Write;
 use std::sync::Mutex;
 
-use rustler::resource::ResourceArc;
-use rustler::{Atom, Binary, Error, NewBinary, NifResult, Term};
+use rustler::{Atom, Binary, Error, NewBinary, NifResult, ResourceArc, Term};
 
 use wasmtime::{Instance, Memory, Store};
 
@@ -14,6 +13,9 @@ use crate::{atoms, instance};
 pub struct MemoryResource {
     pub inner: Mutex<Memory>,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for MemoryResource {}
 
 #[rustler::nif(name = "memory_from_instance")]
 pub fn from_instance(

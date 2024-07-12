@@ -1,8 +1,7 @@
 use std::sync::{Condvar, Mutex};
 
 use rustler::{
-    resource::ResourceArc, types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv,
-    Term,
+    types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv, ResourceArc, Term,
 };
 use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
 use wiggle::anyhow::{self, anyhow};
@@ -18,6 +17,9 @@ use crate::{
 pub struct CallbackTokenResource {
     pub token: CallbackToken,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for CallbackTokenResource {}
 
 pub struct CallbackToken {
     pub continue_signal: Condvar,
@@ -170,10 +172,7 @@ fn link_imported_function(
                             Val::I64(i) => i.encode(env),
                             Val::F32(i) => f32::from_bits(*i).encode(env),
                             Val::F64(i) => f64::from_bits(*i).encode(env),
-                            // encoding V128 is not yet supported by rustler
-                            Val::V128(_) => {
-                                (atoms::error(), "unable_to_convert_v128_type").encode(env)
-                            }
+                            Val::V128(i) => i.as_u128().encode(env),
                             Val::ExternRef(_) => {
                                 (atoms::error(), "unable_to_convert_extern_ref_type").encode(env)
                             }

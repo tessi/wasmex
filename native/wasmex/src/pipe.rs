@@ -6,8 +6,7 @@ use std::io::{self, Read, Seek};
 use std::io::{Cursor, Write};
 use std::sync::{Arc, Mutex, RwLock};
 
-use rustler::resource::ResourceArc;
-use rustler::{Encoder, Term};
+use rustler::{Encoder, ResourceArc, Term};
 
 use wasi_common::file::{FdFlags, FileType};
 use wasi_common::Error;
@@ -107,6 +106,9 @@ impl WasiFile for Pipe {
 pub struct PipeResource {
     pub pipe: Mutex<Pipe>,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for PipeResource {}
 
 #[rustler::nif(name = "pipe_new")]
 pub fn new() -> Result<ResourceArc<PipeResource>, rustler::Error> {

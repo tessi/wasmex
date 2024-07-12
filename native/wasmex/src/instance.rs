@@ -1,9 +1,8 @@
 use rustler::{
     dynamic::TermType,
     env::{OwnedEnv, SavedTerm},
-    resource::ResourceArc,
     types::{tuple::make_tuple, ListIterator},
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, Term,
+    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, ResourceArc, Term,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -29,6 +28,9 @@ pub struct LinkedModule {
 pub struct InstanceResource {
     pub inner: Mutex<Instance>,
 }
+
+#[rustler::resource_impl()]
+impl rustler::Resource for InstanceResource {}
 
 // creates a new instance from the given Wasm bytes
 // expects the following elixir params
@@ -118,8 +120,7 @@ pub fn get_global_value(
         Val::I64(i) => Ok(i.encode(env)),
         Val::F32(i) => Ok(f32::from_bits(i).encode(env)),
         Val::F64(i) => Ok(f64::from_bits(i).encode(env)),
-        // encoding V128 is not yet supported by rustler
-        Val::V128(_) => Err(rustler::Error::Term(Box::new("unable_to_return_v128_type"))),
+        Val::V128(i) => Ok(rustler::BigInt::from(i.as_u128()).encode(env)),
         Val::FuncRef(_) => Err(rustler::Error::Term(Box::new(
             "unable_to_return_func_ref_type",
         ))),
@@ -174,6 +175,7 @@ pub fn set_global_value(
         WasmValue::I64(value) => value.into(),
         WasmValue::F32(value) => value.into(),
         WasmValue::F64(value) => value.into(),
+        WasmValue::V128(value) => value.into(),
     };
 
     global
@@ -296,10 +298,7 @@ fn execute_function(
             Val::I64(i) => i.encode(thread_env),
             Val::F32(i) => f32::from_bits(i).encode(thread_env),
             Val::F64(i) => f64::from_bits(i).encode(thread_env),
-            // encoding V128 is not yet supported by rustler
-            Val::V128(_) => {
-                return make_error_tuple(&thread_env, "unable_to_return_v128_type", from)
-            }
+            Val::V128(i) => rustler::BigInt::from(i.as_u128()).encode(thread_env),
             Val::FuncRef(_) => {
                 return make_error_tuple(&thread_env, "unable_to_return_func_ref_type", from)
             }
@@ -333,6 +332,7 @@ pub enum WasmValue {
     I64(i64),
     F32(f32),
     F64(f64),
+    V128(u128),
 }
 
 fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmValue> {
@@ -359,6 +359,31 @@ fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmV
             Ok(value) => WasmValue::F64(value),
             Err(_) => return None,
         },
+        (ValType::V128, TermType::Integer | TermType::Float) => {
+            match term.decode::<rustler::BigInt>() {
+                Ok(value) => {
+                    let (_sign, mut bytes_vec) = value.to_bytes_be();
+                    if value < rustler::BigInt::ZERO {
+                        return None;
+                    }
+
+                    // prepend 0 bytes to make it 16 bytes long. `to_bytes_be()` only returns leading non-zero bytes
+                    while bytes_vec.len() < 16 {
+                        bytes_vec.insert(0, 0);
+                    }
+                    let bytes: [u8; 16] = match bytes_vec.len() {
+                        16 => {
+                            let mut bytes = [0; 16];
+                            bytes.copy_from_slice(&bytes_vec);
+                            bytes
+                        }
+                        _ => return None,
+                    };
+                    WasmValue::V128(u128::from_be_bytes(bytes))
+                }
+                Err(_) => return None,
+            }
+        }
         (_val_type, _term_type) => return None,
     };
 
@@ -417,6 +442,7 @@ pub fn map_wasm_values_to_vals(values: &[WasmValue]) -> Vec<Val> {
             WasmValue::I64(value) => (*value).into(),
             WasmValue::F32(value) => (*value).into(),
             WasmValue::F64(value) => (*value).into(),
+            WasmValue::V128(value) => (*value).into(),
         })
         .collect()
 }

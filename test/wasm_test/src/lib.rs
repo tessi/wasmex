@@ -21,6 +21,14 @@ pub extern "C" fn i64_i64(x: i64) -> i64 {
 }
 
 #[no_mangle]
+#[cfg(target_arch = "wasm32")]
+#[target_feature(enable = "simd128")]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn v128_v128(x: core::arch::wasm32::v128) -> core::arch::wasm32::v128 {
+    x
+}
+
+#[no_mangle]
 pub extern "C" fn f32_f32(x: f32) -> f32 {
     x
 }
