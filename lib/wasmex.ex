@@ -89,7 +89,7 @@ defmodule Wasmex do
 
   - `:i32` a 32 bit integer
   - `:i64` a 64 bit integer
-  - `:v128` a 128 bit integer
+  - `:v128` a 128 bit unsigned integer
   - `:f32` a 32 bit float
   - `:f64` a 64 bit float
 
