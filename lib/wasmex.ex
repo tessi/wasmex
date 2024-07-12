@@ -134,7 +134,7 @@ defmodule Wasmex do
       ...>     }
       ...>   }
       ...> }
-      iex> {:ok, pid} = Wasmex.start_link(%{bytes: main_wasm, links: links})
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: main_wasm, links: links})
 
   In this example, the `links` map specifies that the `calculator` module depends on the `utils` module.
   The `links` map is a nested map, where each module name is associated with a map that contains the Wasm module bytes and its dependencies.

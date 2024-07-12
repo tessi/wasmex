@@ -90,7 +90,7 @@ defmodule Wasmex.ModuleTest do
       {:ok, module} =
         Wasmex.Module.compile(store, "(module (table (export \"myTable\") 2 funcref))")
 
-      expected = %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}
+      expected = %{"myTable" => {:table, %{minimum: 2, type: {:reference, "(ref null func)"}}}}
       assert expected == Wasmex.Module.exports(module)
     end
 
@@ -143,7 +143,10 @@ defmodule Wasmex.ModuleTest do
           "(module (table (import \"env\" \"myTable\") 2 funcref))"
         )
 
-      expected = %{"env" => %{"myTable" => {:table, %{minimum: 2, type: :func_ref}}}}
+      expected = %{
+        "env" => %{"myTable" => {:table, %{minimum: 2, type: {:reference, "(ref null func)"}}}}
+      }
+
       assert expected == Wasmex.Module.imports(module)
     end
 
@@ -192,7 +195,8 @@ defmodule Wasmex.ModuleTest do
       expected = %{
         "env" => %{
           "MyMemory" => {:memory, %{maximum: 256, minimum: 256, shared: false, memory64: false}},
-          "MyTable" => {:table, %{maximum: 10, minimum: 10, type: :func_ref}}
+          "MyTable" =>
+            {:table, %{maximum: 10, minimum: 10, type: {:reference, "(ref null func)"}}}
         },
         "global" => %{
           "Infinity" => {:global, %{mutability: :const, type: :f64}},

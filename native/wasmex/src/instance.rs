@@ -72,11 +72,13 @@ fn link_and_create_instance(
     let mut linker = Linker::new(store_or_caller.engine());
     if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
         linker.allow_shadowing(true);
-        wasmtime_wasi::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
+        wasi_common::sync::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
             .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
-    link_imports(&mut linker, imports)?;
+
+    link_imports(store_or_caller.engine(), &mut linker, imports)?;
     link_modules(&mut linker, store_or_caller, linked_modules)?;
+
     linker
         .instantiate(store_or_caller, module)
         .map_err(|err| Error::Term(Box::new(err.to_string())))
@@ -123,6 +125,9 @@ pub fn get_global_value(
         ))),
         Val::ExternRef(_) => Err(rustler::Error::Term(Box::new(
             "unable_to_return_extern_ref_type",
+        ))),
+        Val::AnyRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_any_ref_type",
         ))),
     }
 }
@@ -271,7 +276,7 @@ fn execute_function(
         Err(reason) => return make_error_tuple(&thread_env, &reason, from),
     };
     let results_count = function.ty(&*store_or_caller).results().len();
-    let mut results = vec![Val::null(); results_count];
+    let mut results = vec![Val::null_extern_ref(); results_count];
     let call_result = function.call(
         &mut *store_or_caller,
         function_params.as_slice(),
@@ -300,6 +305,9 @@ fn execute_function(
             }
             Val::ExternRef(_) => {
                 return make_error_tuple(&thread_env, "unable_to_return_extern_ref_type", from)
+            }
+            Val::AnyRef(_) => {
+                return make_error_tuple(&thread_env, "unable_to_return_any_ref_type", from)
             }
         })
     }

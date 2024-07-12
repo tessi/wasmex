@@ -17,6 +17,7 @@ rustler::atoms! {
     f32,
     f64,
     v128,
+    reference,
     extern_ref,
     func_ref,
     caller,

@@ -5,12 +5,11 @@
 
 use rustler::{resource::ResourceArc, Error};
 use std::{collections::HashMap, sync::Mutex};
-use wasi_common::WasiCtx;
+use wasi_common::{sync::WasiCtxBuilder, WasiCtx};
 use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
 };
-use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::{
     caller::{get_caller, get_caller_mut},
@@ -285,7 +284,7 @@ fn preopen_directory(
     preopen: &ExWasiPreopenOptions,
 ) -> Result<(), Error> {
     let path = &preopen.path;
-    let dir = wasmtime_wasi::Dir::from_std_file(
+    let dir = wasi_common::sync::Dir::from_std_file(
         std::fs::File::open(path).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?,
     );
     let guest_path = preopen.alias.as_ref().unwrap_or(path);
