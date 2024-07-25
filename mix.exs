@@ -1,7 +1,7 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
-  @version "0.8.3"
+  @version "0.9.0"
 
   def project do
     [

@@ -14,7 +14,7 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [0.9.0 - unreleased]
+## [0.9.0 - 2024-07-25]
 
 Wasmtime rewrote their fuel-related API and simplified it. To remain consistent with Wasmtime, we follow this change in this release. A Wasmex `Store` now only implements `set_fuel/2` and `get_fuel/1`. All other methods are removed with this release.
 
@@ -28,6 +28,7 @@ please check your fuel consumption values.
 - read and write a global’s value with `Instance.get_global_value/3` and `Instance.set_global_value/4` ([#540](https://github.com/tessi/wasmex/pull/540))
 - ability to dynamically link wasm modules ([#596](https://github.com/tessi/wasmex/pull/596)) thanks @munjalpatel
 - ability to use 128 bit unsigned integers (wasm type `V128`)
+- added support for multi-value returns from WASM and elixir callbacks. This enables passing string return values safely by pointer and length, for example.
 
 ### Removed
 
@@ -38,12 +39,6 @@ please check your fuel consumption values.
 
 - Dependency updates (most notably wasmtime and rustler) - thanks @RoyalIcing and @scrogson
 - removed dialyzer
-
-## [0.8.4] - 2023-06-??
-
-### Added
-
-- added support for multi-value returns from WASM and elixir callbacks. This enables passing string return values safely by pointer and length, for example.
 
 ## [0.8.3] - 2023-05-24
 

@@ -1,6 +1,6 @@
 [package]
 name = "wasmex"
-version = "0.8.3"
+version = "0.9.0"
 authors = ["Philipp Tessenow <philipp@tessenow.org>"]
 description = "Elixir extension to run WebAssembly binaries through wasmtime"
 readme = "README.md"
