@@ -35,7 +35,7 @@ defmodule Wasmex.StoreOrCaller do
   Sets fuel to for Wasm to consume while executing.
 
   For this method to work, fuel consumption must be enabled via
-  `Wasmex.EngineConfig.consume_fuel/2. By default a `Wasmex.Store`
+  `Wasmex.EngineConfig.consume_fuel/2`. By default a `Wasmex.Store`
   starts with 0 fuel for Wasm to execute with (meaning it will
   immediately trap and halt execution). This function must be
   called for the store to have some fuel to allow WebAssembly
