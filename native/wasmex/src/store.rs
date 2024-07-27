@@ -1,8 +1,3 @@
-// Due to a clippy bug it thinks we needlessly borrow stuff
-// when defining the ExStoreLimits struct
-// see: https://github.com/rust-lang/rust-clippy/issues/9778
-#![allow(clippy::needless_borrow)]
-
 use crate::{
     caller::{get_caller, get_caller_mut},
     engine::{unwrap_engine, EngineResource},
@@ -223,7 +218,7 @@ pub fn set_fuel(
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.set_fuel(fuel),
-        StoreOrCaller::Caller(token) => get_caller_mut(&token)
+        StoreOrCaller::Caller(token) => get_caller_mut(token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",
@@ -244,7 +239,7 @@ pub fn get_fuel(
         })?);
     match store_or_caller {
         StoreOrCaller::Store(store) => store.get_fuel(),
-        StoreOrCaller::Caller(token) => get_caller_mut(&token)
+        StoreOrCaller::Caller(token) => get_caller_mut(token)
             .ok_or_else(|| {
                 rustler::Error::Term(Box::new(
                     "Caller is not valid. Only use a caller within its own function scope.",

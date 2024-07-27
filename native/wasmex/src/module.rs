@@ -119,8 +119,8 @@ enum WasmValueType {
     Ref(String),
 }
 
-impl<'a> Encoder for WasmValueType {
-    fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
+impl Encoder for WasmValueType {
+    fn encode<'a>(&self, env: Env<'a>) -> Term<'a> {
         match self {
             Self::I32 => atoms::i32().encode(env),
             Self::I64 => atoms::i64().encode(env),

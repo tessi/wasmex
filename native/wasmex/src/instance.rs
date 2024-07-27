@@ -1,3 +1,7 @@
+// Clippy regression in rust 1.80.0
+// see: https://github.com/rust-lang/rust-clippy/issues/13170
+#![allow(clippy::needless_borrows_for_generic_args)]
+
 use crate::{
     atoms,
     environment::{link_imports, link_modules, CallbackTokenResource},
@@ -111,7 +115,7 @@ pub fn get_global_value(
             )))
         })?;
 
-    let value = global.get(&mut store_or_caller);
+    let value = global.get(store_or_caller);
 
     match value {
         Val::I32(i) => Ok(i.encode(env)),
@@ -177,7 +181,7 @@ pub fn set_global_value(
     };
 
     global
-        .set(&mut store_or_caller, val)
+        .set(store_or_caller, val)
         .map_err(|e| rustler::Error::Term(Box::new(format!("Could not set global: {e}"))))
 }
 

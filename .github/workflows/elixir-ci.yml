@@ -18,7 +18,7 @@ jobs:
     outputs:
       deps-cache-key: ${{ steps.get-cache-key.outputs.key }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -31,7 +31,7 @@ jobs:
       - id: get-cache-key
         run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: cache-deps
         with:
           path: |
@@ -46,13 +46,13 @@ jobs:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: cache-deps
         with:
           path: |
@@ -66,7 +66,7 @@ jobs:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -78,13 +78,13 @@ jobs:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: cache-deps
         with:
           path: |
@@ -98,13 +98,13 @@ jobs:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: cache-deps
         with:
           path: |
@@ -121,7 +121,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasi
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
