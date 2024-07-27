@@ -14,6 +14,10 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.9.1 - 2024-07-27]
+
+Same as 0.9.1, but with correct checksum for precompiled binaries
+
 ## [0.9.0 - 2024-07-25]
 
 Wasmtime rewrote their fuel-related API and simplified it. To remain consistent with Wasmtime, we follow this change in this release. A Wasmex `Store` now only implements `set_fuel/2` and `get_fuel/1`. All other methods are removed with this release.
