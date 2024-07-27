@@ -104,25 +104,6 @@ I´m looking forward to your contributions. Please open a PR containing the moti
 Any changes should be covered by tests, they can be run with `mix test`.
 In addition to tests, we expect the formatters and linters (`cargo fmt`, `cargo clippy`, `mix format`, `mix credo`) to pass.
 
-### Release
-
-To release this package, make sure CI is green, increase the package version, and:
-
-```
-git tag -a v0.8.0 # change version accordingly, copy changelog into tag message
-git push --tags
-mix rustler_precompiled.download Wasmex.Native --all --ignore-unavailable --print
-```
-
-Inspect it's output carefully, but ignore NIF version `2.14` and `arm-unknown-linux-gnueabihf` arch errors because we don't build for them.
-Now inspect the checksum-Elixir.Wasmex.Native.exs file - it should include all prebuilt binaries in their checksums
-
-Then continue with
-
-```
-mix hex.publish
-```
-
 ## License
 
 The entire project is under the MIT License. Please read [the`LICENSE` file](https://github.com/tessi/wasmex/blob/master/LICENSE).
