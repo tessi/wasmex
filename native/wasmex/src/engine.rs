@@ -1,8 +1,3 @@
-// Due to a clippy bug it thinks we needlessly borrow stuff
-// when defining the ExStoreLimits struct
-// see: https://github.com/rust-lang/rust-clippy/issues/9778
-#![allow(clippy::needless_borrow)]
-
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
 use std::sync::Mutex;
