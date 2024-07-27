@@ -1,13 +1,15 @@
-pub mod atoms;
-pub mod caller;
-pub mod engine;
-pub mod environment;
-pub mod functions;
-pub mod instance;
-pub mod memory;
-pub mod module;
-pub mod pipe;
-pub mod printable_term_type;
-pub mod store;
+mod atoms;
+mod caller;
+mod engine;
+mod environment;
+mod functions;
+mod instance;
+mod memory;
+mod module;
+mod pipe;
+mod printable_term_type;
+mod store;
+mod store_limits;
+mod task;
 
 rustler::init!("Elixir.Wasmex.Native");
