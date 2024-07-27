@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Extract crate information
         shell: bash
@@ -79,13 +79,13 @@ jobs:
           cargo-args: ${{ matrix.job.cargo-args }}
 
       - name: Artifact upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.build-crate.outputs.file-name }}
           path: ${{ steps.build-crate.outputs.file-path }}
 
       - name: Publish archives and packages
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ steps.build-crate.outputs.file-path }}
