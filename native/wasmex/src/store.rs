@@ -42,6 +42,9 @@ pub enum StoreOrCaller {
     Caller(i32),
 }
 
+unsafe impl Send for StoreData {} // TODO: needed?
+unsafe impl Send for StoreOrCaller {} // TODO: needed?
+
 pub struct StoreOrCallerResource {
     pub inner: Mutex<StoreOrCaller>,
 }

@@ -41,6 +41,7 @@ rustler::atoms! {
     // calls to erlang processes
     returned_function_call,
     invoke_callback,
+    async_nif_result,
 
     // engine config - cranelift_opt_level
     none,
