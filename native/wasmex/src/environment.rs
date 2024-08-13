@@ -1,12 +1,12 @@
 use crate::{
     atoms,
     caller::{remove_caller, set_caller},
-    instance::{map_wasm_values_to_vals, LinkedModule, WasmValue},
+    instance::{map_wasm_values_to_vals, ImportDefinition, LinkedModule, WasmValue},
     memory::MemoryResource,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
 };
 use rustler::{
-    types::tuple, Atom, Encoder, Error, ListIterator, MapIterator, OwnedEnv, ResourceArc, Term,
+    types::tuple, Atom, Encoder, Error, ListIterator, LocalPid, MapIterator, OwnedEnv, ResourceArc, Term
 };
 use std::sync::{Condvar, Mutex};
 use wasmtime::{Caller, Engine, FuncType, Linker, Val, ValType};
@@ -52,19 +52,64 @@ pub fn link_modules(
     Ok(())
 }
 
-pub fn link_imports(
-    engine: &Engine,
-    linker: &mut Linker<StoreData>,
+pub fn imports_from_map_iterator(
     imports: MapIterator,
-) -> Result<(), Error> {
+) -> Result<Vec<ImportDefinition>, Error> {
+    let mut result = Vec::new();
     for (namespace_name, namespace_definition) in imports {
         let namespace_name = namespace_name.decode::<String>()?;
         let definition: MapIterator = namespace_definition.decode()?;
 
         for (import_name, import) in definition {
             let import_name = import_name.decode::<String>()?;
-            link_import(engine, linker, &namespace_name, &import_name, import)?;
+            let import_tuple = tuple::get_tuple(import)?;
+
+            let import_type = import_tuple
+                .first()
+                .ok_or(Error::Atom("missing_import_type"))?;
+            let import_type =
+                Atom::from_term(*import_type).map_err(|_| Error::Atom("import type must be an atom"))?;
+
+            if atoms::__fn__().eq(&import_type) {
+                let param_term = import_tuple
+                    .get(1)
+                    .ok_or(Error::Atom("missing_import_params"))?;
+                let results_term = import_tuple
+                    .get(2)
+                    .ok_or(Error::Atom("missing_import_results"))?;
+
+                let params_signature = param_term
+                    .decode::<ListIterator>()?
+                    .map(term_to_arg_type)
+                    .collect::<Result<Vec<ValType>, _>>()?;
+
+                let results_signature = results_term
+                    .decode::<ListIterator>()?
+                    .map(term_to_arg_type)
+                    .collect::<Result<Vec<ValType>, _>>()?;
+
+                result.push(ImportDefinition::Function {
+                    namespace: namespace_name.clone(),
+                    name: import_name.clone(),
+                    params: params_signature,
+                    results: results_signature,
+                });
+            } else {
+                return Err(Error::Atom("unknown import type"));
+            }
         }
+    }
+    Ok(result)
+}
+
+pub fn link_imports(
+    engine: &Engine,
+    linker: &mut Linker<StoreData>,
+    imports: &Vec<ImportDefinition>,
+    pid: &LocalPid,
+) -> Result<(), Error> {
+    for import_definition in imports {
+        link_import(engine, linker, import_definition, pid)?;
     }
     Ok(())
 }
@@ -72,29 +117,17 @@ pub fn link_imports(
 fn link_import(
     engine: &Engine,
     linker: &mut Linker<StoreData>,
-    namespace_name: &str,
-    import_name: &str,
-    definition: Term,
+    import_definition: &ImportDefinition,
+    pid: &LocalPid,
 ) -> Result<(), Error> {
-    let import_tuple = tuple::get_tuple(definition)?;
-
-    let import_type = import_tuple
-        .first()
-        .ok_or(Error::Atom("missing_import_type"))?;
-    let import_type =
-        Atom::from_term(*import_type).map_err(|_| Error::Atom("import type must be an atom"))?;
-
-    if atoms::__fn__().eq(&import_type) {
-        return link_imported_function(
-            engine,
-            linker,
-            namespace_name.to_string(),
-            import_name.to_string(),
-            definition,
-        );
+    match import_definition {
+        ImportDefinition::Function {
+            namespace,
+            name,
+            params,
+            results,
+        } => link_imported_function(engine, linker, namespace, name, params, results, pid),
     }
-
-    Err(Error::Atom("unknown import type"))
 }
 
 // Creates a wrapper function used in a Wasm import object.
@@ -112,32 +145,19 @@ fn link_import(
 fn link_imported_function(
     engine: &Engine,
     linker: &mut Linker<StoreData>,
-    namespace_name: String,
-    import_name: String,
-    definition: Term,
+    namespace_name: &String,
+    import_name: &String,
+    params_signature: &Vec<ValType>,
+    results_signature: &Vec<ValType>,
+    pid: &LocalPid,
 ) -> Result<(), Error> {
-    let pid = definition.get_env().pid();
+    let namespace_name = namespace_name.clone();
+    let import_name = import_name.clone();
+    let params_signature = params_signature.clone();
+    let results_signature = results_signature.clone();
+    let signature = FuncType::new(engine, params_signature.clone(), results_signature.clone());
+    let pid = pid.clone();
 
-    let import_tuple = tuple::get_tuple(definition)?;
-
-    let param_term = import_tuple
-        .get(1)
-        .ok_or(Error::Atom("missing_import_params"))?;
-    let results_term = import_tuple
-        .get(2)
-        .ok_or(Error::Atom("missing_import_results"))?;
-
-    let params_signature = param_term
-        .decode::<ListIterator>()?
-        .map(term_to_arg_type)
-        .collect::<Result<Vec<ValType>, _>>()?;
-
-    let results_signature = results_term
-        .decode::<ListIterator>()?
-        .map(term_to_arg_type)
-        .collect::<Result<Vec<ValType>, _>>()?;
-
-    let signature = FuncType::new(engine, params_signature, results_signature.clone());
     linker
         .func_new(
             &namespace_name.clone(),

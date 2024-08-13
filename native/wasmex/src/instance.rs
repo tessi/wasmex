@@ -4,27 +4,37 @@
 
 use crate::{
     atoms,
-    environment::{link_imports, link_modules, CallbackTokenResource},
+    environment::{imports_from_map_iterator, link_imports, link_modules, CallbackTokenResource},
     functions,
     module::ModuleResource,
     printable_term_type::PrintableTermType,
     store::{StoreData, StoreOrCaller, StoreOrCallerResource},
+    task::{self, send_async_nif_result},
 };
 use rustler::{
     env::SavedTerm,
     types::{tuple::make_tuple, ListIterator},
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term,
-    TermType,
+    Atom, Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, OwnedEnv,
+    ResourceArc, Term, TermType,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
-use std::thread;
-use wasmtime::{Instance, Linker, Module, Val, ValType};
+use wasmtime::{AsContextMut, Instance, Linker, Val, ValType};
 
 #[derive(NifMap)]
 pub struct LinkedModule {
     pub name: String,
     pub module_resource: ResourceArc<ModuleResource>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ImportDefinition {
+    Function {
+        namespace: String,
+        name: String,
+        params: Vec<ValType>,
+        results: Vec<ValType>,
+    },
 }
 
 pub struct InstanceResource {
@@ -43,49 +53,52 @@ impl rustler::Resource for InstanceResource {}
 //   structure: %{namespace_name: %{import_name: {:fn, param_types, result_types, captured_function}}}
 #[rustler::nif(name = "instance_new")]
 pub fn new(
+    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     module_resource: ResourceArc<ModuleResource>,
     imports: MapIterator,
     linked_modules: Vec<LinkedModule>,
-) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
-    let module = module_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {e}"
-        )))
-    })?;
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+) -> NifResult<(Atom, Atom)> {
+    // TODO: pass pid as parameter instead of hardcoding it
+    let pid = env.pid();
+    // create erlang environment for the thread
+    let imports = imports_from_map_iterator(imports)?;
 
-    let instance = link_and_create_instance(store_or_caller, &module, imports, linked_modules)?;
-    let resource = ResourceArc::new(InstanceResource {
-        inner: Mutex::new(instance),
-    });
-    Ok(resource)
-}
-
-fn link_and_create_instance(
-    store_or_caller: &mut StoreOrCaller,
-    module: &Module,
-    imports: MapIterator,
-    linked_modules: Vec<LinkedModule>,
-) -> Result<Instance, Error> {
-    let mut linker = Linker::new(store_or_caller.engine());
-    if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
-        linker.allow_shadowing(true);
-        wasi_common::sync::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
-            .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-    }
-
-    link_imports(store_or_caller.engine(), &mut linker, imports)?;
-    link_modules(&mut linker, store_or_caller, linked_modules)?;
-
-    linker
-        .instantiate(store_or_caller, module)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))
+    send_async_nif_result(env, async move {
+        let mut store_or_caller = (store_or_caller_resource.inner.lock().map_err(|e| {
+            format!("Could not unlock store resource as the mutex was poisoned: {e}")
+        }))?;
+    
+        let module = module_resource.inner.lock().map_err(|e| {
+            format!("Could not unlock module resource as the mutex was poisoned: {e}")
+        }).map(|module| module.clone())?;
+    
+        let mut linker = Linker::new(store_or_caller.engine());
+        if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
+            linker.allow_shadowing(true);
+            wasi_common::sync::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
+                .map_err(|err| err.to_string())?;
+        }
+    
+        link_imports(store_or_caller.engine(), &mut linker, &imports, &pid).map_err(|e| format!("{:?}", e))?;
+        link_modules(&mut linker, &mut *store_or_caller, linked_modules).map_err(|e| format!("{:?}", e))?;
+    
+        linker
+            .instantiate_async(store_or_caller.as_context_mut(), &module)
+            .await
+            .map_err(|err| Error::Term(Box::new(err.to_string())))
+            .map(|instance| {
+                ResourceArc::new(InstanceResource {
+                    inner: Mutex::new(instance),
+                })
+            })
+        .map(|instance_resource| (
+            atoms::returned_function_call(),
+            (atoms::ok(), instance_resource),
+            atoms::async_nif_result()
+        ))
+        .map_err(|error| format!("{:?}", error))
+    })
 }
 
 #[rustler::nif(name = "instance_get_global_value", schedule = "DirtyCpu")]
@@ -207,7 +220,7 @@ pub fn function_export_exists(
     Ok(result)
 }
 
-#[rustler::nif(name = "instance_call_exported_function", schedule = "DirtyCpu")]
+#[rustler::nif(name = "instance_call_exported_function")]
 pub fn call_exported_function(
     env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
@@ -223,7 +236,7 @@ pub fn call_exported_function(
     let function_params = thread_env.save(params);
     let from = thread_env.save(from);
 
-    thread::spawn(move || {
+    task::spawn(async move {
         thread_env.send_and_clear(&pid, |thread_env| {
             execute_function(
                 thread_env,
