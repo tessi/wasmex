@@ -31,4 +31,12 @@ defmodule Wasmex.EngineConfigTest do
       assert %{wasm_backtrace_details: true} = EngineConfig.wasm_backtrace_details(config, true)
     end
   end
+
+  describe t(&EngineConfig.memory64/1) do
+    test "sets the memory64 option" do
+      config = %EngineConfig{}
+      assert %{memory64: false} = EngineConfig.memory64(config, false)
+      assert %{memory64: true} = EngineConfig.memory64(config, true)
+    end
+  end
 end
