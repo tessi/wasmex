@@ -74,7 +74,8 @@ defmodule Wasmex do
 
       %{
         memory: %Wasmex.Memory{},
-        caller: %Wasmex.StoreOrCaller{}
+        caller: %Wasmex.StoreOrCaller{},
+        pid: pid(),
       } = context
 
   The `caller` MUST be used instead of a `store` in Wasmex API functions.
@@ -517,7 +518,8 @@ defmodule Wasmex do
         context,
         %{
           memory: Wasmex.Memory.__wrap_resource__(Map.get(context, :memory)),
-          caller: Wasmex.StoreOrCaller.__wrap_resource__(Map.get(context, :caller))
+          caller: Wasmex.StoreOrCaller.__wrap_resource__(Map.get(context, :caller)),
+          pid: self()
         }
       )
 
