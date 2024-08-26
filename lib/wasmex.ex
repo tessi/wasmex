@@ -440,7 +440,7 @@ defmodule Wasmex do
   def module(pid), do: GenServer.call(pid, {:module})
 
 
-  @spec instance() :: {:ok, Wasmex.Instance.t()} | {:error, any()}
+  @spec instance(pid()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
   def instance(pid), do: GenServer.call(pid, {:instance})
 
   defp stringify_keys(struct) when is_struct(struct), do: struct
