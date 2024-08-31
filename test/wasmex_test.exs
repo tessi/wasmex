@@ -448,7 +448,7 @@ defmodule WasmexTest do
 
       imports = %{
         env: %{add_import: {:fn, [:i32, :i32], [:i32], fn %{instance: instance, caller: caller}, a, b -> 
-          Wasmex.Instance.call_exported_function(caller, instance, "call_add", [a,b], :from) 
+          Wasmex.Instance.call_exported_function(caller, instance, "call_add", [a, b], :from) 
           receive do {
             :returned_function_call, {:ok, [result]}, :from} -> :ok 
             result 
