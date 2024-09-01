@@ -439,7 +439,14 @@ defmodule Wasmex do
   @spec module(pid()) :: {:ok, Wasmex.Module.t()} | {:error, any()}
   def module(pid), do: GenServer.call(pid, {:module})
 
+  @doc ~S"""
+  Returns the `Wasmex.Instance` of the Wasm instance.
 
+  ## Example
+
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, %Wasmex.Instance{}} = Wasmex.instance(pid)
+  """
   @spec instance(pid()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
   def instance(pid), do: GenServer.call(pid, {:instance})
 
