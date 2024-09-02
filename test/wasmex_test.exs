@@ -427,4 +427,52 @@ defmodule WasmexTest do
       assert Wasmex.Memory.read_string(store, memory, string_ptr, length) == "Hello World!"
     end
   end
+
+  describe "call exported function in imported function callback" do
+    test "using instance in callback" do
+      wat = """
+      (module
+        (func $add_import (import "env" "add_import") (param i32 i32) (result i32))
+
+        (func $call_import (export "call_import") (param i32 i32) (result i32)
+          (call $add_import (local.get 0) (local.get 1))
+        )
+
+        (func $call_add (export "call_add") (param i32 i32) (result i32)
+          local.get 0
+          local.get 1
+          i32.add
+        )
+      )
+      """
+
+      imports = %{
+        env: %{
+          add_import:
+            {:fn, [:i32, :i32], [:i32],
+             fn %{instance: instance, caller: caller}, a, b ->
+               Wasmex.Instance.call_exported_function(caller, instance, "call_add", [a, b], :from)
+
+               receive do
+                 {
+                   :returned_function_call,
+                   {:ok, [result]},
+                   :from
+                 } ->
+                   :ok
+                   result
+               after
+                 1000 ->
+                   raise "timeout on exported function call"
+               end
+             end}
+        }
+      }
+
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      pid = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
+      assert Wasmex.call_function(pid, :call_import, [1, 2]) == {:ok, [3]}
+    end
+  end
 end

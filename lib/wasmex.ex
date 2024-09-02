@@ -74,7 +74,9 @@ defmodule Wasmex do
 
       %{
         memory: %Wasmex.Memory{},
-        caller: %Wasmex.StoreOrCaller{}
+        caller: %Wasmex.StoreOrCaller{},
+        pid: pid(),
+        instance: %Wasmex.Instance{}
       } = context
 
   The `caller` MUST be used instead of a `store` in Wasmex API functions.
@@ -437,6 +439,17 @@ defmodule Wasmex do
   @spec module(pid()) :: {:ok, Wasmex.Module.t()} | {:error, any()}
   def module(pid), do: GenServer.call(pid, {:module})
 
+  @doc ~S"""
+  Returns the `Wasmex.Instance` of the Wasm instance.
+
+  ## Example
+
+      iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
+      iex> {:ok, %Wasmex.Instance{}} = Wasmex.instance(pid)
+  """
+  @spec instance(pid()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
+  def instance(pid), do: GenServer.call(pid, {:instance})
+
   defp stringify_keys(struct) when is_struct(struct), do: struct
 
   defp stringify_keys(map) when is_map(map) do
@@ -482,6 +495,11 @@ defmodule Wasmex do
   end
 
   @impl true
+  def handle_call({:instance}, _from, %{instance: instance} = state) do
+    {:reply, {:ok, instance}, state}
+  end
+
+  @impl true
   def handle_call(
         {:exported_function_exists, name},
         _from,
@@ -510,14 +528,16 @@ defmodule Wasmex do
   @impl true
   def handle_info(
         {:invoke_callback, namespace_name, import_name, context, params, token},
-        %{imports: imports} = state
+        %{imports: imports, instance: instance} = state
       ) do
     context =
       Map.merge(
         context,
         %{
           memory: Wasmex.Memory.__wrap_resource__(Map.get(context, :memory)),
-          caller: Wasmex.StoreOrCaller.__wrap_resource__(Map.get(context, :caller))
+          caller: Wasmex.StoreOrCaller.__wrap_resource__(Map.get(context, :caller)),
+          pid: self(),
+          instance: instance
         }
       )
 
