@@ -276,7 +276,7 @@ defmodule WasmexTest do
       assert {:error, reason} = Wasmex.call_function(instance, "using_imported_sum3", [1, 2, 3])
 
       assert reason =~
-               ~r/Error during function excecution: `error while executing at wasm backtrace:\n\s*0:\s*0x.* - .*\!using_imported_sum3`\./
+               ~r/Error during function excecution: error while executing at wasm backtrace:\n\s*0:\s*0x.* - .*\!using_imported_sum3/
     end
   end
 
@@ -296,7 +296,7 @@ defmodule WasmexTest do
 
       assert String.starts_with?(
                err_msg,
-               "Error during function excecution: `error while executing at wasm backtrace:"
+               "Error during function excecution (wasm trap: wasm `unreachable` instruction executed): error while executing at wasm backtrace:"
              )
     end
 
@@ -332,7 +332,7 @@ defmodule WasmexTest do
       assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
 
       assert err_msg =~
-               ~r/Error during function excecution: `error while executing at wasm backtrace:\n.+0:.+0x.+ - .*\!void`\./
+               ~r/Error during function excecution \(wasm trap: all fuel consumed by WebAssembly\): error while executing at wasm backtrace:\n.+0:.+0x.+ - .*\!void/
     end
   end
 

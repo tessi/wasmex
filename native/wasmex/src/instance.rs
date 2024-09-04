@@ -19,7 +19,7 @@ use rustler::{
 use std::ops::Deref;
 use std::sync::Mutex;
 use std::thread;
-use wasmtime::{Instance, Linker, Module, Val, ValType};
+use wasmtime::{Instance, Linker, Module, Trap, Val, ValType};
 
 #[derive(NifMap)]
 pub struct LinkedModule {
@@ -289,8 +289,20 @@ fn execute_function(
     match call_result {
         Ok(_) => (),
         Err(err) => {
-            let reason = format!("Error during function excecution: `{err}`.");
-            return make_error_tuple(&thread_env, &reason, from);
+            let reason = format!("{err}");
+            if let Ok(trap) = err.downcast::<Trap>() {
+                return make_error_tuple(
+                    &thread_env,
+                    &format!("Error during function excecution ({trap}): {reason}"),
+                    from,
+                );
+            } else {
+                return make_error_tuple(
+                    &thread_env,
+                    &format!("Error during function excecution: {reason}"),
+                    from,
+                );
+            }
         }
     };
     let mut return_values: Vec<Term> = Vec::with_capacity(results_count);
