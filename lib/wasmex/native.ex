@@ -90,6 +90,8 @@ defmodule Wasmex.Native do
 
   def component_instance_new(_store, _component), do: error()
 
+  def exec_func(_store, _instance, _function_name), do: error()
+
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.
   defp error, do: :erlang.nif_error(:nif_not_loaded)

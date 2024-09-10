@@ -9,8 +9,10 @@ defmodule Wasmex.WasmComponentsTest do
     component_bytes = File.read!("./todo-list.wasm")
     IO.inspect("building component")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
+    IO.inspect("building instance")
+    {:ok, instance} = Wasmex.Component.Instance.new(store, component)
     IO.inspect("executing component function")
-    assert [first, second] = Wasmex.Native.todo_init(store.resource, component.resource)
+    assert [first, second] = Wasmex.Native.exec_func(store.resource, instance.resource, "init")
     assert second =~ "Codebeam"
   end
 end
