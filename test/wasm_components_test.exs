@@ -5,8 +5,8 @@ defmodule Wasmex.WasmComponentsTest do
   alias Wasmex.EngineConfig
 
   test "invoke component func" do
-    {:ok, engine} = Engine.new(%EngineConfig{})
-    assert [first, second] = Wasmex.Native.todo_init(engine.resource)
+    {:ok, store} = Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{})
+    assert [first, second] = Wasmex.Native.todo_init(store.resource)
     assert second =~ "Codebeam"
   end
 end
