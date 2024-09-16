@@ -101,14 +101,14 @@ pub struct StoreOrCallerResource {
 impl rustler::Resource for StoreOrCallerResource {}
 
 impl StoreOrCaller {
-    pub(crate) fn engine(&self) -> &Engine {
+    pub fn engine(&self) -> &Engine {
         match self {
             StoreOrCaller::Store(store) => store.engine(),
             StoreOrCaller::Caller(token) => get_caller(token).unwrap().engine(),
         }
     }
 
-    pub(crate) fn data(&self) -> &StoreData {
+    pub fn data(&self) -> &StoreData {
         match self {
             StoreOrCaller::Store(store) => store.data(),
             StoreOrCaller::Caller(token) => get_caller(token).unwrap().data(),
