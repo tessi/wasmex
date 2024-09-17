@@ -15,4 +15,13 @@ defmodule Wasmex.WasmComponentsTest do
     assert [first, second] = Wasmex.Native.exec_func(store.resource, instance.resource, "init")
     assert second =~ "Codebeam"
   end
+
+  test "bindgen component test" do
+    {:ok, store} = Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{})
+    component_bytes = File.read!("./todo-list.wasm")
+    IO.inspect("building component")
+    {:ok, component} = Wasmex.Component.new(store, component_bytes)
+    assert {:ok, todo} = TodoList.instantiate(store, component)
+    assert [first, second] = TodoList.init(store, todo)
+  end
 end
