@@ -12,6 +12,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = { version = "0.34", features = ["big_integer"] }
-wasmex = { path = "/Users/superchris/dev/wasmex/native/wasmex" }
+wasmex = { path = "../../../native/wasmex" }
 wasmtime = "24.0.0"
 wasmtime-wasi = "24.0.0"
