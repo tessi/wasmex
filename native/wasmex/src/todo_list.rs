@@ -1,6 +1,6 @@
 
-use wasmex::component::ComponentResource;
-use wasmex::store::{StoreOrCaller, StoreOrCallerResource};
+use crate::component::ComponentResource;
+use crate::store::{StoreOrCaller, StoreOrCallerResource};
 use rustler::ResourceArc;
 use rustler::NifResult;
 use wasmtime::component::{Linker, bindgen};
@@ -15,7 +15,7 @@ pub struct TodoListResource {
 #[rustler::resource_impl()]
 impl rustler::Resource for TodoListResource {}
 
-#[rustler::nif(name = "instantiate")]
+#[rustler::nif(name = "todo_instantiate")]
 pub fn instantiate(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     component_resource: ResourceArc<ComponentResource>,
@@ -42,7 +42,7 @@ pub fn instantiate(
     }))
 }
 
-#[rustler::nif(name = "init")]
+#[rustler::nif(name = "todo_init")]
 pub fn init(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     todo_list_resource: ResourceArc<TodoListResource>,
@@ -64,7 +64,3 @@ pub fn init(
     todo_list.call_init(store_or_caller).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
 }
 
-fn my_load(env: rustler::Env, _term: rustler::Term) -> bool {
-  true
-}
-rustler::init!("Elixir.TodoList", load = my_load);

@@ -11,5 +11,6 @@ pub mod printable_term_type;
 pub mod store;
 pub mod component;
 pub mod exec_func;
+pub mod todo_list;
 
 rustler::init!("Elixir.Wasmex.Native");

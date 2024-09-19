@@ -1,0 +1,6 @@
+package local:todo-list;
+
+world todo-list {
+  export init: func() -> list<string>;
+  export add-todo: func(todo: string, todos: list<string>) -> list<string>;
+}

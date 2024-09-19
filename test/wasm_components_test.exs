@@ -21,7 +21,8 @@ defmodule Wasmex.WasmComponentsTest do
     component_bytes = File.read!("./todo-list.wasm")
     IO.inspect("building component")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
-    assert {:ok, todo} = TodoList.instantiate(store, component)
-    assert [first, second] = TodoList.init(store, todo)
+    assert todo = Wasmex.Native.todo_instantiate(store.resource, component.resource)
+    assert [first, second] = Wasmex.Native.todo_init(store.resource, todo)
+    assert first =~ "Hello"
   end
 end
