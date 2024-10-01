@@ -4,11 +4,12 @@ use crate::{
     pipe::{Pipe, PipeResource},
 };
 use rustler::{Error, NifStruct, ResourceArc};
+use wasmtime_wasi::{WasiCtx, WasiView, ResourceTable};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
 use std::{collections::HashMap, sync::Mutex};
-use wasi_common::{sync::WasiCtxBuilder, WasiCtx};
+use wasi_common::{sync::WasiCtxBuilder};
 use wasmtime::{
-    AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
-    StoreLimitsBuilder,
+    AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits, StoreLimitsBuilder
 };
 
 #[derive(Debug, NifStruct)]
@@ -84,8 +85,25 @@ impl ExStoreLimits {
 }
 
 pub struct StoreData {
-    pub(crate) wasi: Option<WasiCtx>,
+    pub(crate) wasi: Option<wasi_common::WasiCtx>,
     pub(crate) limits: StoreLimits,
+}
+
+pub struct ComponentStoreData {
+    pub(crate) ctx: WasiCtx,
+    pub(crate) http: WasiHttpCtx,
+    pub(crate) limits: StoreLimits,
+    pub(crate) table: ResourceTable,
+}
+
+impl WasiHttpView for ComponentStoreData {
+  fn ctx(&mut self) -> &mut WasiHttpCtx { &mut self.http }
+  fn table(&mut self) -> &mut ResourceTable { &mut self.table }
+}
+
+impl WasiView for ComponentStoreData {
+  fn ctx(&mut self) -> &mut WasiCtx { &mut self.ctx }
+  fn table(&mut self) -> &mut ResourceTable { &mut self.table }
 }
 
 pub enum StoreOrCaller {
@@ -96,6 +114,13 @@ pub enum StoreOrCaller {
 pub struct StoreOrCallerResource {
     pub inner: Mutex<StoreOrCaller>,
 }
+
+pub struct ComponentStoreResource {
+  pub inner: Mutex<Store<ComponentStoreData>>,
+}
+
+#[rustler::resource_impl()]
+impl rustler::Resource for ComponentStoreResource {}
 
 #[rustler::resource_impl()]
 impl rustler::Resource for StoreOrCallerResource {}
@@ -151,6 +176,49 @@ pub fn new(
     store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
         inner: Mutex::new(StoreOrCaller::Store(store)),
+    });
+    Ok(resource)
+}
+
+#[rustler::nif(name = "store_new_wasi_p2")]
+pub fn new_wasip2(
+    options: ExWasiOptions,
+    limits: Option<ExStoreLimits>,
+    engine_resource: ResourceArc<EngineResource>,
+) -> Result<ResourceArc<ComponentStoreResource>, rustler::Error> {
+    let wasi_env = &options
+        .env
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect::<Vec<_>>();
+    let mut builder = wasmtime_wasi::WasiCtxBuilder::new();
+    let wasi_ctx = builder
+        .args(&options.args)
+        .envs(wasi_env)
+        .inherit_stdin()
+        .inherit_stdout()
+        .inherit_stderr()
+        .inherit_network()
+        .allow_ip_name_lookup(true)
+        .build();
+    let engine = unwrap_engine(engine_resource)?;
+    let limits = if let Some(limits) = limits {
+        limits.to_wasmtime()
+    } else {
+        StoreLimits::default()
+    };
+    let mut store = Store::new(
+        &engine,
+        ComponentStoreData {
+            ctx: wasi_ctx,
+            limits,
+            http: WasiHttpCtx::new(),
+            table: wasmtime_wasi::ResourceTable::new(),
+        },
+    );
+    store.limiter(|state| &mut state.limits);
+    let resource: ResourceArc<ComponentStoreResource> = ResourceArc::new(ComponentStoreResource {
+        inner: Mutex::new(store),
     });
     Ok(resource)
 }

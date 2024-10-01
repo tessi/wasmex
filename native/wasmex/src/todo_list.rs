@@ -1,10 +1,12 @@
-
 use crate::component::ComponentResource;
-use crate::store::{StoreOrCaller, StoreOrCallerResource};
-use rustler::ResourceArc;
+use crate::store::{
+    ComponentStoreData, ComponentStoreResource, StoreOrCaller, StoreOrCallerResource,
+};
 use rustler::NifResult;
-use wasmtime::component::{Linker, bindgen};
+use rustler::ResourceArc;
 use std::sync::Mutex;
+use wasmtime::component::{bindgen, Linker};
+use wasmtime::{Config, Engine, Store};
 
 bindgen!("todo-list" in "todo-list.wit");
 
@@ -17,13 +19,13 @@ impl rustler::Resource for TodoListResource {}
 
 #[rustler::nif(name = "todo_instantiate")]
 pub fn instantiate(
-    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    component_store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
 ) -> NifResult<ResourceArc<TodoListResource>> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+    let component_store: &mut Store<ComponentStoreData> =
+        &mut *(component_store_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
+                "Could not unlock component_store resource as the mutex was poisoned: {e}"
             )))
         })?);
 
@@ -33,8 +35,15 @@ pub fn instantiate(
         )))
     })?;
 
-    let linker = Linker::new(store_or_caller.engine());
-    let todo_instance = TodoList::instantiate(store_or_caller, &component, &linker)
+    let mut config = Config::new();
+    config.wasm_component_model(true);
+    config.async_support(true);
+    let engine = Engine::new(&config).unwrap();
+
+    let mut linker = Linker::new(&engine);
+    wasmtime_wasi::add_to_linker_sync(&mut linker);
+    wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+    let todo_instance = TodoList::instantiate(component_store, &component, &linker)
         .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
 
     Ok(ResourceArc::new(TodoListResource {
@@ -44,10 +53,10 @@ pub fn instantiate(
 
 #[rustler::nif(name = "todo_init")]
 pub fn init(
-    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    store_or_caller_resource: ResourceArc<ComponentStoreResource>,
     todo_list_resource: ResourceArc<TodoListResource>,
 ) -> NifResult<Vec<String>> {
-    let store_or_caller: &mut StoreOrCaller =
+    let store_or_caller: &mut Store<ComponentStoreData> =
         &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
                 "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
@@ -60,7 +69,7 @@ pub fn init(
         )))
     })?;
 
-    
-    todo_list.call_init(store_or_caller).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
+    todo_list
+        .call_init(store_or_caller)
+        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
 }
-
