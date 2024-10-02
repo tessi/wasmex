@@ -30,9 +30,14 @@ defmodule Wasmex.WasmComponentsTest do
   test "with a different component impl" do
     component_bytes = File.read!("test/support/todo_list/other_todo_list.wasm")
     {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
+    IO.inspect("building instance")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
+    IO.inspect("running functions")
     assert todo = Wasmex.Native.todo_instantiate(store.resource, component.resource)
     assert list = Wasmex.Native.todo_init(store.resource, todo)
     assert "other" in list
+    assert new_list = Wasmex.Native.todo_add(store.resource, todo, "thing", list)
+    IO.inspect(new_list)
+    assert Enum.count(new_list) == 4
   end
 end

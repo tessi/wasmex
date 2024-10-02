@@ -3,11 +3,11 @@ function sleep(ms) {
 };
 
 export const init = async () => {
-  console.log('hi parker');
+  console.log('hi ohio elixir peeps!!');
   const response = await fetch('https://launchscout.com');
   const text = await response.text();
-  console.log(text);
-  const thing = await sleep(3000);
+  // console.log(text);
   return ["other", "stuff", "man"];
 };
-export const addTodo = (item, list) => list.concat([item, ...list]);
+
+export const addTodo = (item, list) => [item, ...list];

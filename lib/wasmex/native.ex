@@ -70,7 +70,6 @@ defmodule Wasmex.Native do
   def store_or_caller_get_fuel(_store_or_caller_resource), do: error()
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
 
-  def todo_init(_store, _component_bytes), do: error()
 
   def component_new(_store, _component_bytes), do: error()
 
@@ -80,6 +79,7 @@ defmodule Wasmex.Native do
 
   def todo_instantiate(_store, _component), do: error()
   def todo_init(_store, _instance), do: error()
+  def todo_add(_store, _instance, _todo, _list), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.

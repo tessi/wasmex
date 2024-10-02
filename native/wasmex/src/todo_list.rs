@@ -35,12 +35,12 @@ pub fn instantiate(
         )))
     })?;
 
-    let mut config = Config::new();
-    config.wasm_component_model(true);
-    config.async_support(true);
-    let engine = Engine::new(&config).unwrap();
+    // let mut config = Config::new();
+    // config.wasm_component_model(true);
+    // config.async_support(true);
+    // let engine = Engine::new(&config).unwrap();
 
-    let mut linker = Linker::new(&engine);
+    let mut linker = Linker::new(component_store.engine());
     wasmtime_wasi::add_to_linker_sync(&mut linker);
     wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
     let todo_instance = TodoList::instantiate(component_store, &component, &linker)
@@ -73,3 +73,29 @@ pub fn init(
         .call_init(store_or_caller)
         .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
 }
+
+#[rustler::nif(name = "todo_add")]
+pub fn add_todo(
+    store_or_caller_resource: ResourceArc<ComponentStoreResource>,
+    todo_list_resource: ResourceArc<TodoListResource>,
+    todo: String,
+    list: Vec<String>
+) -> NifResult<Vec<String>> {
+    let store_or_caller: &mut Store<ComponentStoreData> =
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
+            )))
+        })?);
+
+    let todo_list = &mut todo_list_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock todo_list resource as the mutex was poisoned: {e}"
+        )))
+    })?;
+
+    todo_list
+        .call_add_todo(store_or_caller, &todo, &list)
+        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))
+}
+
