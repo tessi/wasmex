@@ -28,6 +28,7 @@ test/wasm_source/target/*
 test/wasm_link_test/target/*
 test/wasm_link_dep_test/target/*
 test/wasm_link_import_test/target/*
+test/support/todo_list/target/*
 
 .mix_tasks
 **/.DS_Store

@@ -19,7 +19,8 @@ defmodule Wasmex.EngineConfig do
   defstruct consume_fuel: false,
             cranelift_opt_level: :none,
             wasm_backtrace_details: false,
-            memory64: false
+            memory64: false,
+            wasm_component_model: true
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),

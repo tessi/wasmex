@@ -12,14 +12,15 @@ edition = "2021"
 [lib]
 name = "wasmex"
 path = "src/lib.rs"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 rustler = { version = "0.34", features = ["big_integer"] }
 once_cell = "1.19.0"
 rand = "0.8.5"
-wasmtime = "24.0.0"
-wasmtime-wasi = "24.0.0"
-wasi-common = "24.0.0"
-wiggle = "24.0.0"
-wat = "1.216.0"
+wasmtime = "25.0.0"
+wasmtime-wasi = "25.0.0"
+wasmtime-wasi-http = "25.0.0"
+wasi-common = "25.0.0"
+wiggle = "25.0.0"
+wat = "1.217.0"

@@ -9,6 +9,7 @@ defmodule Wasmex.MixProject do
       version: @version,
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       name: "wasmex",
       description: description(),
       package: package(),
@@ -36,6 +37,10 @@ defmodule Wasmex.MixProject do
   defp description() do
     "Wasmex is an Elixir library for executing WebAssembly binaries"
   end
+
+    # Specifies which paths to compile per environment.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp package() do
     [

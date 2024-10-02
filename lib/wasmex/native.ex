@@ -5,23 +5,8 @@ defmodule Wasmex.Native do
   version = mix_config[:version]
   github_url = mix_config[:package][:links]["GitHub"]
 
-  use RustlerPrecompiled,
-    otp_app: :wasmex,
-    base_url: "#{github_url}/releases/download/v#{version}",
-    version: version,
-    targets: ~w(
-      aarch64-apple-darwin
-      aarch64-unknown-linux-gnu
-      aarch64-unknown-linux-musl
-      riscv64gc-unknown-linux-gnu
-      x86_64-apple-darwin
-      x86_64-pc-windows-gnu
-      x86_64-pc-windows-msvc
-      x86_64-unknown-freebsd
-      x86_64-unknown-linux-gnu
-      x86_64-unknown-linux-musl
-    ),
-    force_build: System.get_env("WASMEX_BUILD") in ["1", "true"]
+  use Rustler,
+    otp_app: :wasmex
 
   def engine_new(_engine_config), do: error()
   def engine_precompile_module(_engine_resource, _bytes), do: error()
@@ -80,9 +65,21 @@ defmodule Wasmex.Native do
 
   def store_new(_store_limits, _engine_resource), do: error()
   def store_new_wasi(_wasi_options, _store_limits, _engine_resource), do: error()
+  def store_new_wasi_p2(_wasi_options, _store_limits, _engine_resource), do: error()
 
   def store_or_caller_get_fuel(_store_or_caller_resource), do: error()
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
+
+
+  def component_new(_store, _component_bytes), do: error()
+
+  def component_instance_new(_store, _component), do: error()
+
+  def exec_func(_store, _instance, _function_name), do: error()
+
+  def todo_instantiate(_store, _component), do: error()
+  def todo_init(_store, _instance), do: error()
+  def todo_add(_store, _instance, _todo, _list), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.
