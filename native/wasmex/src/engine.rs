@@ -8,7 +8,7 @@ use crate::atoms;
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
 pub struct ExEngineConfig {
-    consume_fuel: bool,
+    consume_fuel: bool, 
     wasm_backtrace_details: bool,
     cranelift_opt_level: rustler::Atom,
     memory64: bool,
