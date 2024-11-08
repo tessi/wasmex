@@ -24,7 +24,7 @@ defmodule TestHelper do
     do: "#{@wasm_import_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
 
   def wasi_test_file_path,
-    do: "#{@wasi_test_source_dir}/target/wasm32-wasi/debug/main.wasm"
+    do: "#{@wasi_test_source_dir}/target/wasm32-wasip1/debug/main.wasm"
 
   def precompile_wasm_files do
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
