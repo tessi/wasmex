@@ -14,7 +14,7 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [unreleased]
+## [0.9.2 - 2024-11-08]
 
 ### Added
 
