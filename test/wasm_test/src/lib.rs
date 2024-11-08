@@ -74,9 +74,3 @@ pub extern "C" fn endless_loop() -> () {
 pub extern "C" fn divide(x: i32, y: i32) -> i32 {
     x / y
 }
-
-#[no_mangle]
-pub fn to_string(a: i32) -> (i32, i32) {
-    let str = a.to_string();
-    (str.as_ptr() as i32, str.len() as i32)
-}
