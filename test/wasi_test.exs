@@ -165,7 +165,9 @@ defmodule WasiTest do
     wasi = %WasiOptions{
       args: ["wasmex", "list_files", "aliased_src"],
       stdout: stdout,
-      preopen: [%PreopenOptions{path: "test/fixture_projects/wasi_test/src", alias: "aliased_src"}]
+      preopen: [
+        %PreopenOptions{path: "test/fixture_projects/wasi_test/src", alias: "aliased_src"}
+      ]
     }
 
     instance =
