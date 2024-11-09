@@ -305,7 +305,7 @@ defmodule WasmexTest do
       assert {:error, reason} = Wasmex.call_function(pid, :divide, [1, 0])
 
       # contains source file and line number
-      assert reason =~ "wasmex/test/wasm_test/src/lib.rs:75:5"
+      assert reason =~ "wasm_test/src/lib.rs:75:5"
     end
   end
 
