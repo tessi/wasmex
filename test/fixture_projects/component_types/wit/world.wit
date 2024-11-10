@@ -1,0 +1,5 @@
+package fixtures:component-types;
+
+world fixtures {
+    export id-bool: func(v: bool) -> bool;
+}

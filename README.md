@@ -88,6 +88,7 @@ rustup component add rustfmt
 rustup component add clippy
 rustup target add wasm32-unknown-unknown # to compile our example Wasm files for testing
 rustup target add wasm32-wasip1 # to compile our example Wasm/WASI files for testing
+cargo install cargo-component # to run component tests
 ```
 
 Then install the erlang/elixir dependencies:
