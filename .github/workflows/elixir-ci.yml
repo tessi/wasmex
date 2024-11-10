@@ -28,6 +28,8 @@ jobs:
         with:
           toolchain: stable
 
+      - run: cargo install cargo-component
+
       - id: get-cache-key
         run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}" >> $GITHUB_OUTPUT
 
@@ -120,6 +122,9 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasip1
+
+      - name: Install cargo-component
+        run: cargo install cargo-component
 
       - uses: actions/cache@v4
         with:

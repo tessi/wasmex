@@ -6,6 +6,10 @@ defmodule TestHelper do
   @wasm_link_import_test_source_dir "#{@fixture_project_dir}/wasm_link_import_test"
   @wasm_import_test_source_dir "#{@fixture_project_dir}/wasm_import_test"
   @wasi_test_source_dir "#{@fixture_project_dir}/wasi_test"
+  @component_test_source_dir "#{@fixture_project_dir}/component_types"
+
+  def component_test_file_path,
+    do: "#{@component_test_source_dir}/target/wasm32-unknown-unknown/release/component_types.wasm"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -28,6 +32,9 @@ defmodule TestHelper do
     do: "#{@wasi_test_source_dir}/target/wasm32-wasip1/debug/main.wasm"
 
   def precompile_wasm_files do
+    {"", 0} =
+      System.cmd("cargo", ["component", "build", "--release"], cd: @component_test_source_dir)
+
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_link_import_test_source_dir)

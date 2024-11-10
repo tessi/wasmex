@@ -1,0 +1,23 @@
+[package]
+name = "component-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+paste = "1.0.15"
+wit-bindgen-rt = { version = "0.33.0", features = ["bitflags"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+debug = false
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "fixtures:component-types"
+
+[package.metadata.component.dependencies]
