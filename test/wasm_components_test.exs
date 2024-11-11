@@ -11,7 +11,10 @@ defmodule Wasmex.WasmComponentsTest do
     IO.inspect("building instance")
     {:ok, instance} = Wasmex.Component.Instance.new(store, component)
     IO.inspect("executing component function")
-    assert "Hello, Elixir!" = Wasmex.Native.exec_func(store.resource, instance.resource, "greet", ["Elixir"]) |> IO.inspect()
-  end
 
+    assert {:ok, "Hello, Elixir!"} =
+             Wasmex.Component.Instance.call_function(instance, "greet", ["Elixir"])
+
+    #  |> IO.inspect()
+  end
 end

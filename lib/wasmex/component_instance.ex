@@ -1,10 +1,6 @@
 defmodule Wasmex.Component.Instance do
-  @type t :: %__MODULE__{
-          resource: binary(),
-          reference: reference()
-        }
-
-  defstruct resource: nil,
+  defstruct store_resource: nil,
+            instance_resource: nil,
             # The actual NIF store resource.
             # Normally the compiler will happily do stuff like inlining the
             # resource in attributes. This will convert the resource into an
@@ -12,9 +8,10 @@ defmodule Wasmex.Component.Instance do
             # accidentally do.
             reference: nil
 
-  def __wrap_resource__(resource) do
+  def __wrap_resource__(store_resource, instance_resource) do
     %__MODULE__{
-      resource: resource,
+      store_resource: store_resource,
+      instance_resource: instance_resource,
       reference: make_ref()
     }
   end
@@ -24,7 +21,11 @@ defmodule Wasmex.Component.Instance do
     %{resource: component_resource} = component
     case Wasmex.Native.component_instance_new(store_or_caller_resource, component_resource) do
       {:error, err} -> {:error, err}
-      resource -> {:ok, __wrap_resource__(resource)}
+      resource -> {:ok, __wrap_resource__(store_or_caller_resource, resource)}
     end
+  end
+
+  def call_function(%__MODULE__{store_resource: store_resource, instance_resource: instance_resource}, function, args) do
+    {:ok, Wasmex.Native.exec_func(store_resource, instance_resource, function, args)}
   end
 end
