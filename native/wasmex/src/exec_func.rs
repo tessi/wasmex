@@ -54,6 +54,7 @@ pub fn exec_func_impl(
     // .collect::<Vec<ValType>>();
     let paramTypes = func.params(&mut *component_store);
     let converted_params = convert_params(&mut *component_store, paramTypes, given_params)?;
+    println!("Converted params: {:?}", converted_params);
 
     let list = vec![wasmtime::component::Val::String(String::from(""))];
     let results_count = func.results(&*component_store).len();
@@ -83,6 +84,9 @@ fn elixirToComponentVal(paramTerm: &Term, paramType: &Type) -> Result<Val, Error
     (TermType::Binary, Type::String) => {
       Ok(Val::String(paramTerm.decode::<String>()?))
     }
+    (TermType::Integer, Type::U16) => {
+      Ok(Val::U16(paramTerm.decode::<u16>()?))
+    }
     (_, _) => {
       Ok(Val::Bool(false))
     }
@@ -105,6 +109,9 @@ impl Encoder for ValWrapper {
 fn convertTerm<'a>(term: &Val, env: rustler::Env<'a>) -> Term<'a> {
   match term {
     Val::String(string) => string.encode(env),
+    Val::List(list) => {
+      list.iter().map(|val| convertTerm(val, env)).collect::<Vec<Term<'a>>>().encode(env)
+    }
     _ => String::from("wut").encode(env)
   }
 }

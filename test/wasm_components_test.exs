@@ -15,6 +15,9 @@ defmodule Wasmex.WasmComponentsTest do
     assert {:ok, "Hello, Elixir!"} =
              Wasmex.Component.Instance.call_function(instance, "greet", ["Elixir"])
 
+    assert {:ok, ["Hello, Elixir!", "Hello, Elixir!"]} =
+             Wasmex.Component.Instance.call_function(instance, "multi-greet", ["Elixir", 2])
+
     #  |> IO.inspect()
   end
 end
