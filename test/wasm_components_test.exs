@@ -4,40 +4,14 @@ defmodule Wasmex.WasmComponentsTest do
   alias Wasmex.Engine
   alias Wasmex.EngineConfig
 
-  setup do
-    {:ok, store} = Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{})
-    component_bytes = File.read!("./todo-list.wasm")
-    IO.inspect("building component")
+  test "invoke component func" do
     {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
+    component_bytes = File.read!("test/support/hello_world/hello_world.wasm")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
-    %{store: store, component: component}
-  end
-
-  test "invoke component func", %{store: store, component: component} do
     IO.inspect("building instance")
     {:ok, instance} = Wasmex.Component.Instance.new(store, component)
     IO.inspect("executing component function")
-    assert [first, second] = Wasmex.Native.exec_func(store.resource, instance.resource, "init")
-    assert second =~ "Codebeam"
+    assert "Hello, Elixir!" = Wasmex.Native.exec_func(store.resource, instance.resource, "greet", ["Elixir"]) |> IO.inspect()
   end
 
-  # test "bindgen component test", %{store: store, component: component} do
-  #   assert todo = Wasmex.Native.todo_instantiate(store.resource, component.resource)
-  #   assert [first, second] = Wasmex.Native.todo_init(store.resource, todo)
-  #   assert first =~ "Hello"
-  # end
-
-  test "with a different component impl" do
-    component_bytes = File.read!("test/support/todo_list/other_todo_list.wasm")
-    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
-    IO.inspect("building instance")
-    {:ok, component} = Wasmex.Component.new(store, component_bytes)
-    IO.inspect("running functions")
-    assert todo = Wasmex.Native.todo_instantiate(store.resource, component.resource)
-    assert list = Wasmex.Native.todo_init(store.resource, todo)
-    assert "other" in list
-    assert new_list = Wasmex.Native.todo_add(store.resource, todo, "thing", list)
-    IO.inspect(new_list)
-    assert Enum.count(new_list) == 4
-  end
 end

@@ -1,0 +1,160 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "mix test",
+      "type": "shell",
+      "command": "mix",
+      "args": [
+        "test",
+        "--color"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}",
+        "requireFiles": [
+          "test/**/test_helper.exs",
+          "test/**/*_test.exs"
+        ]
+      },
+      "problemMatcher": "$mixTestFailure"
+    },
+    {
+      "label": "mix test failed",
+      "type": "shell",
+      "command": "mix",
+      "args": [
+        "test",
+        "--color",
+        "--failed",
+        "--trace"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}",
+        "requireFiles": [
+          "test/**/test_helper.exs",
+          "test/**/*_test.exs"
+        ]
+      },
+      "problemMatcher": "$mixTestFailure"
+    },
+    {
+      "label": "mix test file",
+      "type": "shell",
+      "command": "mix",
+      "args": [
+        "test",
+        "${relativeFile}",
+        "--color",
+        "--trace"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}",
+        "requireFiles": [
+          "test/**/test_helper.exs",
+          "test/**/*_test.exs"
+        ]
+      },
+      "problemMatcher": "$mixTestFailure"
+    },
+    {
+      "label": "mix test focused",
+      "type": "shell",
+      "command": "mix",
+      "args": [
+        "test",
+        "${relativeFile}:${lineNumber}",
+        "--color",
+        "--trace"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}",
+        "requireFiles": [
+          "test/**/test_helper.exs",
+          "test/**/*_test.exs"
+        ],
+        "env": {
+          "GCP_CREDENTIALS": "{\"stuff\": \"foo\"}"
+        }
+      },
+      "problemMatcher": "$mixTestFailure",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Initial Setup",
+      "type": "process",
+      "command": "mix",
+      "args": [
+        "setup"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "problemMatcher": [
+        "$mixCompileError"
+      ]
+    },
+    {
+      "label": "mix compile",
+      "type": "process",
+      "command": "mix",
+      "args": [
+        "test",
+        "--exclude",
+        "test",
+        "--warnings-as-errors"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "problemMatcher": [
+        "$mixCompileWarning",
+        "$mixCompileError"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "mix format",
+      "type": "process",
+      "command": "mix",
+      "args": [
+        "format"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "problemMatcher": [
+        "$mixCompileWarning",
+        "$mixCompileError"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "mix check",
+      "type": "process",
+      "command": "mix",
+      "args": [
+        "check"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "problemMatcher": [
+        "$mixCompileWarning",
+        "$mixCompileError"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

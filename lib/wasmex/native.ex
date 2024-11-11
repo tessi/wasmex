@@ -6,7 +6,8 @@ defmodule Wasmex.Native do
   github_url = mix_config[:package][:links]["GitHub"]
 
   use Rustler,
-    otp_app: :wasmex
+    otp_app: :wasmex,
+    mode: :debug
 
   def engine_new(_engine_config), do: error()
   def engine_precompile_module(_engine_resource, _bytes), do: error()
@@ -75,11 +76,7 @@ defmodule Wasmex.Native do
 
   def component_instance_new(_store, _component), do: error()
 
-  def exec_func(_store, _instance, _function_name), do: error()
-
-  def todo_instantiate(_store, _component), do: error()
-  def todo_init(_store, _instance), do: error()
-  def todo_add(_store, _instance, _todo, _list), do: error()
+  def exec_func(_store, _instance, _function_name, _params), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.

@@ -1,0 +1,5 @@
+package local:hello-world;
+
+world hello-world {
+  export greet: func(who: string) -> string;
+}
