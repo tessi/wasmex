@@ -9,3 +9,7 @@ export function multiGreet(who, times) {
   }
   return results;
 }
+
+export function greetMany(people) {
+  return people.map((person) => `Hello, ${person}!`);
+}

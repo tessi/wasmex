@@ -17,7 +17,27 @@ defmodule Wasmex.WasmComponentsTest do
 
     assert {:ok, ["Hello, Elixir!", "Hello, Elixir!"]} =
              Wasmex.Component.Instance.call_function(instance, "multi-greet", ["Elixir", 2])
-
-    #  |> IO.inspect()
   end
+
+  test "functions with maps and lists" do
+    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
+
+    component_bytes = File.read!("test/support/live_state/live-state.wasm")
+    {:ok, component} = Wasmex.Component.new(store, component_bytes)
+    {:ok, instance} = Wasmex.Component.Instance.new(store, component)
+
+    assert {:ok, %{"customers" => [customer]} = state} =
+             Wasmex.Component.Instance.call_function(instance, "init", [])
+
+    IO.inspect(customer)
+    assert customer["email"] == "bob@jones.com"
+
+    customer2 = Map.put(customer, "last-name", "Smith")
+    assert {:ok, shown} =
+      Wasmex.Component.Instance.call_function(instance, "show-customer", [customer2])
+
+    assert {:ok, %{"customers" => customers} = state} = Wasmex.Component.Instance.call_function(instance, "add-customer", [customer2, state])
+    assert Enum.count(customers) == 2
+  end
+
 end

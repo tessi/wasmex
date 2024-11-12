@@ -1,0 +1,18 @@
+package local:live-state;
+
+world live-state {
+  record customer {
+    first-name: string,
+    last-name: string,
+    email: string,
+  }
+
+  record state {
+    customers: list<customer>,
+    editing-customer: customer,
+  }
+  
+  export init: func() -> state;
+  export add-customer: func(new-customer: customer, state: state) -> state;
+  export show-customer: func(customer: customer) -> customer;
+}
