@@ -84,6 +84,9 @@ fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, 
     match (term_type, param_type) {
         (TermType::Binary, Type::String) => Ok(Val::String(param_term.decode::<String>()?)),
         (TermType::Integer, Type::U16) => Ok(Val::U16(param_term.decode::<u16>()?)),
+        (TermType::Integer, Type::U64) => Ok(Val::U64(param_term.decode::<u64>()?)),
+        (TermType::Integer, Type::U32) => Ok(Val::U32(param_term.decode::<u32>()?)),
+        (TermType::Atom, Type::Bool) => Ok(Val::Bool(param_term.decode::<bool>()?)),
         (TermType::List, Type::List(list)) => {
           let decoded_list  = param_term.decode::<Vec<Term>>()?;
           let list_values = decoded_list.iter().map(|term| elixir_to_component_val(term, &list.ty()).unwrap()).collect::<Vec<Val>>();
@@ -134,6 +137,8 @@ impl Encoder for ValWrapper {
 fn convertTerm<'a>(term: &Val, env: rustler::Env<'a>) -> Term<'a> {
     match term {
         Val::String(string) => string.encode(env),
+        Val::Bool(bool) => bool.encode(env),
+        Val::U64(num) => num.encode(env),
         Val::List(list) => list
             .iter()
             .map(|val| convertTerm(val, env))
