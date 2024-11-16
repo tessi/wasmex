@@ -16,7 +16,7 @@ export function init() {
 }
 
 export function addCustomer(customer, state) {
-  console.log(state);
+  console.log(`logging state: ${state}`);
   state.customers.push(customer);
   return state;
 }

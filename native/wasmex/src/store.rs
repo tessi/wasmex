@@ -37,6 +37,17 @@ pub struct ExWasiOptions {
 }
 
 #[derive(NifStruct)]
+#[module = "Wasmex.Wasi.WasiP2Options"]
+pub struct ExWasiP2Options {
+    args: Vec<String>,
+    env: HashMap<String, String>,
+    inherit_stdin: bool,
+    inherit_stdout: bool,
+    inherit_stderr: bool,
+    allow_http: bool
+}
+
+#[derive(NifStruct)]
 #[module = "Wasmex.StoreLimits"]
 pub struct ExStoreLimits {
     memory_size: Option<usize>,
@@ -182,7 +193,7 @@ pub fn new(
 
 #[rustler::nif(name = "store_new_wasi_p2")]
 pub fn new_wasip2(
-    options: ExWasiOptions,
+    options: ExWasiP2Options,
     limits: Option<ExStoreLimits>,
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<ComponentStoreResource>, rustler::Error> {
@@ -191,16 +202,27 @@ pub fn new_wasip2(
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect::<Vec<_>>();
-    let mut builder = wasmtime_wasi::WasiCtxBuilder::new();
-    let wasi_ctx = builder
-        .args(&options.args)
-        .envs(wasi_env)
-        .inherit_stdin()
-        .inherit_stdout()
-        .inherit_stderr()
-        .inherit_network()
-        .allow_ip_name_lookup(true)
-        .build();
+    let mut wasi_ctx_builder = wasmtime_wasi::WasiCtxBuilder::new();
+        wasi_ctx_builder.args(&options.args)
+        .envs(wasi_env);
+       
+
+    if options.inherit_stdin {
+      wasi_ctx_builder.inherit_stdin();
+    }
+
+    if options.inherit_stdout {
+      wasi_ctx_builder.inherit_stdout();
+    }
+
+    if options.inherit_stderr {
+      wasi_ctx_builder.inherit_stderr();
+    }
+
+    if options.allow_http {
+      wasi_ctx_builder.inherit_network().allow_ip_name_lookup(true);
+    }
+    
     let engine = unwrap_engine(engine_resource)?;
     let limits = if let Some(limits) = limits {
         limits.to_wasmtime()
@@ -210,7 +232,7 @@ pub fn new_wasip2(
     let mut store = Store::new(
         &engine,
         ComponentStoreData {
-            ctx: wasi_ctx,
+            ctx: wasi_ctx_builder.build(),
             limits,
             http: WasiHttpCtx::new(),
             table: wasmtime_wasi::ResourceTable::new(),

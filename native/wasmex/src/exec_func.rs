@@ -30,8 +30,6 @@ pub fn exec_func_impl(
     func_name: String,
     params: Term,
 ) -> NifResult<ValWrapper> {
-    println!("Params: {:?}", params);
-
     let given_params = match params.decode::<Vec<Term>>() {
         Ok(vec) => vec,
         Err(e) => return Err(e),
@@ -53,15 +51,8 @@ pub fn exec_func_impl(
         .get_func(&mut *component_store, func_name)
         .expect("function not found");
 
-    // let paramTypes = func.params(store)
-    // .ty(&*component_store)
-    // .params()
-    // .collect::<Vec<ValType>>();
     let paramTypes = func.params(&mut *component_store);
     let converted_params = convert_params(&mut *component_store, paramTypes, given_params)?;
-    println!("Converted params: {:?}", converted_params);
-
-    let list = vec![wasmtime::component::Val::String(String::from(""))];
     let results_count = func.results(&*component_store).len();
 
     let mut result = vec![Val::Bool(false); results_count];
@@ -71,49 +62,47 @@ pub fn exec_func_impl(
         &mut result,
     );
     func.post_return(&mut *component_store);
-    println!("Result: {:?}", result);
     Ok(ValWrapper { val: result })
 }
 
 fn convert_params(
     componentStore: &mut Store<ComponentStoreData>,
     paramTypes: Box<[Type]>,
-    paramTerms: Vec<Term>,
+    param_terms: Vec<Term>,
 ) -> Result<Vec<Val>, Error> {
     let mut params = Vec::with_capacity(paramTypes.len());
 
-    for (i, (paramTerm, paramType)) in paramTerms.iter().zip(paramTypes.iter()).enumerate() {
-        let param = elixirToComponentVal(paramTerm, paramType)?;
+    for (i, (param_term, paramType)) in param_terms.iter().zip(paramTypes.iter()).enumerate() {
+        let param = elixir_to_component_val(param_term, paramType)?;
         params.push(param);
     }
     Ok(params)
 }
 
-fn elixirToComponentVal(paramTerm: &Term, paramType: &Type) -> Result<Val, Error> {
-    let termType = paramTerm.get_type();
-    match (termType, paramType) {
-        (TermType::Binary, Type::String) => Ok(Val::String(paramTerm.decode::<String>()?)),
-        (TermType::Integer, Type::U16) => Ok(Val::U16(paramTerm.decode::<u16>()?)),
+fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
+    let term_type = param_term.get_type();
+    match (term_type, param_type) {
+        (TermType::Binary, Type::String) => Ok(Val::String(param_term.decode::<String>()?)),
+        (TermType::Integer, Type::U16) => Ok(Val::U16(param_term.decode::<u16>()?)),
         (TermType::List, Type::List(list)) => {
-          let decoded_list  = paramTerm.decode::<Vec<Term>>()?;
-          let list_values = decoded_list.iter().map(|term| elixirToComponentVal(term, &list.ty()).unwrap()).collect::<Vec<Val>>();
+          let decoded_list  = param_term.decode::<Vec<Term>>()?;
+          let list_values = decoded_list.iter().map(|term| elixir_to_component_val(term, &list.ty()).unwrap()).collect::<Vec<Val>>();
           Ok(Val::List(list_values))
         }
         (TermType::Map, Type::Record(record)) => {
             let mut kv = Vec::with_capacity(record.fields().len());
 
-            let decodedMap = paramTerm.decode::<HashMap<Term, Term>>()?;
-            let daVec = decodedMap
+            let decoded_map = param_term.decode::<HashMap<Term, Term>>()?;
+            let terms = decoded_map
                 .iter()
                 .map(|(key, val)| (key.decode::<String>().unwrap(), val))
                 .collect::<Vec<(String, &Term)>>();
-            println!("WTF is daVec: {:?}", daVec);
             for field in record.fields() {
-                let field_term_option = daVec.iter().find(|(k, _)| k == field.name);
+                let field_term_option = terms.iter().find(|(k, _)| k == field.name);
                 match field_term_option {
                     Some((_, field_term)) => {
-                        let fieldValue = elixirToComponentVal(field_term, &field.ty)?;
-                        kv.push((field.name.to_string(), fieldValue))
+                        let field_value = elixir_to_component_val(field_term, &field.ty)?;
+                        kv.push((field.name.to_string(), field_value))
                     }
                     None => (),
                 }

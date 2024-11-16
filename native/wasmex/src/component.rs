@@ -56,11 +56,6 @@ pub fn new_component_instance(
         )))
     })?;
 
-    // let mut config = Config::new();
-    // config.wasm_component_model(true);
-    // config.async_support(true);
-    // let engine = Engine::new(&config).unwrap();
-
     let mut linker = Linker::new(component_store.engine());
     wasmtime_wasi::add_to_linker_sync(&mut linker);
     wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);

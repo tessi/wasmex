@@ -5,7 +5,7 @@ defmodule Wasmex.WasmComponentsTest do
   alias Wasmex.EngineConfig
 
   test "invoke component func" do
-    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
+    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiP2Options{})
     component_bytes = File.read!("test/support/hello_world/hello_world.wasm")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
     IO.inspect("building instance")
@@ -20,7 +20,7 @@ defmodule Wasmex.WasmComponentsTest do
   end
 
   test "functions with maps and lists" do
-    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiOptions{})
+    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiP2Options{inherit_stdout: false})
 
     component_bytes = File.read!("test/support/live_state/live-state.wasm")
     {:ok, component} = Wasmex.Component.new(store, component_bytes)
@@ -29,7 +29,6 @@ defmodule Wasmex.WasmComponentsTest do
     assert {:ok, %{"customers" => [customer]} = state} =
              Wasmex.Component.Instance.call_function(instance, "init", [])
 
-    IO.inspect(customer)
     assert customer["email"] == "bob@jones.com"
 
     customer2 = Map.put(customer, "last-name", "Smith")

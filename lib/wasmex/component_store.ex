@@ -1,6 +1,6 @@
 defmodule Wasmex.ComponentStore do
+  alias Wasmex.Wasi.WasiP2Options
   alias Wasmex.Engine
-  alias Wasmex.Wasi.WasiOptions
 
   defstruct resource: nil, reference: nil
 
@@ -11,7 +11,7 @@ defmodule Wasmex.ComponentStore do
     }
   end
 
-  def new(%WasiOptions{} = options, store_limits \\ nil, engine \\ nil) do
+  def new(%WasiP2Options{} = options, store_limits \\ nil, engine \\ nil) do
     %Engine{resource: engine_resource} = engine || Engine.default()
 
     case Wasmex.Native.store_new_wasi_p2(
