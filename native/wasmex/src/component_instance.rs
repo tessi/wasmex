@@ -80,6 +80,8 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (TermType::Integer, Type::S16) => Ok(Val::S16(param_term.decode::<i16>()?)),
         (TermType::Integer, Type::S64) => Ok(Val::S64(param_term.decode::<i64>()?)),
         (TermType::Integer, Type::S32) => Ok(Val::S32(param_term.decode::<i32>()?)),
+        (TermType::Float, Type::Float32) => Ok(Val::Float32(param_term.decode::<f32>()?)),
+        (TermType::Float, Type::Float64) => Ok(Val::Float64(param_term.decode::<f64>()?)),
 
         (TermType::Atom, Type::Bool) => Ok(Val::Bool(param_term.decode::<bool>()?)),
         (TermType::List, Type::List(list)) => {
@@ -154,6 +156,8 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::S16(num) => num.encode(env),
         Val::S32(num) => num.encode(env),
         Val::S64(num) => num.encode(env),
+        Val::Float32(num) => num.encode(env),
+        Val::Float64(num) => num.encode(env),
         Val::List(list) => list
             .iter()
             .map(|val| val_to_term(val, env))
