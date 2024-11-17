@@ -31,6 +31,6 @@ defmodule Wasmex.Component.Instance do
         function,
         args
       ) do
-    {:ok, Wasmex.Native.component_call_function(store_resource, instance_resource, function, args)}
+    Wasmex.Native.component_call_function(store_resource, instance_resource, function, args)
   end
 end

@@ -49,6 +49,9 @@
       ],
       "options": {
         "cwd": "${workspaceRoot}",
+        "env": {
+          "WASMEX_BUILD": "true"
+        },
         "requireFiles": [
           "test/**/test_helper.exs",
           "test/**/*_test.exs"
@@ -73,7 +76,7 @@
           "test/**/*_test.exs"
         ],
         "env": {
-          "GCP_CREDENTIALS": "{\"stuff\": \"foo\"}"
+          "WASMEX_BUILD": "true"
         }
       },
       "problemMatcher": "$mixTestFailure",

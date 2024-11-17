@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use crate::atoms;
 use crate::component::ComponentInstanceResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 
+use rustler::env;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
 use rustler::Encoder;
@@ -18,12 +20,13 @@ use wasmtime::component::Val;
 use wasmtime::Store;
 
 #[rustler::nif(name = "component_call_function")]
-pub fn component_call_function(
+pub fn component_call_function<'a>(
+    env: rustler::Env<'a>,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     func_name: String,
     given_params: Vec<Term>,
-) -> NifResult<ValWrapper> {
+) -> NifResult<Term<'a>> {
     let component_store: &mut Store<ComponentStoreData> =
         &mut *(component_store_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
@@ -37,28 +40,28 @@ pub fn component_call_function(
         )))
     })?;
 
-    let func = instance
-        .get_func(&mut *component_store, func_name)
-        .expect("function not found");
+    let function_result = instance.get_func(&mut *component_store, func_name.clone());
+    let function = match function_result {
+        Some(func) => func,
+        None => return Ok(env.error_tuple(format!("Function {func_name} not exported."))),
+    };
 
-    let param_types = func.params(&mut *component_store);
+    let param_types = function.params(&mut *component_store);
     let converted_params = convert_params(param_types, given_params)?;
-    let results_count = func.results(&*component_store).len();
+    let results_count = function.results(&*component_store).len();
 
     let mut result = vec![Val::Bool(false); results_count];
-    func.call(
+    function.call(
         &mut *component_store,
         converted_params.as_slice(),
         &mut result,
     );
-    func.post_return(&mut *component_store);
-    Ok(ValWrapper { val: result })
+    function.post_return(&mut *component_store);
+
+    Ok(encode_result(env, result))
 }
 
-fn convert_params(
-    param_types: Box<[Type]>,
-    param_terms: Vec<Term>,
-) -> Result<Vec<Val>, Error> {
+fn convert_params(param_types: Box<[Type]>, param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
     let mut params = Vec::with_capacity(param_types.len());
 
     for (i, (param_term, param_type)) in param_terms.iter().zip(param_types.iter()).enumerate() {
@@ -126,22 +129,20 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
     }
 }
 
-struct ValWrapper {
-    val: Vec<Val>,
+fn make_error_tuple<'a>(reason: &str, env: rustler::Env<'a>) -> Term<'a> {
+    env.error_tuple(reason)
 }
 
-impl Encoder for ValWrapper {
-    fn encode<'a>(&self, env: rustler::Env<'a>) -> Term<'a> {
-        match self.val.len() {
-            1 => val_to_term(self.val.iter().next().unwrap(), env),
-            _ => self
-                .val
-                .iter()
-                .map(|term| val_to_term(term, env))
-                .collect::<Vec<Term>>()
-                .encode(env),
-        }
-    }
+fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
+    let result_term = match vals.len() {
+        1 => val_to_term(vals.iter().next().unwrap(), env),
+        _ => vals
+            .iter()
+            .map(|term| val_to_term(term, env))
+            .collect::<Vec<Term>>()
+            .encode(env),
+    };
+    make_tuple(env, &[atoms::ok().encode(env), result_term])
 }
 
 fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
@@ -172,11 +173,11 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             // String::from("wut").encode(env)
         }
         Val::Tuple(tuple) => {
-          let tuple_terms = tuple
-            .iter()
-            .map(|val| val_to_term(val, env))
-            .collect::<Vec<Term<'a>>>();
-          make_tuple(env, tuple_terms.as_slice())
+            let tuple_terms = tuple
+                .iter()
+                .map(|val| val_to_term(val, env))
+                .collect::<Vec<Term<'a>>>();
+            make_tuple(env, tuple_terms.as_slice())
         }
         _ => String::from("wut").encode(env),
     }
