@@ -1,30 +1,21 @@
 use std::collections::HashMap;
-use std::hash;
 
 use crate::component::ComponentInstanceResource;
-use crate::component::ComponentResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
-use crate::store::{StoreOrCaller, StoreOrCallerResource};
 
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
 use rustler::Encoder;
 use rustler::Error;
-use rustler::MapIterator;
 use rustler::NifResult;
 use rustler::ResourceArc;
 
 use rustler::Term;
 use rustler::TermType;
-use wasmtime::component::types::List;
-use wasmtime::component::types::Record;
-use wasmtime::component::types::Tuple;
-use wasmtime::component::Linker;
 use wasmtime::component::Type;
 use wasmtime::component::Val;
 use wasmtime::Store;
-use wasmtime::ValType;
 
 #[rustler::nif(name = "exec_func")]
 pub fn exec_func_impl(
@@ -50,8 +41,8 @@ pub fn exec_func_impl(
         .get_func(&mut *component_store, func_name)
         .expect("function not found");
 
-    let paramTypes = func.params(&mut *component_store);
-    let converted_params = convert_params(paramTypes, given_params)?;
+    let param_types = func.params(&mut *component_store);
+    let converted_params = convert_params(param_types, given_params)?;
     let results_count = func.results(&*component_store).len();
 
     let mut result = vec![Val::Bool(false); results_count];
@@ -65,19 +56,19 @@ pub fn exec_func_impl(
 }
 
 fn convert_params(
-    paramTypes: Box<[Type]>,
+    param_types: Box<[Type]>,
     param_terms: Vec<Term>,
 ) -> Result<Vec<Val>, Error> {
-    let mut params = Vec::with_capacity(paramTypes.len());
+    let mut params = Vec::with_capacity(param_types.len());
 
-    for (i, (param_term, paramType)) in param_terms.iter().zip(paramTypes.iter()).enumerate() {
-        let param = elixir_to_component_val(param_term, paramType)?;
+    for (i, (param_term, param_type)) in param_terms.iter().zip(param_types.iter()).enumerate() {
+        let param = term_to_val(param_term, param_type)?;
         params.push(param);
     }
     Ok(params)
 }
 
-fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
+fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
     let term_type = param_term.get_type();
     match (term_type, param_type) {
         (TermType::Binary, Type::String) => Ok(Val::String(param_term.decode::<String>()?)),
@@ -95,7 +86,7 @@ fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, 
             let decoded_list = param_term.decode::<Vec<Term>>()?;
             let list_values = decoded_list
                 .iter()
-                .map(|term| elixir_to_component_val(term, &list.ty()).unwrap())
+                .map(|term| term_to_val(term, &list.ty()).unwrap())
                 .collect::<Vec<Val>>();
             Ok(Val::List(list_values))
         }
@@ -104,7 +95,7 @@ fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, 
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
             for (i, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
-                let component_val = elixir_to_component_val(&tuple_term, &tuple_type)?;
+                let component_val = term_to_val(&tuple_term, &tuple_type)?;
                 tuple_vals.push(component_val);
             }
             Ok(Val::Tuple(tuple_vals))
@@ -121,7 +112,7 @@ fn elixir_to_component_val(param_term: &Term, param_type: &Type) -> Result<Val, 
                 let field_term_option = terms.iter().find(|(k, _)| k == field.name);
                 match field_term_option {
                     Some((_, field_term)) => {
-                        let field_value = elixir_to_component_val(field_term, &field.ty)?;
+                        let field_value = term_to_val(field_term, &field.ty)?;
                         kv.push((field.name.to_string(), field_value))
                     }
                     None => (),
