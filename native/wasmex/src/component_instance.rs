@@ -17,8 +17,8 @@ use wasmtime::component::Type;
 use wasmtime::component::Val;
 use wasmtime::Store;
 
-#[rustler::nif(name = "exec_func")]
-pub fn exec_func_impl(
+#[rustler::nif(name = "component_call_function")]
+pub fn component_call_function(
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     func_name: String,
