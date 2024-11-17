@@ -1,7 +1,7 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
-  @version "0.9.1"
+  @version "0.9.2"
 
   def project do
     [
@@ -27,10 +27,10 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler_precompiled, "~> 0.7.2"},
-      {:rustler, "~> 0.34.0"},
-      {:ex_doc, "~> 0.34.1", only: [:dev, :test]},
-      {:credo, "~> 1.7.5", only: [:dev, :test], runtime: false}
+      {:rustler_precompiled, "~> 0.8"},
+      {:rustler, "~> 0.35.0"},
+      {:ex_doc, "~> 0.34.2", only: [:dev, :test]},
+      {:credo, "~> 1.7.10", only: [:dev, :test], runtime: false}
     ]
   end
 

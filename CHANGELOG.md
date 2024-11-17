@@ -14,11 +14,16 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [unreleased]
+## [0.9.2 - 2024-11-08]
 
 ### Added
 
 * Added an option to enable the [WebAssembly memory64 proposal](https://github.com/webassembly/memory64) - thanks @samcamwilliams
+
+### Changed
+
+- Updated rustler to 0.35.0 and rustler_precompiled to 0.8 (thanks @DnOberon)
+- Updated wasmtime to 26.0.1
 
 ## [0.9.1 - 2024-07-27]
 

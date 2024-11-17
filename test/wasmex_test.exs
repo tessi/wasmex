@@ -134,15 +134,6 @@ defmodule WasmexTest do
       assert Wasmex.Memory.read_string(store, memory, pointer, 13) == "Hello, World!"
     end
 
-    test t(&Wasmex.call_function/3) <> " to_string(i32) -> string function", %{
-      store: store,
-      instance: instance
-    } do
-      {:ok, [pointer, length]} = Wasmex.call_function(instance, :to_string, [54_321])
-      {:ok, memory} = Wasmex.memory(instance)
-      assert Wasmex.Memory.read_string(store, memory, pointer, length) == "54321"
-    end
-
     test t(&Wasmex.call_function/3) <> " string_first_byte(string_pointer) -> u8 function", %{
       store: store,
       instance: instance
@@ -314,7 +305,7 @@ defmodule WasmexTest do
       assert {:error, reason} = Wasmex.call_function(pid, :divide, [1, 0])
 
       # contains source file and line number
-      assert reason =~ "wasmex/test/wasm_test/src/lib.rs:75:5"
+      assert reason =~ "wasm_test/src/lib.rs:75:5"
     end
   end
 

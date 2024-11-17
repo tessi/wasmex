@@ -25,7 +25,7 @@ dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:wasmex, "~> 0.9.1"}
+    {:wasmex, "~> 0.9.2"}
   ]
 end
 ```
@@ -87,7 +87,7 @@ To set up a development environment install [the latest stable rust](https://www
 rustup component add rustfmt
 rustup component add clippy
 rustup target add wasm32-unknown-unknown # to compile our example Wasm files for testing
-rustup target add wasm32-wasi # to compile our example Wasm/WASI files for testing
+rustup target add wasm32-wasip1 # to compile our example Wasm/WASI files for testing
 ```
 
 Then install the erlang/elixir dependencies:

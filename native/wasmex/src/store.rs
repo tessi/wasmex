@@ -51,7 +51,7 @@ pub struct ExWasiP2Options {
 #[module = "Wasmex.StoreLimits"]
 pub struct ExStoreLimits {
     memory_size: Option<usize>,
-    table_elements: Option<u32>,
+    table_elements: Option<usize>,
     instances: Option<usize>,
     tables: Option<usize>,
     memories: Option<usize>,

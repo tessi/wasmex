@@ -1,10 +1,11 @@
 defmodule TestHelper do
-  @wasm_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_test"
-  @wasm_link_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_link_test"
-  @wasm_link_dep_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_link_dep_test"
-  @wasm_link_import_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_link_import_test"
-  @wasm_import_test_source_dir "#{Path.dirname(__ENV__.file)}/wasm_import_test"
-  @wasi_test_source_dir "#{Path.dirname(__ENV__.file)}/wasi_test"
+  @fixture_project_dir "#{Path.dirname(__ENV__.file)}/fixture_projects"
+  @wasm_test_source_dir "#{@fixture_project_dir}/wasm_test"
+  @wasm_link_test_source_dir "#{@fixture_project_dir}/wasm_link_test"
+  @wasm_link_dep_test_source_dir "#{@fixture_project_dir}/wasm_link_dep_test"
+  @wasm_link_import_test_source_dir "#{@fixture_project_dir}/wasm_link_import_test"
+  @wasm_import_test_source_dir "#{@fixture_project_dir}/wasm_import_test"
+  @wasi_test_source_dir "#{@fixture_project_dir}/wasi_test"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -24,7 +25,7 @@ defmodule TestHelper do
     do: "#{@wasm_import_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
 
   def wasi_test_file_path,
-    do: "#{@wasi_test_source_dir}/target/wasm32-wasi/debug/main.wasm"
+    do: "#{@wasi_test_source_dir}/target/wasm32-wasip1/debug/main.wasm"
 
   def precompile_wasm_files do
     {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
@@ -40,7 +41,7 @@ defmodule TestHelper do
           "--target=wasm32-unknown-unknown",
           "--",
           "--extern",
-          "utils=../wasm_test/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
+          "utils=#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
         ],
         cd: @wasm_link_test_source_dir
       )
@@ -53,7 +54,7 @@ defmodule TestHelper do
           "--target=wasm32-unknown-unknown",
           "--",
           "--extern",
-          "calculator=../wasm_link_test/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
+          "calculator=#{@wasm_link_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
         ],
         cd: @wasm_link_dep_test_source_dir
       )

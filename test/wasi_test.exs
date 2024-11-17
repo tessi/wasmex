@@ -144,9 +144,9 @@ defmodule WasiTest do
     {:ok, stdout} = Wasmex.Pipe.new()
 
     wasi = %WasiOptions{
-      args: ["wasmex", "list_files", "test/wasi_test/src"],
+      args: ["wasmex", "list_files", "test/fixture_projects/wasi_test/src"],
       stdout: stdout,
-      preopen: [%PreopenOptions{path: "test/wasi_test/src"}]
+      preopen: [%PreopenOptions{path: "test/fixture_projects/wasi_test/src"}]
     }
 
     instance =
@@ -156,7 +156,7 @@ defmodule WasiTest do
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
     Wasmex.Pipe.seek(stdout, 0)
-    assert Wasmex.Pipe.read(stdout) == "\"test/wasi_test/src/main.rs\"\n"
+    assert Wasmex.Pipe.read(stdout) == "\"test/fixture_projects/wasi_test/src/main.rs\"\n"
   end
 
   test "list files on a preopened dir with alias" do
@@ -165,7 +165,9 @@ defmodule WasiTest do
     wasi = %WasiOptions{
       args: ["wasmex", "list_files", "aliased_src"],
       stdout: stdout,
-      preopen: [%PreopenOptions{path: "test/wasi_test/src", alias: "aliased_src"}]
+      preopen: [
+        %PreopenOptions{path: "test/fixture_projects/wasi_test/src", alias: "aliased_src"}
+      ]
     }
 
     instance =
@@ -184,7 +186,7 @@ defmodule WasiTest do
     wasi = %WasiOptions{
       args: ["wasmex", "read_file", "src/main.rs"],
       stdout: stdout,
-      preopen: [%PreopenOptions{path: "test/wasi_test/src", alias: "src"}]
+      preopen: [%PreopenOptions{path: "test/fixture_projects/wasi_test/src", alias: "src"}]
     }
 
     instance =
@@ -193,7 +195,7 @@ defmodule WasiTest do
       )
 
     {:ok, _} = Wasmex.call_function(instance, :_start, [])
-    {:ok, expected_content} = File.read("test/wasi_test/src/main.rs")
+    {:ok, expected_content} = File.read("test/fixture_projects/wasi_test/src/main.rs")
     Wasmex.Pipe.seek(stdout, 0)
     assert Wasmex.Pipe.read(stdout) == expected_content <> "\n"
   end

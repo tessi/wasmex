@@ -11,11 +11,11 @@ If not, go ahead and install it.
 Next, install the required target
 
 ```
-$ rustup target add wasm32-wasi
+$ rustup target add wasm32-wasip1
 ```
 
 Afterwards, you should be able to cross-compile to WASI by simply running
 
 ```
-$ cargo build --target=wasm32-wasi
+$ cargo build --target=wasm32-wasip1
 ```

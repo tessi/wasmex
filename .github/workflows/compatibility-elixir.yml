@@ -17,13 +17,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [25.2, 26.2, 27.0]
-        elixir: [1.15.6, 1.16.1, 1.17.0]
+        otp: [25.2, 26.2, 27.1]
+        elixir: [1.15.8, 1.16.3, 1.17.3]
         exclude:
-          - otp: 27.0
-            elixir: 1.15.6
-          - otp: 27.0
-            elixir: 1.16.1
+          - otp: 27.1
+            elixir: 1.15.8
+          - otp: 27.1
+            elixir: 1.16.3
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
@@ -38,7 +38,7 @@ jobs:
       - name: Add targets
         run: |
           rustup target add wasm32-unknown-unknown
-          rustup target add wasm32-wasi
+          rustup target add wasm32-wasip1
 
       - run: mix do deps.get, deps.compile
 
