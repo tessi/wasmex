@@ -42,13 +42,25 @@ defmodule Wasmex.WasmComponentsTest do
     assert Enum.count(customers) == 2
   end
 
-  test "error handling" do
-    {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiP2Options{inherit_stdout: true})
+  describe "error handling" do
+    setup do
+      {:ok, store} = Wasmex.ComponentStore.new(%Wasmex.Wasi.WasiP2Options{inherit_stdout: true})
 
-    component_bytes = File.read!("test/support/hello_world/hello_world.wasm")
-    {:ok, component} = Wasmex.Component.new(store, component_bytes)
-    {:ok, instance} = Wasmex.Component.Instance.new(store, component)
+      component_bytes = File.read!("test/support/hello_world/hello_world.wasm")
+      {:ok, component} = Wasmex.Component.new(store, component_bytes)
+      {:ok, instance} = Wasmex.Component.Instance.new(store, component)
+      %{instance: instance}
+    end
 
-    assert {:error, error} = Wasmex.Component.Instance.call_function(instance, "garbage", [:wut])
+    test "function not exported", %{instance: instance} do
+
+      assert {:error, error} = Wasmex.Component.Instance.call_function(instance, "garbage", [:wut])
+      assert error =~ "garbage not exported"
+    end
+
+    test "invalid arguments", %{instance: instance} do
+      assert {:error, error} = Wasmex.Component.Instance.call_function(instance, "greet", [1])
+      assert error =~ "type mismatch"
+    end
   end
 end
