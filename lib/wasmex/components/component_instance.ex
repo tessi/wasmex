@@ -1,4 +1,4 @@
-defmodule Wasmex.Component.Instance do
+defmodule Wasmex.Components.Instance do
   defstruct store_resource: nil,
             instance_resource: nil,
             # The actual NIF store resource.

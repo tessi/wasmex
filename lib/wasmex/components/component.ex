@@ -1,4 +1,4 @@
-defmodule Wasmex.Component do
+defmodule Wasmex.Components.Component do
   @type t :: %__MODULE__{
           resource: binary(),
           reference: reference()

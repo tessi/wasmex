@@ -1,6 +1,6 @@
 defmodule Wasmex.Wasi.WasiP2Options do
   @moduledoc ~S"""
-  Configures WASI P2 support for a Wasmex.ComponentStore.
+  Configures WASI P2 support for a Wasmex.Components.Store.
 
   """
 

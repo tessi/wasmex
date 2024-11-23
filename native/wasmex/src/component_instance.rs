@@ -176,7 +176,6 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
                 .map(|(key, val)| (key, val_to_term(val, env)))
                 .collect::<Vec<(&String, Term<'a>)>>();
             Term::map_from_pairs(env, converted_pairs.as_slice()).unwrap()
-            // String::from("wut").encode(env)
         }
         Val::Tuple(tuple) => {
             let tuple_terms = tuple

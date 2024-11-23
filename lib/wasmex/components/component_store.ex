@@ -1,4 +1,4 @@
-defmodule Wasmex.ComponentStore do
+defmodule Wasmex.Components.Store do
   alias Wasmex.Wasi.WasiP2Options
   alias Wasmex.Engine
 
