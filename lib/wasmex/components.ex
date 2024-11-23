@@ -30,7 +30,7 @@ defmodule Wasmex.Components do
       ) do
     case Wasmex.Components.Instance.call_function(instance, name, params) do
       {:ok, result} -> {:reply, {:ok, result}, state}
-      {:error, error} -> {:error, error}
+      {:error, error} -> {:reply, {:error, error}, state}
     end
   end
 

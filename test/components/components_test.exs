@@ -5,5 +5,6 @@ defmodule Wasmex.ComponentsTest do
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
     component = start_supervised!({Wasmex.Components, %{bytes: component_bytes}})
     assert {:ok, "mom"} = Wasmex.Components.call_function(component, "id-string", ["mom"])
+    assert {:error, error} = Wasmex.Components.call_function(component, "garbage", ["wut"])
   end
 end
