@@ -5,7 +5,7 @@ defmodule Wasm.Components.ComponentTypesTest do
   alias Wasmex.EngineConfig
 
   setup do
-    {:ok, store} = Wasmex.Components.Store.new(%Wasmex.Wasi.WasiP2Options{})
+    {:ok, store} = Wasmex.Components.Store.new(nil)
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
     {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
     {:ok, instance} = Wasmex.Components.Instance.new(store, component)
@@ -39,6 +39,12 @@ defmodule Wasm.Components.ComponentTypesTest do
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{"x" => 1, "y" => 2}
              ])
+
+    assert {:error, error} =
+             Wasmex.Components.Instance.call_function(instance, "id-record", [
+               %{"invalid-field" => "foo"}
+             ])
+    IO.inspect(error)
   end
 
   test "lists", %{instance: instance} do

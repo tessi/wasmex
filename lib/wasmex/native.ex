@@ -9,6 +9,7 @@ defmodule Wasmex.Native do
     otp_app: :wasmex,
     base_url: "#{github_url}/releases/download/v#{version}",
     version: version,
+    mode: :debug,
     targets: ~w(
       aarch64-apple-darwin
       aarch64-unknown-linux-gnu
@@ -80,7 +81,9 @@ defmodule Wasmex.Native do
 
   def store_new(_store_limits, _engine_resource), do: error()
   def store_new_wasi(_wasi_options, _store_limits, _engine_resource), do: error()
-  def store_new_wasi_p2(_wasi_options, _store_limits, _engine_resource), do: error()
+
+  def component_store_new(_store_limits, _engine_resource), do: error()
+  def component_store_new_wasi(_wasi_options, _store_limits, _engine_resource), do: error()
 
   def store_or_caller_get_fuel(_store_or_caller_resource), do: error()
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
