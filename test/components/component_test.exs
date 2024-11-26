@@ -53,8 +53,9 @@ defmodule Wasmex.WasmComponentsTest do
     end
 
     test "function not exported", %{instance: instance} do
+      assert {:error, error} =
+               Wasmex.Components.Instance.call_function(instance, "garbage", [:wut])
 
-      assert {:error, error} = Wasmex.Components.Instance.call_function(instance, "garbage", [:wut])
       assert error =~ "garbage not exported"
     end
 

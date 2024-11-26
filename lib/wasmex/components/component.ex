@@ -21,6 +21,7 @@ defmodule Wasmex.Components.Component do
 
   def new(store_or_caller, component_bytes) do
     %{resource: store_or_caller_resource} = store_or_caller
+
     case Wasmex.Native.component_new(store_or_caller_resource, component_bytes) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}

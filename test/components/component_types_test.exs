@@ -44,6 +44,7 @@ defmodule Wasm.Components.ComponentTypesTest do
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{"invalid-field" => "foo"}
              ])
+
     IO.inspect(error)
   end
 

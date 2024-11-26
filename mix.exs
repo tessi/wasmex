@@ -38,7 +38,7 @@ defmodule Wasmex.MixProject do
     "Wasmex is an Elixir library for executing WebAssembly binaries"
   end
 
-    # Specifies which paths to compile per environment.
+  # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/component_fixtures"]
   defp elixirc_paths(_), do: ["lib"]
 
