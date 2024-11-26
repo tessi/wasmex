@@ -47,9 +47,9 @@ pub fn component_call_function<'a>(
     };
 
     let param_types = function.params(&mut *component_store);
-    let converted_params = match  convert_params(param_types, given_params) {
-      Ok(params) => params,
-      Err(e) => return Ok(env.error_tuple("Unable to convert params"))
+    let converted_params = match convert_params(param_types, given_params) {
+        Ok(params) => params,
+        Err(e) => return Ok(env.error_tuple("Unable to convert params")),
     };
     let results_count = function.results(&*component_store).len();
 
@@ -57,14 +57,14 @@ pub fn component_call_function<'a>(
     match function.call(
         &mut *component_store,
         converted_params.as_slice(),
-        &mut result) {
-      Ok(res) => {
-        function.post_return(&mut *component_store);
-        Ok(encode_result(env, result))
-      },
-      Err(err) => return Ok(env.error_tuple(format!("Error executing function: {err}")))
+        &mut result,
+    ) {
+        Ok(res) => {
+            function.post_return(&mut *component_store);
+            Ok(encode_result(env, result))
+        }
+        Err(err) => return Ok(env.error_tuple(format!("Error executing function: {err}"))),
     }
-
 }
 
 fn convert_params(param_types: Box<[Type]>, param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {

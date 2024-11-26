@@ -110,7 +110,7 @@ pub struct ComponentStoreData {
 
 impl WasiHttpView for ComponentStoreData {
     fn ctx(&mut self) -> &mut WasiHttpCtx {
-      self.http.as_mut().expect("WasiHttpCtx is not set")
+        self.http.as_mut().expect("WasiHttpCtx is not set")
     }
     fn table(&mut self) -> &mut ResourceTable {
         &mut self.table
@@ -205,26 +205,26 @@ pub fn component_store_new(
     limits: Option<ExStoreLimits>,
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<ComponentStoreResource>, rustler::Error> {
-  let engine = unwrap_engine(engine_resource)?;
-  let limits = if let Some(limits) = limits {
-      limits.to_wasmtime()
-  } else {
-      StoreLimits::default()
-  };
-  let mut store = Store::new(
-      &engine,
-      ComponentStoreData {
-          http: None,
-          ctx: None,
-          limits,
-          table: wasmtime_wasi::ResourceTable::new(),
-      },
-  );
-  store.limiter(|state| &mut state.limits);
-  let resource: ResourceArc<ComponentStoreResource> = ResourceArc::new(ComponentStoreResource {
-      inner: Mutex::new(store),
-  });
-  Ok(resource)
+    let engine = unwrap_engine(engine_resource)?;
+    let limits = if let Some(limits) = limits {
+        limits.to_wasmtime()
+    } else {
+        StoreLimits::default()
+    };
+    let mut store = Store::new(
+        &engine,
+        ComponentStoreData {
+            http: None,
+            ctx: None,
+            limits,
+            table: wasmtime_wasi::ResourceTable::new(),
+        },
+    );
+    store.limiter(|state| &mut state.limits);
+    let resource: ResourceArc<ComponentStoreResource> = ResourceArc::new(ComponentStoreResource {
+        inner: Mutex::new(store),
+    });
+    Ok(resource)
 }
 
 #[rustler::nif(name = "component_store_new_wasi")]
