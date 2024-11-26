@@ -1,0 +1,5 @@
+package local:wasi-p2-test;
+
+world wasi-p2-test {
+  export get-time: func() -> string;
+}
