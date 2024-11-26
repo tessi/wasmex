@@ -9,7 +9,6 @@ defmodule Wasmex.Native do
     otp_app: :wasmex,
     base_url: "#{github_url}/releases/download/v#{version}",
     version: version,
-    mode: :debug,
     targets: ~w(
       aarch64-apple-darwin
       aarch64-unknown-linux-gnu
