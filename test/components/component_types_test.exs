@@ -5,7 +5,7 @@ defmodule Wasm.Components.ComponentTypesTest do
   alias Wasmex.EngineConfig
 
   setup do
-    {:ok, store} = Wasmex.Components.Store.new(nil)
+    {:ok, store} = Wasmex.Components.Store.new()
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
     {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
     {:ok, instance} = Wasmex.Components.Instance.new(store, component)

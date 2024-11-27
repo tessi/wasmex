@@ -7,7 +7,7 @@ defmodule Wasmex.Components.WasiTest do
 
   test "outbound http call" do
     {:ok, store} =
-      Wasmex.Components.Store.new(%WasiP2Options{inherit_stdout: true, allow_http: true})
+      Wasmex.Components.Store.new_wasi(%WasiP2Options{inherit_stdout: true, allow_http: true})
 
     component_bytes = File.read!("test/component_fixtures/wasi_p2_test/wasi-p2-test.wasm")
     {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)

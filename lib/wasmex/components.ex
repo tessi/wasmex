@@ -1,8 +1,16 @@
 defmodule Wasmex.Components do
   use GenServer
+  alias Wasmex.Wasi.WasiP2Options
+
+  def start_link(%{bytes: component_bytes, wasi: %WasiP2Options{} = wasi_options}) do
+    with {:ok, store} <- Wasmex.Components.Store.new_wasi(wasi_options),
+         {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
+      GenServer.start_link(__MODULE__, %{store: store, component: component})
+    end
+  end
 
   def start_link(%{bytes: component_bytes}) do
-    with {:ok, store} <- Wasmex.Components.Store.new(%Wasmex.Wasi.WasiP2Options{}),
+    with {:ok, store} <- Wasmex.Components.Store.new(),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
       GenServer.start_link(__MODULE__, %{store: store, component: component})
     end

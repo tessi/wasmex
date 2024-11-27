@@ -11,9 +11,7 @@ defmodule Wasmex.Components.Store do
     }
   end
 
-  def new(options \\ nil, store_limits \\ nil, engine \\ nil)
-
-  def new(nil, store_limits, engine) do
+  def new(store_limits \\ nil, engine \\ nil) do
     %Engine{resource: engine_resource} = engine || Engine.default()
 
     case Wasmex.Native.component_store_new(
@@ -25,7 +23,7 @@ defmodule Wasmex.Components.Store do
     end
   end
 
-  def new(%WasiP2Options{} = options, store_limits, engine) do
+  def new_wasi(%WasiP2Options{} = options \\ %WasiP2Options{}, store_limits \\ nil, engine \\ nil) do
     %Engine{resource: engine_resource} = engine || Engine.default()
 
     case Wasmex.Native.component_store_new_wasi(

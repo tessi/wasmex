@@ -5,7 +5,7 @@ defmodule Wasmex.WasmComponentsTest do
   alias Wasmex.EngineConfig
 
   test "invoke component func" do
-    {:ok, store} = Wasmex.Components.Store.new(%Wasmex.Wasi.WasiP2Options{})
+    {:ok, store} = Wasmex.Components.Store.new_wasi()
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
     {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
     {:ok, instance} = Wasmex.Components.Instance.new(store, component)
@@ -19,7 +19,8 @@ defmodule Wasmex.WasmComponentsTest do
 
   describe "error handling" do
     setup do
-      {:ok, store} = Wasmex.Components.Store.new(%Wasmex.Wasi.WasiP2Options{inherit_stdout: true})
+      {:ok, store} =
+        Wasmex.Components.Store.new_wasi(%Wasmex.Wasi.WasiP2Options{inherit_stdout: true})
 
       component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
       {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
