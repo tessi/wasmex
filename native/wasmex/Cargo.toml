@@ -12,7 +12,7 @@ edition = "2021"
 [lib]
 name = "wasmex"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["dylib"]
 
 [dependencies]
 rustler = { version = "0.35", features = ["big_integer"] }
