@@ -57,4 +57,9 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:ok, {1, "two"}} =
              Wasmex.Components.Instance.call_function(instance, "id-tuple", [{1, "two"}])
   end
+
+  test "option types", %{instance: instance} do
+    assert {:ok, 7} = Wasmex.Components.Instance.call_function(instance, "id-option", [7])
+    assert {:ok, nil} = Wasmex.Components.Instance.call_function(instance, "id-option", [nil])
+  end
 end

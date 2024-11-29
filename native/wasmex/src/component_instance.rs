@@ -5,7 +5,7 @@ use crate::component::ComponentInstanceResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 
-use rustler::env;
+use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
 use rustler::Encoder;
@@ -49,7 +49,7 @@ pub fn component_call_function<'a>(
     let param_types = function.params(&mut *component_store);
     let converted_params = match convert_params(param_types, given_params) {
         Ok(params) => params,
-        Err(e) => return Ok(env.error_tuple("Unable to convert params")),
+        Err(e) => return Ok(env.error_tuple(format!("Unable to convert params: {:?}", e))),
     };
     let results_count = function.results(&*component_store).len();
 
@@ -59,8 +59,8 @@ pub fn component_call_function<'a>(
         converted_params.as_slice(),
         &mut result,
     ) {
-        Ok(res) => {
-            function.post_return(&mut *component_store);
+        Ok(_) => {
+            let _ = function.post_return(&mut *component_store);
             Ok(encode_result(env, result))
         }
         Err(err) => return Ok(env.error_tuple(format!("Error executing function: {err}"))),
@@ -70,7 +70,7 @@ pub fn component_call_function<'a>(
 fn convert_params(param_types: Box<[Type]>, param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
     let mut params = Vec::with_capacity(param_types.len());
 
-    for (i, (param_term, param_type)) in param_terms.iter().zip(param_types.iter()).enumerate() {
+    for (_i, (param_term, param_type)) in param_terms.iter().zip(param_types.iter()).enumerate() {
         let param = term_to_val(param_term, param_type)?;
         params.push(param);
     }
@@ -105,7 +105,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let dedoded_tuple = tuple::get_tuple(*param_term)?;
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
-            for (i, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
+            for (_i, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
                 let component_val = term_to_val(&tuple_term, &tuple_type)?;
                 tuple_vals.push(component_val);
             }
@@ -131,12 +131,26 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             }
             Ok(Val::Record(kv))
         }
-        (_, _) => Ok(Val::Bool(false)),
+        (TermType::Atom, Type::Option(option_type)) => {
+          let the_atom = param_term.atom_to_string()?;
+          if the_atom == "nil" {
+            Ok(Val::Option(None))
+          } else {
+            let converted_val = term_to_val(param_term, &option_type.ty())?;
+            Ok(Val::Option(Some(Box::new(converted_val))))
+          }
+        }
+        (_term_type, Type::Option(option_type)) => {
+            let converted_val = term_to_val(param_term, &option_type.ty())?;
+            Ok(Val::Option(Some(Box::new(converted_val))))
+        }
+        (term_type, val_type) => {
+            Err(rustler::Error::Term(Box::new(format!(
+                "Could not convert {:?} to {:?}",
+                term_type, val_type
+            ))))
+        }
     }
-}
-
-fn make_error_tuple<'a>(reason: &str, env: rustler::Env<'a>) -> Term<'a> {
-    env.error_tuple(reason)
 }
 
 fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
@@ -184,6 +198,10 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
                 .collect::<Vec<Term<'a>>>();
             make_tuple(env, tuple_terms.as_slice())
         }
+        Val::Option(option) => match option {
+            Some(boxed_val) => val_to_term(*&boxed_val, env),
+            None => nil().encode(env),
+        },
         _ => String::from("wut").encode(env),
     }
 }
