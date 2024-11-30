@@ -1,4 +1,8 @@
 defmodule Wasmex.Components.Component do
+  @moduledoc """
+  This represents a compiled but not yet instantiated WebAssembly component. It is
+  analogous to a Module in core webassembly.
+  """
   @type t :: %__MODULE__{
           resource: binary(),
           reference: reference()

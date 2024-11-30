@@ -1,4 +1,7 @@
 defmodule Wasmex.Components.Instance do
+  @moduledoc """
+  The component model equivalent to `Wasmex.Instance`
+  """
   defstruct store_resource: nil,
             instance_resource: nil,
             # The actual NIF store resource.

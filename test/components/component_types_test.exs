@@ -40,12 +40,10 @@ defmodule Wasm.Components.ComponentTypesTest do
                %{"x" => 1, "y" => 2}
              ])
 
-    assert {:error, error} =
+    assert {:error, _error} =
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{"invalid-field" => "foo"}
              ])
-
-    IO.inspect(error)
   end
 
   test "lists", %{instance: instance} do

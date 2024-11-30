@@ -1,4 +1,7 @@
 defmodule Wasmex.Components.Store do
+  @moduledoc """
+  This is the component model equivalent of `Wasmex.Store`
+  """
   alias Wasmex.Wasi.WasiP2Options
   alias Wasmex.Engine
 
