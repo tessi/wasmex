@@ -1,9 +1,6 @@
 defmodule Wasmex.WasmComponentsTest do
   use ExUnit.Case, async: true
 
-  alias Wasmex.Engine
-  alias Wasmex.EngineConfig
-
   test "invoke component func" do
     {:ok, store} = Wasmex.Components.Store.new_wasi()
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")

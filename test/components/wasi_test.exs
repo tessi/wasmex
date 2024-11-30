@@ -1,8 +1,6 @@
 defmodule Wasmex.Components.WasiTest do
   use ExUnit.Case, async: true
 
-  alias Wasmex.Engine
-  alias Wasmex.EngineConfig
   alias Wasmex.Wasi.WasiP2Options
 
   test "outbound http call" do

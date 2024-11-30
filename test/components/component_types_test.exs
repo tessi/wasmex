@@ -1,9 +1,6 @@
 defmodule Wasm.Components.ComponentTypesTest do
   use ExUnit.Case, async: true
 
-  alias Wasmex.Engine
-  alias Wasmex.EngineConfig
-
   setup do
     {:ok, store} = Wasmex.Components.Store.new()
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
@@ -29,8 +26,10 @@ defmodule Wasm.Components.ComponentTypesTest do
 
   test "floats", %{instance: instance} do
     pi = 3.14592
-    assert {:ok, pi} = Wasmex.Components.Instance.call_function(instance, "id-f32", [pi])
-    assert {:ok, pi} = Wasmex.Components.Instance.call_function(instance, "id-f64", [pi])
+    assert {:ok, pi_result} = Wasmex.Components.Instance.call_function(instance, "id-f32", [pi])
+    assert_in_delta(pi, pi_result, 1.0e-5)
+    assert {:ok, pi_result} = Wasmex.Components.Instance.call_function(instance, "id-f64", [pi])
+    assert_in_delta(pi, pi_result, 1.0e-5)
   end
 
   test "records", %{instance: instance} do
