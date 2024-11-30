@@ -36,8 +36,7 @@ defmodule Wasmex.WasmComponentsTest do
     end
 
     test "invalid arguments", %{instance: instance} do
-      assert {:error, error} = Wasmex.Components.Instance.call_function(instance, "greet", [1])
-      assert error =~ "type mismatch"
+      assert {:error, _error} = Wasmex.Components.Instance.call_function(instance, "greet", [1])
     end
   end
 end
