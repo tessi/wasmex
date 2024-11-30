@@ -47,7 +47,7 @@ pub fn component_call_function<'a>(
     };
 
     let param_types = function.params(&mut *component_store);
-    let converted_params = match convert_params(param_types, given_params) {
+    let converted_params = match convert_params(&param_types, given_params) {
         Ok(params) => params,
         Err(e) => return Ok(env.error_tuple(format!("Unable to convert params: {:?}", e))),
     };
@@ -67,10 +67,10 @@ pub fn component_call_function<'a>(
     }
 }
 
-fn convert_params(param_types: Box<[Type]>, param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
+fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
     let mut params = Vec::with_capacity(param_types.len());
 
-    for (_i, (param_term, param_type)) in param_terms.iter().zip(param_types.iter()).enumerate() {
+    for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
         let param = term_to_val(param_term, param_type)?;
         params.push(param);
     }
@@ -105,7 +105,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let dedoded_tuple = tuple::get_tuple(*param_term)?;
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
-            for (_i, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
+            for (tuple_type, tuple_term) in tuple_types.zip(dedoded_tuple) {
                 let component_val = term_to_val(&tuple_term, &tuple_type)?;
                 tuple_vals.push(component_val);
             }
@@ -121,12 +121,9 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 .collect::<Vec<(String, &Term)>>();
             for field in record.fields() {
                 let field_term_option = terms.iter().find(|(k, _)| k == field.name);
-                match field_term_option {
-                    Some((_, field_term)) => {
-                        let field_value = term_to_val(field_term, &field.ty)?;
-                        kv.push((field.name.to_string(), field_value))
-                    }
-                    None => (),
+                if let Some((_, field_term)) = field_term_option {
+                    let field_value = term_to_val(field_term, &field.ty)?;
+                    kv.push((field.name.to_string(), field_value))
                 }
             }
             Ok(Val::Record(kv))
@@ -153,7 +150,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
 
 fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
     let result_term = match vals.len() {
-        1 => val_to_term(vals.iter().next().unwrap(), env),
+        1 => val_to_term(vals.first().unwrap(), env),
         _ => vals
             .iter()
             .map(|term| val_to_term(term, env))
@@ -197,7 +194,7 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             make_tuple(env, tuple_terms.as_slice())
         }
         Val::Option(option) => match option {
-            Some(boxed_val) => val_to_term(*&boxed_val, env),
+            Some(boxed_val) => val_to_term(boxed_val, env),
             None => nil().encode(env),
         },
         _ => String::from("wut").encode(env),

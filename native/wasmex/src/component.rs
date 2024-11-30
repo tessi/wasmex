@@ -1,6 +1,4 @@
-use crate::engine::EngineResource;
-use crate::store::{ComponentStoreData, ComponentStoreResource, ExStoreLimits, ExWasiOptions};
-use crate::store::{StoreOrCaller, StoreOrCallerResource};
+use crate::store::{ComponentStoreData, ComponentStoreResource};
 use rustler::Binary;
 use rustler::Error;
 use rustler::NifResult;
@@ -57,11 +55,11 @@ pub fn new_component_instance(
     })?;
 
     let mut linker = Linker::new(component_store.engine());
-    wasmtime_wasi::add_to_linker_sync(&mut linker);
-    wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+    let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
+    let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
     // Instantiate the component
     let instance = linker
-        .instantiate(&mut *component_store, &component)
+        .instantiate(&mut *component_store, component)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
 
     Ok(ResourceArc::new(ComponentInstanceResource {
