@@ -132,24 +132,22 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             Ok(Val::Record(kv))
         }
         (TermType::Atom, Type::Option(option_type)) => {
-          let the_atom = param_term.atom_to_string()?;
-          if the_atom == "nil" {
-            Ok(Val::Option(None))
-          } else {
-            let converted_val = term_to_val(param_term, &option_type.ty())?;
-            Ok(Val::Option(Some(Box::new(converted_val))))
-          }
+            let the_atom = param_term.atom_to_string()?;
+            if the_atom == "nil" {
+                Ok(Val::Option(None))
+            } else {
+                let converted_val = term_to_val(param_term, &option_type.ty())?;
+                Ok(Val::Option(Some(Box::new(converted_val))))
+            }
         }
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
         }
-        (term_type, val_type) => {
-            Err(rustler::Error::Term(Box::new(format!(
-                "Could not convert {:?} to {:?}",
-                term_type, val_type
-            ))))
-        }
+        (term_type, val_type) => Err(rustler::Error::Term(Box::new(format!(
+            "Could not convert {:?} to {:?}",
+            term_type, val_type
+        )))),
     }
 }
 
