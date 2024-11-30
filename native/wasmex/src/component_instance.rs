@@ -63,7 +63,7 @@ pub fn component_call_function<'a>(
             let _ = function.post_return(&mut *component_store);
             Ok(encode_result(env, result))
         }
-        Err(err) => return Ok(env.error_tuple(format!("Error executing function: {err}"))),
+        Err(err) => Ok(env.error_tuple(format!("Error executing function: {err}"))),
     }
 }
 
