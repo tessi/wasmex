@@ -1,5 +1,7 @@
 pub mod atoms;
 pub mod caller;
+pub mod component;
+pub mod component_instance;
 pub mod engine;
 pub mod environment;
 pub mod functions;

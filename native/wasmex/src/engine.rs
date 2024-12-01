@@ -12,6 +12,7 @@ pub struct ExEngineConfig {
     wasm_backtrace_details: bool,
     cranelift_opt_level: rustler::Atom,
     memory64: bool,
+    wasm_component_model: bool,
 }
 
 #[rustler::resource_impl()]
@@ -68,6 +69,7 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_backtrace_details(backtrace_details);
     config.cranelift_opt_level(cranelift_opt_level);
     config.wasm_memory64(engine_config.memory64);
+    config.wasm_component_model(engine_config.wasm_component_model);
     config
 }
 
