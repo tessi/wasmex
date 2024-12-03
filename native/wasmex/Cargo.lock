@@ -1437,6 +1437,7 @@ dependencies = [
  "num-bigint",
  "regex-lite",
  "rustler_codegen",
+ "serde",
 ]
 
 [[package]]

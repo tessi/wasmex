@@ -33,10 +33,14 @@ defmodule Wasm.Components.ComponentTypesTest do
   end
 
   test "records", %{instance: instance} do
-    # don't love this yet, be nicer to support atom keys
-    assert {:ok, %{"x" => 1, "y" => 2}} =
+    assert {:ok, %{x: 1, y: 2}} =
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{"x" => 1, "y" => 2}
+             ])
+
+    assert {:ok, %{x: 1, y: 2}} =
+             Wasmex.Components.Instance.call_function(instance, "id-record", [
+               %{x: 1, y: 2}
              ])
 
     assert {:error, _error} =
