@@ -155,7 +155,7 @@ fn key_from_term(key_term: &Term) -> String {
     }
 }
 
-fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &String) -> Term<'a> {
+fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
     rustler::serde::atoms::str_to_term(env, field_name).unwrap()
 }
 
