@@ -117,7 +117,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let decoded_map = param_term.decode::<HashMap<Term, Term>>()?;
             let terms = decoded_map
                 .iter()
-                .map(|(key, val)| (key.decode::<String>().unwrap(), val))
+                .map(|(key_term, val)| (term_to_field_name(key_term), val))
                 .collect::<Vec<(String, &Term)>>();
             for field in record.fields() {
                 let field_term_option = terms.iter().find(|(k, _)| k == field.name);
@@ -146,6 +146,17 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             term_type, val_type
         )))),
     }
+}
+
+fn term_to_field_name(key_term: &Term) -> String {
+    match key_term.get_type() {
+        TermType::Atom => key_term.atom_to_string().unwrap(),
+        _ => key_term.decode::<String>().unwrap(),
+    }
+}
+
+fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
+    rustler::serde::atoms::str_to_term(env, field_name).unwrap()
 }
 
 fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
@@ -182,8 +193,8 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::Record(record) => {
             let converted_pairs = record
                 .iter()
-                .map(|(key, val)| (key, val_to_term(val, env)))
-                .collect::<Vec<(&String, Term<'a>)>>();
+                .map(|(key, val)| (field_name_to_term(&env, key), val_to_term(val, env)))
+                .collect::<Vec<(Term, Term)>>();
             Term::map_from_pairs(env, converted_pairs.as_slice()).unwrap()
         }
         Val::Tuple(tuple) => {
