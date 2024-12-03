@@ -117,7 +117,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let decoded_map = param_term.decode::<HashMap<Term, Term>>()?;
             let terms = decoded_map
                 .iter()
-                .map(|(key_term, val)| (key_from_term(key_term), val))
+                .map(|(key_term, val)| (term_to_field_name(key_term), val))
                 .collect::<Vec<(String, &Term)>>();
             for field in record.fields() {
                 let field_term_option = terms.iter().find(|(k, _)| k == field.name);
@@ -148,7 +148,7 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
     }
 }
 
-fn key_from_term(key_term: &Term) -> String {
+fn term_to_field_name(key_term: &Term) -> String {
     match key_term.get_type() {
         TermType::Atom => key_term.atom_to_string().unwrap(),
         _ => key_term.decode::<String>().unwrap(),
