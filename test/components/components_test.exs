@@ -2,7 +2,7 @@ defmodule Wasmex.ComponentsTest do
   use ExUnit.Case, async: true
   alias Wasmex.Wasi.WasiP2Options
 
-  test "interacting with a component server" do
+  test "interacting with a component GenServer" do
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
     component_pid = start_supervised!({Wasmex.Components, %{bytes: component_bytes}})
     assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
@@ -20,5 +20,14 @@ defmodule Wasmex.ComponentsTest do
     assert {:ok, time} = Wasmex.Components.call_function(component_pid, "get-time", [])
 
     assert time =~ Date.utc_today() |> Date.to_iso8601()
+  end
+
+  test "register by name" do
+    component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
+
+    {:ok, _pid} =
+      start_supervised({Wasmex.Components, bytes: component_bytes, name: ComponentTypes})
+
+    assert {:ok, "mom"} = Wasmex.Components.call_function(ComponentTypes, "id-string", ["mom"])
   end
 end

@@ -22,6 +22,22 @@ defmodule Wasmex.Components do
     end
   end
 
+  def start_link(opts) when is_list(opts) do
+    with {:ok, store} <- build_store(opts),
+         component_bytes <- Keyword.get(opts, :bytes),
+         {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
+      GenServer.start_link(__MODULE__, %{store: store, component: component}, opts)
+    end
+  end
+
+  defp build_store(opts) do
+    if wasi_options = Keyword.get(opts, :wasi) do
+      Wasmex.Components.Store.new_wasi(wasi_options)
+    else
+      Wasmex.Components.Store.new()
+    end
+  end
+
   @spec call_function(pid(), String.t() | atom(), list(number()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
