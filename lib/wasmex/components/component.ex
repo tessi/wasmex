@@ -31,4 +31,40 @@ defmodule Wasmex.Components.Component do
       resource -> {:ok, __wrap_resource__(resource)}
     end
   end
+
+  defmacro __using__(opts) do
+    genserver_stuff =
+      quote do
+        def child_spec(opts), do: Wasmex.Components.child_spec(opts)
+
+        def start_link(opts) do
+          Wasmex.Components.start_link(opts)
+        end
+
+        def handle_call(request, from, state) do
+          Wasmex.Components.handle_call(request, from, state)
+        end
+      end
+
+    functions =
+      if wit_path = Keyword.get(opts, :wit) do
+        wit_contents = File.read!(wit_path)
+        exported_functions = Wasmex.Native.wit_exported_functions(wit_path, wit_contents)
+
+        for {func, arity} <- exported_functions do
+          arglist = Macro.generate_arguments(arity, __MODULE__)
+          function_name = func |> String.replace("-", "_") |> String.to_atom()
+
+          quote do
+            def unquote(function_name)(pid, unquote_splicing(arglist)) do
+              Wasmex.Components.call_function(pid, unquote(function_name), [unquote_splicing(arglist)])
+            end
+          end
+        end
+      else
+        []
+      end
+
+    [genserver_stuff, functions]
+  end
 end
