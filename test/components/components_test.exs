@@ -11,9 +11,14 @@ defmodule Wasmex.ComponentsTest do
 
   test "using the component macro" do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
-    component_pid = start_supervised!({HelloWorld, %{bytes: component_bytes, wasi: %WasiP2Options{}}})
+
+    component_pid =
+      start_supervised!({HelloWorld, %{bytes: component_bytes, wasi: %WasiP2Options{}}})
+
     assert {:ok, "Hello, Elixir!"} = HelloWorld.greet(component_pid, "Elixir")
-    assert {:ok, ["Hello, Elixir!", "Hello, Elixir!"]} = HelloWorld.multi_greet(component_pid, "Elixir", 2)
+
+    assert {:ok, ["Hello, Elixir!", "Hello, Elixir!"]} =
+             HelloWorld.multi_greet(component_pid, "Elixir", 2)
   end
 
   test "wasi interaction" do
