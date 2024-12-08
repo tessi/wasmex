@@ -2,11 +2,7 @@ use rustler::{NifResult, Term};
 use wit_parser::{Resolve, WorldItem};
 
 #[rustler::nif(name = "wit_exported_functions")]
-pub fn exported_functions(
-    env: rustler::Env,
-    path: String,
-    wit: String,
-) -> NifResult<Term> {
+pub fn exported_functions(env: rustler::Env, path: String, wit: String) -> NifResult<Term> {
     let mut resolve = Resolve::new();
     let id = resolve.push_str(path, &wit).unwrap();
     let world_id = resolve.select_world(id, None).unwrap();
