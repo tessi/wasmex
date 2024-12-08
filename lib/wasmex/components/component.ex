@@ -35,7 +35,7 @@ defmodule Wasmex.Components.Component do
   defmacro __using__(opts) do
     genserver_stuff =
       quote do
-        def child_spec(opts), do: Wasmex.Components.child_spec(opts)
+        use GenServer
 
         def start_link(opts) do
           Wasmex.Components.start_link(opts)
@@ -51,13 +51,13 @@ defmodule Wasmex.Components.Component do
         wit_contents = File.read!(wit_path)
         exported_functions = Wasmex.Native.wit_exported_functions(wit_path, wit_contents)
 
-        for {func, arity} <- exported_functions do
+        for {function, arity} <- exported_functions do
           arglist = Macro.generate_arguments(arity, __MODULE__)
-          function_name = func |> String.replace("-", "_") |> String.to_atom()
+          function_atom = function |> String.replace("-", "_") |> String.to_atom()
 
           quote do
-            def unquote(function_name)(pid, unquote_splicing(arglist)) do
-              Wasmex.Components.call_function(pid, unquote(function_name), [unquote_splicing(arglist)])
+            def unquote(function_atom)(pid, unquote_splicing(arglist)) do
+              Wasmex.Components.call_function(pid, unquote(function), [unquote_splicing(arglist)])
             end
           end
         end
