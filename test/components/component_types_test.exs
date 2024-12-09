@@ -1,6 +1,8 @@
 defmodule Wasm.Components.ComponentTypesTest do
   use ExUnit.Case, async: true
 
+  alias Wasmex.Wasi.WasiP2Options
+
   setup do
     {:ok, store} = Wasmex.Components.Store.new()
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
@@ -46,6 +48,18 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:error, _error} =
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{"invalid-field" => "foo"}
+             ])
+  end
+
+  test "record with kebab-field" do
+    {:ok, store} = Wasmex.Components.Store.new_wasi(%WasiP2Options{})
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+    {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
+    {:ok, instance} = Wasmex.Components.Instance.new(store, component)
+
+    assert {:ok, %{kebab_field: "foo"}} =
+             Wasmex.Components.Instance.call_function(instance, "echo-kebab", [
+               %{kebab_field: "foo"}
              ])
   end
 

@@ -1,7 +1,11 @@
 package local:hello-world;
 
 world hello-world {
+  record kebab-record {
+    kebab-field: string
+  }
   export greet: func(who: string) -> string;
   export multi-greet: func(who: string, times: u16) -> list<string>;
   export greet-many: func(people: list<string>) -> list<string>;
+  export echo-kebab: func(kebab-record: kebab-record) -> kebab-record;
 }
