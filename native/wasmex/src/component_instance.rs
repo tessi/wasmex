@@ -5,6 +5,8 @@ use crate::component::ComponentInstanceResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 
+use convert_case::{Case, Casing};
+
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
@@ -63,7 +65,9 @@ pub fn component_call_function<'a>(
             let _ = function.post_return(&mut *component_store);
             Ok(encode_result(env, result))
         }
-        Err(err) => Ok(env.error_tuple(format!("Error executing function: {err}"))),
+        Err(err) => Err(rustler::Error::Term(Box::new(format!(
+            "Error executing function: {err}"
+        )))),
     }
 }
 
@@ -150,13 +154,13 @@ fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
 
 fn term_to_field_name(key_term: &Term) -> String {
     match key_term.get_type() {
-        TermType::Atom => key_term.atom_to_string().unwrap(),
-        _ => key_term.decode::<String>().unwrap(),
+        TermType::Atom => key_term.atom_to_string().unwrap().to_case(Case::Kebab),
+        _ => key_term.decode::<String>().unwrap().to_case(Case::Kebab),
     }
 }
 
 fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
-    rustler::serde::atoms::str_to_term(env, field_name).unwrap()
+    rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
 }
 
 fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {

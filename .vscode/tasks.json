@@ -158,6 +158,50 @@
         "kind": "build",
         "isDefault": true
       }
+    },
+    {
+      "label": "rust clippy",
+      "type": "process",
+      "command": "cargo",
+      "args": [
+        "clippy",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-A",
+        "clippy::extra_unused_lifetimes"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}/native/wasmex"
+      },
+      "problemMatcher": [
+        "$mixCompileWarning",
+        "$mixCompileError"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "rust format",
+      "type": "process",
+      "command": "cargo",
+      "args": ["fmt"],
+      "options": {
+        "cwd": "${workspaceRoot}/native/wasmex"
+      },
+      "problemMatcher": [
+        "$mixCompileWarning",
+        "$mixCompileError"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
     }
+
   ]
 }
