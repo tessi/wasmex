@@ -33,7 +33,7 @@ defmodule Wasmex.Components.Component do
   end
 
   defmacro __using__(opts) do
-    genserver_stuff =
+    genserver_setup =
       quote do
         use GenServer
 
@@ -65,6 +65,6 @@ defmodule Wasmex.Components.Component do
         []
       end
 
-    [genserver_stuff, functions]
+    [genserver_setup, functions]
   end
 end
