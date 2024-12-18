@@ -1,0 +1,1 @@
+npx jco componentize -w hello-world.wit -o hello_world.wasm hello-world.js

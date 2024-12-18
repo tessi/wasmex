@@ -234,6 +234,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67ba02a97a2bd10f4b59b25c7973101c79642302776489e030cd13cdab09ed15"
 
 [[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1831,6 +1840,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 
 [[package]]
+name = "unicode-segmentation"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
+
+[[package]]
 name = "unicode-width"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2002,6 +2017,7 @@ dependencies = [
 name = "wasmex"
 version = "0.9.2"
 dependencies = [
+ "convert_case",
  "once_cell",
  "rand",
  "rustler",
@@ -2011,6 +2027,7 @@ dependencies = [
  "wasmtime-wasi-http",
  "wat",
  "wiggle",
+ "wit-parser 0.221.2",
 ]
 
 [[package]]
@@ -2035,6 +2052,17 @@ checksum = "e246c2772ce3ebc83f89a2d4487ac5794cad6c309b2071818a88c7db7c36d87b"
 dependencies = [
  "bitflags",
  "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.221.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9845c470a2e10b61dd42c385839cdd6496363ed63b5c9e420b5488b77bd22083"
+dependencies = [
+ "bitflags",
+ "indexmap",
+ "semver",
 ]
 
 [[package]]
@@ -2146,7 +2174,7 @@ dependencies = [
  "syn",
  "wasmtime-component-util",
  "wasmtime-wit-bindgen",
- "wit-parser",
+ "wit-parser 0.218.0",
 ]
 
 [[package]]
@@ -2343,7 +2371,7 @@ dependencies = [
  "anyhow",
  "heck",
  "indexmap",
- "wit-parser",
+ "wit-parser 0.218.0",
 ]
 
 [[package]]
@@ -2603,6 +2631,24 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser 0.218.0",
+]
+
+[[package]]
+name = "wit-parser"
+version = "0.221.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbe1538eea6ea5ddbe5defd0dc82539ad7ba751e1631e9185d24a931f0a5adc8"
+dependencies = [
+ "anyhow",
+ "id-arena",
+ "indexmap",
+ "log",
+ "semver",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "unicode-xid",
+ "wasmparser 0.221.2",
 ]
 
 [[package]]

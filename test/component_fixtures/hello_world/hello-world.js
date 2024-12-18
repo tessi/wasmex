@@ -13,3 +13,7 @@ export function multiGreet(who, times) {
 export function greetMany(people) {
   return people.map((person) => `Hello, ${person}!`);
 }
+
+export function echoKebab(kebabRecord) {
+  return kebabRecord;
+}
