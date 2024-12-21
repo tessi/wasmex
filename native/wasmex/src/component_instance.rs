@@ -65,7 +65,7 @@ pub fn component_call_function<'a>(
             let _ = function.post_return(&mut *component_store);
             Ok(encode_result(env, result))
         }
-        Err(err) => Err(rustler::Error::Term(Box::new(format!(
+        Err(err) => Err(rustler::Error::RaiseTerm(Box::new(format!(
             "Error executing function: {err}"
         )))),
     }

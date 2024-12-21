@@ -9,6 +9,15 @@ defmodule Wasmex.ComponentsTest do
     assert {:error, _error} = Wasmex.Components.call_function(component_pid, "garbage", ["wut"])
   end
 
+  test "unrecoverable errors crash the process" do
+    component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
+    component_pid = start_supervised!({Wasmex.Components, %{bytes: component_bytes}})
+
+    assert catch_exit(
+             Wasmex.Components.call_function(component_pid, "id-record", [%{not: "expected"}])
+           )
+  end
+
   test "using the component macro" do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 
