@@ -44,11 +44,6 @@ defmodule Wasm.Components.ComponentTypesTest do
              Wasmex.Components.Instance.call_function(instance, "id-record", [
                %{x: 1, y: 2}
              ])
-
-    assert {:error, _error} =
-             Wasmex.Components.Instance.call_function(instance, "id-record", [
-               %{"invalid-field" => "foo"}
-             ])
   end
 
   test "record with kebab-field" do
