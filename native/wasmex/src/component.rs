@@ -1,12 +1,11 @@
 use crate::store::{ComponentStoreData, ComponentStoreResource};
 use rustler::Binary;
-use rustler::Error;
 use rustler::NifResult;
 use rustler::ResourceArc;
 use wasmtime::Store;
 
 use std::sync::Mutex;
-use wasmtime::component::{Component, Instance, Linker};
+use wasmtime::component::Component;
 
 pub struct ComponentResource {
     pub inner: Mutex<Component>,
@@ -35,41 +34,3 @@ pub fn new_component(
         inner: Mutex::new(component),
     }))
 }
-
-#[rustler::nif(name = "component_instance_new")]
-pub fn new_component_instance(
-    component_store_resource: ResourceArc<ComponentStoreResource>,
-    component_resource: ResourceArc<ComponentResource>,
-) -> NifResult<ResourceArc<ComponentInstanceResource>> {
-    let component_store: &mut Store<ComponentStoreData> =
-        &mut *(component_store_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock component_store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
-
-    let component = &mut component_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock component resource as the mutex was poisoned: {e}"
-        )))
-    })?;
-
-    let mut linker = Linker::new(component_store.engine());
-    let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
-    let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
-    // Instantiate the component
-    let instance = linker
-        .instantiate(&mut *component_store, component)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-
-    Ok(ResourceArc::new(ComponentInstanceResource {
-        inner: Mutex::new(instance),
-    }))
-}
-
-pub struct ComponentInstanceResource {
-    pub inner: Mutex<Instance>,
-}
-
-#[rustler::resource_impl()]
-impl rustler::Resource for ComponentInstanceResource {}

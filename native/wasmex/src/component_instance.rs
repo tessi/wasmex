@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::sync::{Condvar, Mutex};
 
 use crate::atoms;
-use crate::component::ComponentInstanceResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
+use crate::component::ComponentResource;
+use wasmtime::component::{Instance, Linker};
 
 use convert_case::{Case, Casing};
 
@@ -22,6 +23,9 @@ use wasmtime::component::Type;
 use wasmtime::component::Val;
 use wasmtime::Store;
 
+use wasmtime_wasi;
+use wasmtime_wasi_http;
+
 pub struct ComponentCallbackTokenResource {
     pub token: ComponentCallbackToken,
 }
@@ -33,6 +37,44 @@ pub struct ComponentCallbackToken {
     pub continue_signal: Condvar,
     pub return_types: Vec<Type>,
     pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
+}
+
+pub struct ComponentInstanceResource {
+    pub inner: Mutex<Instance>,
+}
+
+#[rustler::resource_impl()]
+impl rustler::Resource for ComponentInstanceResource {}
+
+#[rustler::nif(name = "component_instance_new")]
+pub fn new_component_instance(
+    component_store_resource: ResourceArc<ComponentStoreResource>,
+    component_resource: ResourceArc<ComponentResource>,
+) -> NifResult<ResourceArc<ComponentInstanceResource>> {
+    let component_store: &mut Store<ComponentStoreData> =
+        &mut *component_store_resource.inner.lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock component_store resource as the mutex was poisoned: {e}"
+            )))
+        })?;
+
+    let component = &mut component_resource.inner.lock().map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock component resource as the mutex was poisoned: {e}"
+        )))
+    })?;
+
+    let mut linker = Linker::new(component_store.engine());
+    let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
+    let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+    // Instantiate the component
+    let instance = linker
+        .instantiate(&mut *component_store, component)
+        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+
+    Ok(ResourceArc::new(ComponentInstanceResource {
+        inner: Mutex::new(instance),
+    }))
 }
 
 #[rustler::nif(name = "component_call_function")]
