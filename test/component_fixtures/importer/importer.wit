@@ -1,0 +1,6 @@
+package local:importer;
+
+world importer {
+  import get-secret-word: func(num: u32, str: string) -> string;
+  export reveal-secret-word: func() -> string;
+}

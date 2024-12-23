@@ -33,7 +33,8 @@ defmodule Wasmex.WasmComponentsTest do
     end
 
     test "invalid arguments", %{instance: instance} do
-      assert {:error, _error} = Wasmex.Components.Instance.call_function(instance, "greet", [1])
+      assert {:error, error} = Wasmex.Components.Instance.call_function(instance, "greet", [1])
+      assert error =~ "Could not convert Integer to String"
     end
   end
 end

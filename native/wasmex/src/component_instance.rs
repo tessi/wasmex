@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Condvar, Mutex};
 
 use crate::atoms;
 use crate::component::ComponentInstanceResource;
@@ -20,6 +21,19 @@ use rustler::TermType;
 use wasmtime::component::Type;
 use wasmtime::component::Val;
 use wasmtime::Store;
+
+pub struct ComponentCallbackTokenResource {
+    pub token: ComponentCallbackToken,
+}
+
+#[rustler::resource_impl()]
+impl rustler::Resource for ComponentCallbackTokenResource {}
+
+pub struct ComponentCallbackToken {
+    pub continue_signal: Condvar,
+    pub return_types: Vec<Type>,
+    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
+}
 
 #[rustler::nif(name = "component_call_function")]
 pub fn component_call_function<'a>(
@@ -51,7 +65,7 @@ pub fn component_call_function<'a>(
     let param_types = function.params(&mut *component_store);
     let converted_params = match convert_params(&param_types, given_params) {
         Ok(params) => params,
-        Err(e) => return Ok(env.error_tuple(format!("Unable to convert params: {:?}", e))),
+        Err(e) => return Err(e)
     };
     let results_count = function.results(&*component_store).len();
 
