@@ -19,11 +19,11 @@ defmodule Wasmex.Components.Instance do
     }
   end
 
-  def new(store_or_caller, component) do
+  def new(store_or_caller, component, imports \\ %{}) do
     %{resource: store_or_caller_resource} = store_or_caller
     %{resource: component_resource} = component
 
-    case Wasmex.Native.component_instance_new(store_or_caller_resource, component_resource) do
+    case Wasmex.Native.component_instance_new(store_or_caller_resource, component_resource, imports) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(store_or_caller_resource, resource)}
     end

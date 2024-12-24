@@ -1,4 +1,4 @@
-defmodule Wasmex.ComponentsTest do
+defmodule Wasmex.Components.GenServer.Test do
   use ExUnit.Case, async: true
   alias Wasmex.Wasi.WasiP2Options
 

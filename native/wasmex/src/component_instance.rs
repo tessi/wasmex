@@ -1,30 +1,41 @@
 use std::collections::HashMap;
 use std::sync::{Condvar, Mutex};
 
+use once_cell::sync::Lazy;
+
+use std::thread;
+
 use crate::atoms;
+use crate::component::ComponentResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
-use crate::component::ComponentResource;
-use wasmtime::component::{Instance, Linker};
-
 use convert_case::{Case, Casing};
+use wasmtime::component::{Func, Instance, Linker, Val};
+use wasmtime::Caller;
+use wiggle::anyhow::{self, anyhow};
 
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
-use rustler::Encoder;
 use rustler::Error;
 use rustler::NifResult;
 use rustler::ResourceArc;
+use rustler::{Encoder, OwnedEnv};
 
 use rustler::Term;
 use rustler::TermType;
+
 use wasmtime::component::Type;
-use wasmtime::component::Val;
 use wasmtime::Store;
 
 use wasmtime_wasi;
 use wasmtime_wasi_http;
+
+pub struct ComponentCallbackToken {
+    pub continue_signal: Condvar,
+    pub return_types: Vec<Type>,
+    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
+}
 
 pub struct ComponentCallbackTokenResource {
     pub token: ComponentCallbackToken,
@@ -32,12 +43,6 @@ pub struct ComponentCallbackTokenResource {
 
 #[rustler::resource_impl()]
 impl rustler::Resource for ComponentCallbackTokenResource {}
-
-pub struct ComponentCallbackToken {
-    pub continue_signal: Condvar,
-    pub return_types: Vec<Type>,
-    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
-}
 
 pub struct ComponentInstanceResource {
     pub inner: Mutex<Instance>,
@@ -47,35 +52,126 @@ pub struct ComponentInstanceResource {
 impl rustler::Resource for ComponentInstanceResource {}
 
 #[rustler::nif(name = "component_instance_new")]
-pub fn new_component_instance(
-    component_store_resource: ResourceArc<ComponentStoreResource>,
+pub fn new_instance(
+    store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
+    imports: rustler::Term,
 ) -> NifResult<ResourceArc<ComponentInstanceResource>> {
-    let component_store: &mut Store<ComponentStoreData> =
-        &mut *component_store_resource.inner.lock().map_err(|e| {
+    let store: &mut Store<ComponentStoreData> =
+        &mut *(store_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock component_store resource as the mutex was poisoned: {e}"
+                "Could not unlock store resource as the mutex was poisoned: {e}"
             )))
-        })?;
+        })?);
 
-    let component = &mut component_resource.inner.lock().map_err(|e| {
+    let component = component_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock component resource as the mutex was poisoned: {e}"
         )))
     })?;
 
-    let mut linker = Linker::new(component_store.engine());
+    let mut linker = Linker::new(store.engine());
     let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
     let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
     // Instantiate the component
+
+    // Handle imports
+    let imports_map = imports.decode::<HashMap<String, Term>>()?;
+    for (name, implementation) in imports_map {
+        link_import(&mut linker, name, implementation)?;
+    }
+
     let instance = linker
-        .instantiate(&mut *component_store, component)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+        .instantiate(&mut *store, &component)
+        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
 
     Ok(ResourceArc::new(ComponentInstanceResource {
         inner: Mutex::new(instance),
     }))
 }
+
+static GLOBAL_DATA: Lazy<Mutex<HashMap<i32, Caller<ComponentStoreData>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+// fn set_caller(caller: wasmtime::StoreContextMut<'_, ComponentStoreData>) -> i32 {
+//     let mut map = GLOBAL_DATA.lock().unwrap();
+//     // TODO: prevent duplicates by throwing the dice again when the id is already known
+//     let token = rand::random();
+//     let caller = unsafe {
+//         std::mem::transmute::<Caller<'_, ComponentStoreData>, Caller<'static, ComponentStoreData>>(
+//             caller,
+//         )
+//     };
+//     map.insert(token, caller);
+//     token
+// }
+
+fn link_import(
+    linker: &mut Linker<ComponentStoreData>,
+    name: String,
+    implementation: Term,
+) -> NifResult<()> {
+    // let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
+    //     token: ComponentCallbackToken {
+    //         continue_signal: Condvar::new(),
+    //         return_types: Vec::new(), // We'll need to get these from the interface
+    //         return_values: Mutex::new(None),
+    //     },
+    // });
+
+    let pid = implementation.get_env().pid();
+
+    println!("linking import {:?}", name);
+    linker
+        .root()
+        .func_new(
+            &name.clone(),
+            move |mut _store: wasmtime::StoreContextMut<'_, ComponentStoreData>,
+                  params,
+                  result_values|
+                  -> Result<(), anyhow::Error> {
+                let mut msg_env = OwnedEnv::new();
+
+                let params = params.to_vec();
+                let name = name.clone();
+                thread::spawn(move || {
+                    let result = msg_env.send_and_clear(&pid.clone(), |env| {
+                        let param_terms = vals_to_terms(&params, env);
+
+                        // Convert component values to Elixir terms
+                        // Send message to Elixir process to invoke callback
+                        let msg = (atoms::invoke_callback(), name.clone(), param_terms);
+                        println!("sending msg {:?}", msg);
+                        msg
+                    });
+                });
+
+                result_values[0] = Val::String("hello".to_string());
+                // Wait for result
+                // let mut result = callback_token.token.return_values.lock().unwrap();
+                // while result.is_none() {
+                //     result = callback_token.token.continue_signal.wait(result).unwrap();
+                // }
+
+                // // Convert result back to component values
+                // let (success, result_terms) = result.take().unwrap();
+                // if !success {
+                //     return Err(anyhow::anyhow!("Callback failed"));
+                // }
+                // encode_callback_results(result_terms, result_values);
+                Ok(())
+            },
+        )
+        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
+
+    Ok(())
+}
+
+// fn encode_callback_results(result_terms: Vec<Term>, result_values: &mut [Val], env: &rustler::Env) -> () {
+//   for (result_term, result_value) in result_terms.iter().zip(result_values.iter_mut()) {
+//     *result_value = term_to_val(result_term, Type::String)?;
+//   }
+// }
 
 #[rustler::nif(name = "component_call_function")]
 pub fn component_call_function<'a>(
@@ -107,7 +203,7 @@ pub fn component_call_function<'a>(
     let param_types = function.params(&mut *component_store);
     let converted_params = match convert_params(&param_types, given_params) {
         Ok(params) => params,
-        Err(e) => return Err(e)
+        Err(e) => return Err(e),
     };
     let results_count = function.results(&*component_store).len();
 
@@ -229,6 +325,12 @@ fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
             .encode(env),
     };
     make_tuple(env, &[atoms::ok().encode(env), result_term])
+}
+
+fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
+    vals.iter()
+        .map(|val| val_to_term(val, env))
+        .collect::<Vec<Term<'a>>>()
 }
 
 fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {

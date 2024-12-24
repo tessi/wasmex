@@ -25,8 +25,9 @@ defmodule Wasmex.Components do
   def start_link(opts) when is_list(opts) do
     with {:ok, store} <- build_store(opts),
          component_bytes <- Keyword.get(opts, :bytes),
+         imports <- Keyword.get(opts, :imports, %{}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
-      GenServer.start_link(__MODULE__, %{store: store, component: component}, opts)
+      GenServer.start_link(__MODULE__, %{store: store, component: component, imports: imports}, opts)
     end
   end
 
@@ -45,8 +46,8 @@ defmodule Wasmex.Components do
   end
 
   @impl true
-  def init(%{store: store, component: component} = state) do
-    case Wasmex.Components.Instance.new(store, component) do
+  def init(%{store: store, component: component, imports: imports} = state) do
+    case Wasmex.Components.Instance.new(store, component, imports) do
       {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
       {:error, reason} -> {:error, reason}
     end
@@ -62,6 +63,12 @@ defmodule Wasmex.Components do
       {:ok, result} -> {:reply, {:ok, result}, state}
       {:error, error} -> {:reply, {:error, error}, state}
     end
+  end
+
+  @impl true
+  def handle_info(msg, state) do
+    IO.inspect(msg, label: "in genserver handle_info")
+    {:noreply, state}
   end
 
   defp stringify(s) when is_binary(s), do: s
