@@ -17,7 +17,7 @@ use wiggle::anyhow::{self, anyhow};
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
-use rustler::Error;
+use rustler::{Error, LocalPid};
 use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
@@ -56,6 +56,7 @@ pub fn new_instance(
     store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
     imports: rustler::Term,
+    server_pid: Term,
 ) -> NifResult<ResourceArc<ComponentInstanceResource>> {
     let store: &mut Store<ComponentStoreData> =
         &mut *(store_resource.inner.lock().map_err(|e| {
@@ -78,7 +79,7 @@ pub fn new_instance(
     // Handle imports
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
-        link_import(&mut linker, name, implementation)?;
+        link_import(&mut linker, name, implementation, server_pid)?;
     }
 
     let instance = linker
@@ -110,16 +111,17 @@ fn link_import(
     linker: &mut Linker<ComponentStoreData>,
     name: String,
     implementation: Term,
+    server_pid: Term,
 ) -> NifResult<()> {
-    // let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
-    //     token: ComponentCallbackToken {
-    //         continue_signal: Condvar::new(),
-    //         return_types: Vec::new(), // We'll need to get these from the interface
-    //         return_values: Mutex::new(None),
-    //     },
-    // });
+    let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
+        token: ComponentCallbackToken {
+            continue_signal: Condvar::new(),
+            return_types: Vec::new(), // We'll need to get these from the interface
+            return_values: Mutex::new(None),
+        },
+    });
 
-    let pid = implementation.get_env().pid();
+    let pid = server_pid.decode::<LocalPid>()?;
 
     println!("linking import {:?}", name);
     linker

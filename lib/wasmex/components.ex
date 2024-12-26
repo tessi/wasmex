@@ -25,9 +25,9 @@ defmodule Wasmex.Components do
   def start_link(opts) when is_list(opts) do
     with {:ok, store} <- build_store(opts),
          component_bytes <- Keyword.get(opts, :bytes),
-         imports <- Keyword.get(opts, :imports, %{}),
+         %{server_pid: server_pid, functions: imports} <- Keyword.get(opts, :imports, %{server_pid: nil, functions: %{}}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
-      GenServer.start_link(__MODULE__, %{store: store, component: component, imports: imports}, opts)
+      GenServer.start_link(__MODULE__, %{store: store, component: component, imports: imports, server_pid: server_pid}, opts)
     end
   end
 
@@ -46,8 +46,8 @@ defmodule Wasmex.Components do
   end
 
   @impl true
-  def init(%{store: store, component: component, imports: imports} = state) do
-    case Wasmex.Components.Instance.new(store, component, imports) do
+  def init(%{store: store, component: component, imports: imports, server_pid: server_pid} = state) do
+    case Wasmex.Components.Instance.new(store, component, imports, server_pid) do
       {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
       {:error, reason} -> {:error, reason}
     end
