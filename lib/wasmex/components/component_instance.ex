@@ -32,8 +32,9 @@ defmodule Wasmex.Components.Instance do
   def call_function(
         %__MODULE__{store_resource: store_resource, instance_resource: instance_resource},
         function,
-        args
+        args,
+        from
       ) do
-    Wasmex.Native.component_call_function(store_resource, instance_resource, function, args)
+    Wasmex.Native.component_call_function(store_resource, instance_resource, function, args, from)
   end
 end

@@ -4,7 +4,7 @@ defmodule Wasmex.Components.GenServer.Test do
 
   test "interacting with a component GenServer" do
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
-    component_pid = start_supervised!({Wasmex.Components, %{bytes: component_bytes}})
+    component_pid = start_supervised!({Wasmex.Components, bytes: component_bytes})
     assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
     assert {:error, _error} = Wasmex.Components.call_function(component_pid, "garbage", ["wut"])
   end

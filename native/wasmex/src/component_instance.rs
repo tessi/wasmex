@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Condvar, Mutex};
 
 use once_cell::sync::Lazy;
+use rustler::env::SavedTerm;
 
 use std::thread;
 
@@ -11,16 +12,16 @@ use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 use convert_case::{Case, Casing};
 use wasmtime::component::{Func, Instance, Linker, Val};
-use wasmtime::Caller;
+use wasmtime::{Caller, Trap};
 use wiggle::anyhow::{self, anyhow};
 
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
-use rustler::{Error, LocalPid};
 use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
+use rustler::{Error, LocalPid};
 
 use rustler::Term;
 use rustler::TermType;
@@ -113,14 +114,6 @@ fn link_import(
     implementation: Term,
     server_pid: Term,
 ) -> NifResult<()> {
-    let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
-        token: ComponentCallbackToken {
-            continue_signal: Condvar::new(),
-            return_types: Vec::new(), // We'll need to get these from the interface
-            return_values: Mutex::new(None),
-        },
-    });
-
     let pid = server_pid.decode::<LocalPid>()?;
 
     println!("linking import {:?}", name);
@@ -134,19 +127,32 @@ fn link_import(
                   -> Result<(), anyhow::Error> {
                 let mut msg_env = OwnedEnv::new();
 
+                let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
+                    token: ComponentCallbackToken {
+                        continue_signal: Condvar::new(),
+                        return_types: Vec::new(), // We'll need to get these from the interface
+                        return_values: Mutex::new(None),
+                    },
+                });
+
                 let params = params.to_vec();
                 let name = name.clone();
-                thread::spawn(move || {
-                    let result = msg_env.send_and_clear(&pid.clone(), |env| {
-                        let param_terms = vals_to_terms(&params, env);
+                // thread::spawn(move || {
+                let result = msg_env.send_and_clear(&pid.clone(), |env| {
+                    let param_terms = vals_to_terms(&params, env);
 
-                        // Convert component values to Elixir terms
-                        // Send message to Elixir process to invoke callback
-                        let msg = (atoms::invoke_callback(), name.clone(), param_terms);
-                        println!("sending msg {:?}", msg);
-                        msg
-                    });
+                    // Convert component values to Elixir terms
+                    // Send message to Elixir process to invoke callback
+                    let msg = (
+                        atoms::invoke_callback(),
+                        name.clone(),
+                        callback_token.clone(),
+                        param_terms,
+                    );
+                    // println!("sending msg {:?}", msg);
+                    msg
                 });
+                // });
 
                 result_values[0] = Val::String("hello".to_string());
                 // Wait for result
@@ -175,37 +181,78 @@ fn link_import(
 //   }
 // }
 
-#[rustler::nif(name = "component_call_function")]
-pub fn component_call_function<'a>(
-    env: rustler::Env<'a>,
+#[rustler::nif(name = "component_call_function", schedule = "DirtyCpu")]
+pub fn call_exported_function(
+    env: rustler::Env,
+    component_store_resource: ResourceArc<ComponentStoreResource>,
+    instance_resource: ResourceArc<ComponentInstanceResource>,
+    function_name: String,
+    given_params: Term,
+    from: Term,
+) -> rustler::Atom {
+    let pid = env.pid();
+    // create erlang environment for the thread
+    let mut thread_env = OwnedEnv::new();
+    // copy over params into the thread environment
+    let function_params = thread_env.save(given_params);
+    let from = thread_env.save(from);
+
+    thread::spawn(move || {
+        thread_env.send_and_clear(&pid, |thread_env| {
+            component_execute_function(
+                thread_env,
+                component_store_resource,
+                instance_resource,
+                function_name,
+                function_params,
+                from,
+            )
+        })
+    });
+
+    atoms::ok()
+}
+
+pub fn component_execute_function<'a>(
+    thread_env: rustler::Env<'a>,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     func_name: String,
-    given_params: Vec<Term>,
-) -> NifResult<Term<'a>> {
+    function_params: SavedTerm,
+    from: SavedTerm,
+) -> Term<'a> {
     let component_store: &mut Store<ComponentStoreData> =
-        &mut *(component_store_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock component_store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+        &mut *(component_store_resource.inner.lock().unwrap());
+    let instance = &mut instance_resource.inner.lock().unwrap();
 
-    let instance = &mut instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock component instance resource as the mutex was poisoned: {e}"
-        )))
-    })?;
+    let from = from
+        .load(thread_env)
+        .decode::<Term>()
+        .unwrap_or_else(|_| "could not load 'from' param".encode(thread_env));
+    let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
+        Ok(vec) => vec,
+        Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),
+    };
 
     let function_result = instance.get_func(&mut *component_store, func_name.clone());
     let function = match function_result {
         Some(func) => func,
-        None => return Ok(env.error_tuple(format!("Function {func_name} not exported."))),
+        None => {
+            return make_error_tuple(
+                &thread_env,
+                &format!("exported function `{func_name}` not found"),
+                from,
+            )
+        }
     };
 
     let param_types = function.params(&mut *component_store);
     let converted_params = match convert_params(&param_types, given_params) {
         Ok(params) => params,
-        Err(e) => return Err(e),
+        Err(e) => {
+            let reason = format!("Error converting param: {e:?}");
+            return make_error_tuple(&thread_env, &reason, from);
+        }
     };
     let results_count = function.results(&*component_store).len();
 
@@ -217,12 +264,36 @@ pub fn component_call_function<'a>(
     ) {
         Ok(_) => {
             let _ = function.post_return(&mut *component_store);
-            Ok(encode_result(env, result))
+            encode_result(&thread_env, result, from)
         }
-        Err(err) => Err(rustler::Error::RaiseTerm(Box::new(format!(
-            "Error executing function: {err}"
-        )))),
+        Err(err) => {
+            let reason = format!("{err}");
+            if let Ok(trap) = err.downcast::<Trap>() {
+                return make_error_tuple(
+                    &thread_env,
+                    &format!("Error during function excecution ({trap}): {reason}"),
+                    from,
+                );
+            } else {
+                return make_error_tuple(
+                    &thread_env,
+                    &format!("Error during function excecution: {reason}"),
+                    from,
+                );
+            }
+        }
     }
+}
+
+fn make_error_tuple<'a>(env: &rustler::Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
+    make_tuple(
+        *env,
+        &[
+            atoms::returned_function_call().encode(*env),
+            env.error_tuple(reason),
+            from,
+        ],
+    )
 }
 
 fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
@@ -317,16 +388,23 @@ fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> 
     rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
 }
 
-fn encode_result(env: rustler::Env, vals: Vec<Val>) -> Term {
+fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
     let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), env),
+        1 => val_to_term(vals.first().unwrap(), *env),
         _ => vals
             .iter()
-            .map(|term| val_to_term(term, env))
+            .map(|term| val_to_term(term, *env))
             .collect::<Vec<Term>>()
-            .encode(env),
+            .encode(*env),
     };
-    make_tuple(env, &[atoms::ok().encode(env), result_term])
+    make_tuple(
+        *env,
+        &[
+            atoms::returned_function_call().encode(*env),
+            make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
+            from,
+        ],
+    )
 }
 
 fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
