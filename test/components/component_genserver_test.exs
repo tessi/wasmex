@@ -22,7 +22,7 @@ defmodule Wasmex.Components.GenServer.Test do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 
     component_pid =
-      start_supervised!({HelloWorld, %{bytes: component_bytes, wasi: %WasiP2Options{}}})
+      start_supervised!({HelloWorld, bytes: component_bytes, wasi: %WasiP2Options{}})
 
     assert {:ok, "Hello, Elixir!"} = HelloWorld.greet(component_pid, "Elixir")
 
@@ -35,7 +35,7 @@ defmodule Wasmex.Components.GenServer.Test do
 
     component_pid =
       start_supervised!(
-        {Wasmex.Components, %{bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}}
+        {Wasmex.Components, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
       )
 
     assert {:ok, time} = Wasmex.Components.call_function(component_pid, "get-time", [])

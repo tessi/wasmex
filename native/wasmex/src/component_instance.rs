@@ -135,7 +135,6 @@ fn link_import(
 
                 let params = params.to_vec();
                 let name = name.clone();
-                // thread::spawn(move || {
                 let result = msg_env.send_and_clear(&pid.clone(), |env| {
                     let param_terms = vals_to_terms(&params, env);
 
@@ -162,12 +161,6 @@ fn link_import(
                     return Err(anyhow::anyhow!("Callback failed"));
                 }
                 result_values[0] = returned_values[0].clone();
-                // // Convert result back to component values
-                // let (success, result_terms) = result.take().unwrap();
-                // if !success {
-                //     return Err(anyhow::anyhow!("Callback failed"));
-                // }
-                // encode_callback_results(result_terms, result_values);
                 Ok(())
             },
         )
@@ -462,19 +455,6 @@ pub fn receive_callback_result(
     result: Term,
 ) -> NifResult<rustler::Atom> {
     println!("receive_callback_result {:?}", result);
-    // let results = if success {
-    //     let return_types = token_resource.token.return_types.clone();
-    //     match decode_function_param_terms(&return_types, result_list.collect()) {
-    //         Ok(v) => v,
-    //         Err(reason) => {
-    //             return Err(Error::Term(Box::new(format!(
-    //                 "could not convert callback result param to expected return signature: {reason}"
-    //             ))));
-    //         }
-    //     }
-    // } else {
-    //     vec![]
-    // };
 
     let mut return_values = token_resource.token.return_values.lock().unwrap();
     *return_values = Some((success, vec![term_to_val(&result, &Type::String)?]));
