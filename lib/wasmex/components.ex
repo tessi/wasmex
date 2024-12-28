@@ -25,12 +25,11 @@ defmodule Wasmex.Components do
   def start_link(opts) when is_list(opts) do
     with {:ok, store} <- build_store(opts),
          component_bytes <- Keyword.get(opts, :bytes),
-         %{server_pid: server_pid, functions: imports} <-
-           Keyword.get(opts, :imports, %{server_pid: nil, functions: %{}}),
+         imports <- Keyword.get(opts, :imports, %{}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
       GenServer.start_link(
         __MODULE__,
-        %{store: store, component: component, imports: imports, server_pid: server_pid},
+        %{store: store, component: component, imports: imports},
         opts
       )
     end
@@ -52,10 +51,10 @@ defmodule Wasmex.Components do
 
   @impl true
   def init(
-        %{store: store, component: component, imports: imports, server_pid: server_pid} = state
+        %{store: store, component: component, imports: imports} = state
       ) do
-    case Wasmex.Components.Instance.new(store, component, imports, server_pid) do
-      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
+    case Wasmex.Components.Instance.new(store, component, imports) do
+      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance, imports: imports})}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -80,6 +79,17 @@ defmodule Wasmex.Components do
   end
 
   @impl true
+  def handle_info(
+        {:invoke_callback, name, token, params},
+        %{imports: imports, instance: instance} = state
+      ) do
+    {:fn, function} = Map.get(imports, name)
+    result = apply(function, params)
+    :ok = Wasmex.Native.component_receive_callback_result(token, true, result)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(msg, state) do
     IO.inspect(msg, label: "in genserver handle_info")
     {:noreply, state}
@@ -87,4 +97,6 @@ defmodule Wasmex.Components do
 
   defp stringify(s) when is_binary(s), do: s
   defp stringify(s) when is_atom(s), do: Atom.to_string(s)
+
+  defp elixirify(wasm_identifier), do: String.replace(wasm_identifier, "-", "_") |> String.to_atom()
 end

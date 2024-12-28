@@ -1,5 +1,5 @@
 import getSecretWord from 'get-secret-word';
 
 export function revealSecretWord() {
-  return getSecretWord(1, "foo");
+  return getSecretWord(7, "foo");
 }

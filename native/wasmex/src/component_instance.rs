@@ -57,7 +57,6 @@ pub fn new_instance(
     store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
     imports: rustler::Term,
-    server_pid: Term,
 ) -> NifResult<ResourceArc<ComponentInstanceResource>> {
     let store: &mut Store<ComponentStoreData> =
         &mut *(store_resource.inner.lock().map_err(|e| {
@@ -80,7 +79,7 @@ pub fn new_instance(
     // Handle imports
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
-        link_import(&mut linker, name, implementation, server_pid)?;
+        link_import(&mut linker, name, implementation)?;
     }
 
     let instance = linker
@@ -112,9 +111,8 @@ fn link_import(
     linker: &mut Linker<ComponentStoreData>,
     name: String,
     implementation: Term,
-    server_pid: Term,
 ) -> NifResult<()> {
-    let pid = server_pid.decode::<LocalPid>()?;
+    let pid = implementation.get_env().pid();
 
     println!("linking import {:?}", name);
     linker
@@ -154,13 +152,16 @@ fn link_import(
                 });
                 // });
 
-                result_values[0] = Val::String("hello".to_string());
                 // Wait for result
-                // let mut result = callback_token.token.return_values.lock().unwrap();
-                // while result.is_none() {
-                //     result = callback_token.token.continue_signal.wait(result).unwrap();
-                // }
-
+                let mut result = callback_token.token.return_values.lock().unwrap();
+                while result.is_none() {
+                    result = callback_token.token.continue_signal.wait(result).unwrap();
+                }
+                let (success, returned_values) = result.take().unwrap();
+                if !success {
+                    return Err(anyhow::anyhow!("Callback failed"));
+                }
+                result_values[0] = returned_values[0].clone();
                 // // Convert result back to component values
                 // let (success, result_terms) = result.take().unwrap();
                 // if !success {
@@ -452,4 +453,32 @@ fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         },
         _ => String::from("wut").encode(env),
     }
+}
+
+#[rustler::nif(name = "component_receive_callback_result")]
+pub fn receive_callback_result(
+    token_resource: ResourceArc<ComponentCallbackTokenResource>,
+    success: bool,
+    result: Term,
+) -> NifResult<rustler::Atom> {
+    println!("receive_callback_result {:?}", result);
+    // let results = if success {
+    //     let return_types = token_resource.token.return_types.clone();
+    //     match decode_function_param_terms(&return_types, result_list.collect()) {
+    //         Ok(v) => v,
+    //         Err(reason) => {
+    //             return Err(Error::Term(Box::new(format!(
+    //                 "could not convert callback result param to expected return signature: {reason}"
+    //             ))));
+    //         }
+    //     }
+    // } else {
+    //     vec![]
+    // };
+
+    let mut return_values = token_resource.token.return_values.lock().unwrap();
+    *return_values = Some((success, vec![term_to_val(&result, &Type::String)?]));
+    token_resource.token.continue_signal.notify_one();
+
+    Ok(atoms::ok())
 }

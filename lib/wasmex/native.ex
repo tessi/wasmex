@@ -89,9 +89,11 @@ defmodule Wasmex.Native do
 
   def component_new(_store, _component_bytes), do: error()
 
-  def component_instance_new(_store, _component, _imports, _server_pid), do: error()
+  def component_instance_new(_store, _component, _imports), do: error()
 
   def component_call_function(_store, _instance, _function_name, _params, _from), do: error()
+
+  def component_receive_callback_result(_1, _2, _3), do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
 
