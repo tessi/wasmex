@@ -5,7 +5,10 @@ defmodule Wasmex.Components.ImportTest do
 
   test "import functions" do
     component_bytes = File.read!("test/component_fixtures/importer/importer.wasm")
-    imports = %{"get-secret-word" => {:fn, fn param1, param2 -> "#{param1} #{param2}" end}}
+    imports = %{
+      "get-secret-word" => {:fn, fn param1, param2 -> "#{param1} #{param2}" end},
+      "get-number" => {:fn, fn -> 42 end}
+    }
     function_server_pid = start_supervised!(FunctionServer)
 
     component_pid =
@@ -16,7 +19,7 @@ defmodule Wasmex.Components.ImportTest do
          imports: imports}
       )
 
-    assert {:ok, "7 foo"} =
+    assert {:ok, "7 foo 42"} =
              Wasmex.Components.call_function(component_pid, "reveal-secret-word", [7])
   end
 end

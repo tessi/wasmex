@@ -1,5 +1,7 @@
 import getSecretWord from 'get-secret-word';
+import getNumber from 'get-number';
 
 export function revealSecretWord() {
-  return getSecretWord(7, "foo");
+  const secretWord = getSecretWord(7, "foo");
+  return `${secretWord} ${getNumber()}`;
 }

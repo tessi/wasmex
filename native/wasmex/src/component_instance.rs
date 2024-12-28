@@ -3,6 +3,7 @@ use std::sync::{Condvar, Mutex};
 
 use once_cell::sync::Lazy;
 use rustler::env::SavedTerm;
+use wit_parser::{Function, Type, WorldId, WorldItem};
 
 use std::thread;
 
@@ -12,7 +13,7 @@ use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 use convert_case::{Case, Casing};
 use wasmtime::component::{Func, Instance, Linker, Val};
-use wasmtime::{Caller, Trap};
+use wasmtime::{Caller, Trap, ValType};
 use wiggle::anyhow::{self, anyhow};
 
 use rustler::types::atom::nil;
@@ -26,17 +27,20 @@ use rustler::{Error, LocalPid};
 use rustler::Term;
 use rustler::TermType;
 
-use wasmtime::component::Type;
+use wasmtime::component::Type as WasmType;
 use wasmtime::Store;
 
 use wasmtime_wasi;
 use wasmtime_wasi_http;
 
-use crate::component_type_conversion::{term_to_val, val_to_term, vals_to_terms, term_to_field_name, field_name_to_term};
+use crate::component_type_conversion::{
+    convert_params, encode_result, field_name_to_term, term_to_field_name, term_to_val,
+    val_to_term, vals_to_terms,
+};
 
 pub struct ComponentCallbackToken {
     pub continue_signal: Condvar,
-    pub return_types: Vec<Type>,
+    pub name: String,
     pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
 }
 
@@ -130,7 +134,7 @@ fn link_import(
                 let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
                     token: ComponentCallbackToken {
                         continue_signal: Condvar::new(),
-                        return_types: Vec::new(), // We'll need to get these from the interface
+                        name: name.clone(),
                         return_values: Mutex::new(None),
                     },
                 });
@@ -292,46 +296,73 @@ fn make_error_tuple<'a>(env: &rustler::Env<'a>, reason: &str, from: Term<'a>) ->
     )
 }
 
-fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
-    let mut params = Vec::with_capacity(param_types.len());
-
-    for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
-        let param = term_to_val(param_term, param_type)?;
-        params.push(param);
-    }
-    Ok(params)
-}
-
-fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
-    let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), *env),
-        _ => vals
-            .iter()
-            .map(|term| val_to_term(term, *env))
-            .collect::<Vec<Term>>()
-            .encode(*env),
-    };
-    make_tuple(
-        *env,
-        &[
-            atoms::returned_function_call().encode(*env),
-            make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
-            from,
-        ],
-    )
-}
-
 #[rustler::nif(name = "component_receive_callback_result")]
 pub fn receive_callback_result(
+    component_resource: ResourceArc<ComponentResource>,
     token_resource: ResourceArc<ComponentCallbackTokenResource>,
     success: bool,
     result: Term,
 ) -> NifResult<rustler::Atom> {
     println!("receive_callback_result {:?}", result);
+    let parsed_component = &component_resource.parsed;
+    let world = &parsed_component.resolve.worlds[parsed_component.world_id];
+    
+    let name = &token_resource.token.name;
+    // Find the matching import in the world's imports
+    let import_function = world.imports.iter().filter_map(|(_, item)| match item {
+        WorldItem::Function(function) => Some(function),
+        _ => None
+    }).find(|f| f.item_name() == name).ok_or_else(|| {
+        Error::Term(Box::new(format!("Could not find import function {}", name)))
+    })?;
 
-    let mut return_values = token_resource.token.return_values.lock().unwrap();
-    *return_values = Some((success, vec![term_to_val(&result, &Type::String)?]));
+    println!("found function: {:?}", import_function);
+
+    let return_values = token_resource.token.return_values.lock().map_err(|e| {
+        Error::Term(Box::new(format!("Failed to lock return values: {}", e)))
+    })?;
+
+    populate_return_values(import_function, return_values, result).map_err(|e| {
+        Error::Term(Box::new(format!("Failed to populate return values: {}", e)))
+    })?;
+
     token_resource.token.continue_signal.notify_one();
 
     Ok(atoms::ok())
+}
+
+fn populate_return_values(
+    function: &Function,
+    mut return_values: std::sync::MutexGuard<'_, Option<(bool, Vec<Val>)>>,
+    result: Term,
+) -> Result<(), anyhow::Error> {
+    // Initialize an empty vector for the return values
+    let mut vals = Vec::new();
+
+    // Get the result types from the function
+    let results = &function.results;
+
+    let val_type = match results {
+      wit_parser::Results::Anon(wit_type) => find_val_type(wit_type),
+      wit_parser::Results::Named(vec) => todo!(), 
+    };
+
+    if results.len() != 1 {
+        return Err(anyhow!("Expected exactly one result type, found {}", results.len()));
+    }
+
+    vals.push(term_to_val(&result, &val_type).map_err(|e| anyhow!("Failed to convert term: {:?}", e))?);
+
+    // Set the return values
+    *return_values = Some((true, vals));
+    
+    Ok(())
+}
+
+fn find_val_type(wit_type: &wit_parser::Type) -> WasmType {
+    match wit_type {
+        Type::String => WasmType::String,
+        Type::U32 => WasmType::U32,
+        _ => WasmType::Bool
+    }
 }

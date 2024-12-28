@@ -2,5 +2,6 @@ package local:importer;
 
 world importer {
   import get-secret-word: func(num: u32, str: string) -> string;
+  import get-number: func() -> u32;
   export reveal-secret-word: func() -> string;
 }

@@ -5,6 +5,8 @@ use rustler::{Encoder, Error, Term, TermType};
 use wasmtime::component::{Type, Val};
 use std::collections::HashMap;
 
+use crate::atoms;
+
 pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
     let term_type = param_term.get_type();
     match (term_type, param_type) {
@@ -132,3 +134,32 @@ pub fn term_to_field_name(key_term: &Term) -> String {
 pub fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
     rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
 } 
+
+pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
+  let mut params = Vec::with_capacity(param_types.len());
+
+  for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
+      let param = term_to_val(param_term, param_type)?;
+      params.push(param);
+  }
+  Ok(params)
+}
+
+pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
+  let result_term = match vals.len() {
+      1 => val_to_term(vals.first().unwrap(), *env),
+      _ => vals
+          .iter()
+          .map(|term| val_to_term(term, *env))
+          .collect::<Vec<Term>>()
+          .encode(*env),
+  };
+  make_tuple(
+      *env,
+      &[
+          atoms::returned_function_call().encode(*env),
+          make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
+          from,
+      ],
+  )
+}

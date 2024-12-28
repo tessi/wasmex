@@ -93,7 +93,7 @@ defmodule Wasmex.Native do
 
   def component_call_function(_store, _instance, _function_name, _params, _from), do: error()
 
-  def component_receive_callback_result(_1, _2, _3), do: error()
+  def component_receive_callback_result(_component, _2, _3, _4), do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
 

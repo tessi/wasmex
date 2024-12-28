@@ -54,7 +54,7 @@ defmodule Wasmex.Components do
         %{store: store, component: component, imports: imports} = state
       ) do
     case Wasmex.Components.Instance.new(store, component, imports) do
-      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance, imports: imports})}
+      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance, component: component, imports: imports})}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -81,11 +81,11 @@ defmodule Wasmex.Components do
   @impl true
   def handle_info(
         {:invoke_callback, name, token, params},
-        %{imports: imports, instance: instance} = state
+        %{imports: imports, instance: instance, component: component} = state
       ) do
     {:fn, function} = Map.get(imports, name)
     result = apply(function, params)
-    :ok = Wasmex.Native.component_receive_callback_result(token, true, result)
+    :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
     {:noreply, state}
   end
 
