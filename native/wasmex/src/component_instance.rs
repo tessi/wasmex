@@ -35,7 +35,7 @@ use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
     convert_params, encode_result, field_name_to_term, term_to_field_name, term_to_val,
-    val_to_term, vals_to_terms,
+    val_to_term, vals_to_terms, wit_to_val_type,
 };
 
 pub struct ComponentCallbackToken {
@@ -343,8 +343,8 @@ fn populate_return_values(
     let results = &function.results;
 
     let val_type = match results {
-      wit_parser::Results::Anon(wit_type) => find_val_type(wit_type),
-      wit_parser::Results::Named(vec) => todo!(), 
+      wit_parser::Results::Anon(wit_type) => wit_to_val_type(wit_type),
+      wit_parser::Results::Named(_vec) => return Err(anyhow!("Named return values not supported")), 
     };
 
     if results.len() != 1 {
@@ -357,12 +357,4 @@ fn populate_return_values(
     *return_values = Some((true, vals));
     
     Ok(())
-}
-
-fn find_val_type(wit_type: &wit_parser::Type) -> WasmType {
-    match wit_type {
-        Type::String => WasmType::String,
-        Type::U32 => WasmType::U32,
-        _ => WasmType::Bool
-    }
 }

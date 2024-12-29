@@ -4,6 +4,7 @@ use rustler::types::tuple::{self, make_tuple};
 use rustler::{Encoder, Error, Term, TermType};
 use wasmtime::component::{Type, Val};
 use std::collections::HashMap;
+use wit_parser::Type as WitType;
 
 use crate::atoms;
 
@@ -162,4 +163,23 @@ pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>)
           from,
       ],
   )
+}
+
+pub fn wit_to_val_type(wit_type: &WitType) -> Type {
+  match wit_type {
+      WitType::Bool => Type::Bool,
+      WitType::U8 => Type::U8,
+      WitType::U16 => Type::U16,
+      WitType::U32 => Type::U32,
+      WitType::U64 => Type::U64,
+      WitType::S8 => Type::S8,
+      WitType::S16 => Type::S16,
+      WitType::S32 => Type::S32,
+      WitType::S64 => Type::S64,
+      WitType::F32 => Type::Float32,
+      WitType::F64 => Type::Float64,
+      WitType::Char => Type::Char,
+      WitType::String => Type::String,
+      WitType::Id(_) => Type::String,
+  }
 }
