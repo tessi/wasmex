@@ -123,7 +123,7 @@ fn create_callback_token(name: String) -> ResourceArc<ComponentCallbackTokenReso
     })
 }
 
-fn handle_callback(
+fn call_elixir_import(
     name: String,
     params: &[Val],
     result_values: &mut [Val],
@@ -132,7 +132,7 @@ fn handle_callback(
     let mut msg_env = OwnedEnv::new();
     let callback_token = create_callback_token(name.clone());
 
-    msg_env.send_and_clear(&pid, |env| {
+    let _ = msg_env.send_and_clear(&pid, |env| {
         let param_terms = vals_to_terms(params, env);
         (
             atoms::invoke_callback(),
@@ -169,7 +169,7 @@ fn link_import(
         .func_new(
             &name,
             move |_store, params, result_values| {
-                handle_callback(name_for_closure.clone(), params, result_values, pid.clone())
+                call_elixir_import(name_for_closure.clone(), params, result_values, pid.clone())
             },
         )
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
