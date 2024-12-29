@@ -113,66 +113,66 @@ static GLOBAL_DATA: Lazy<Mutex<HashMap<i32, Caller<ComponentStoreData>>>> =
 //     token
 // }
 
+fn create_callback_token(name: String) -> ResourceArc<ComponentCallbackTokenResource> {
+    ResourceArc::new(ComponentCallbackTokenResource {
+        token: ComponentCallbackToken {
+            continue_signal: Condvar::new(),
+            name,
+            return_values: Mutex::new(None),
+        },
+    })
+}
+
+fn handle_callback(
+    name: String,
+    params: &[Val],
+    result_values: &mut [Val],
+    pid: LocalPid,
+) -> Result<(), anyhow::Error> {
+    let mut msg_env = OwnedEnv::new();
+    let callback_token = create_callback_token(name.clone());
+
+    msg_env.send_and_clear(&pid, |env| {
+        let param_terms = vals_to_terms(params, env);
+        (
+            atoms::invoke_callback(),
+            name,
+            callback_token.clone(),
+            param_terms,
+        )
+    });
+
+    let mut result = callback_token.token.return_values.lock().unwrap();
+    while result.is_none() {
+        result = callback_token.token.continue_signal.wait(result).unwrap();
+    }
+
+    let (success, returned_values) = result.take().unwrap();
+    if !success {
+        return Err(anyhow::anyhow!("Callback failed"));
+    }
+
+    result_values[0] = returned_values[0].clone();
+    Ok(())
+}
+
 fn link_import(
     linker: &mut Linker<ComponentStoreData>,
     name: String,
     implementation: Term,
 ) -> NifResult<()> {
     let pid = implementation.get_env().pid();
+    let name_for_closure = name.clone();
 
-    println!("linking import {:?}", name);
     linker
         .root()
         .func_new(
-            &name.clone(),
-            move |mut _store: wasmtime::StoreContextMut<'_, ComponentStoreData>,
-                  params,
-                  result_values|
-                  -> Result<(), anyhow::Error> {
-                let mut msg_env = OwnedEnv::new();
-
-                let callback_token = ResourceArc::new(ComponentCallbackTokenResource {
-                    token: ComponentCallbackToken {
-                        continue_signal: Condvar::new(),
-                        name: name.clone(),
-                        return_values: Mutex::new(None),
-                    },
-                });
-
-                let params = params.to_vec();
-                let name = name.clone();
-                let result = msg_env.send_and_clear(&pid.clone(), |env| {
-                    let param_terms = vals_to_terms(&params, env);
-
-                    // Convert component values to Elixir terms
-                    // Send message to Elixir process to invoke callback
-                    let msg = (
-                        atoms::invoke_callback(),
-                        name.clone(),
-                        callback_token.clone(),
-                        param_terms,
-                    );
-                    // println!("sending msg {:?}", msg);
-                    msg
-                });
-                // });
-
-                // Wait for result
-                let mut result = callback_token.token.return_values.lock().unwrap();
-                while result.is_none() {
-                    result = callback_token.token.continue_signal.wait(result).unwrap();
-                }
-                let (success, returned_values) = result.take().unwrap();
-                if !success {
-                    return Err(anyhow::anyhow!("Callback failed"));
-                }
-                result_values[0] = returned_values[0].clone();
-                Ok(())
+            &name,
+            move |_store, params, result_values| {
+                handle_callback(name_for_closure.clone(), params, result_values, pid.clone())
             },
         )
-        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
-
-    Ok(())
+        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
 
 // fn encode_callback_results(result_terms: Vec<Term>, result_values: &mut [Val], env: &rustler::Env) -> () {
