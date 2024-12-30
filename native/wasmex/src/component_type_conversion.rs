@@ -2,9 +2,9 @@ use convert_case::{Case, Casing};
 use rustler::types::atom::nil;
 use rustler::types::tuple::{self, make_tuple};
 use rustler::{Encoder, Error, Term, TermType};
-use wasmtime::component::{Type, Val};
 use std::collections::HashMap;
-use wit_parser::Type as WitType;
+use wasmtime::component::{Type, Val};
+use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 
 use crate::atoms;
 
@@ -134,52 +134,96 @@ pub fn term_to_field_name(key_term: &Term) -> String {
 
 pub fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
     rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
-} 
+}
 
 pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
-  let mut params = Vec::with_capacity(param_types.len());
+    let mut params = Vec::with_capacity(param_types.len());
 
-  for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
-      let param = term_to_val(param_term, param_type)?;
-      params.push(param);
-  }
-  Ok(params)
+    for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
+        let param = term_to_val(param_term, param_type)?;
+        params.push(param);
+    }
+    Ok(params)
 }
 
 pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
-  let result_term = match vals.len() {
-      1 => val_to_term(vals.first().unwrap(), *env),
-      _ => vals
-          .iter()
-          .map(|term| val_to_term(term, *env))
-          .collect::<Vec<Term>>()
-          .encode(*env),
-  };
-  make_tuple(
-      *env,
-      &[
-          atoms::returned_function_call().encode(*env),
-          make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
-          from,
-      ],
-  )
+    let result_term = match vals.len() {
+        1 => val_to_term(vals.first().unwrap(), *env),
+        _ => vals
+            .iter()
+            .map(|term| val_to_term(term, *env))
+            .collect::<Vec<Term>>()
+            .encode(*env),
+    };
+    make_tuple(
+        *env,
+        &[
+            atoms::returned_function_call().encode(*env),
+            make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
+            from,
+        ],
+    )
 }
 
-pub fn wit_to_val_type(wit_type: &WitType) -> Type {
-  match wit_type {
-      WitType::Bool => Type::Bool,
-      WitType::U8 => Type::U8,
-      WitType::U16 => Type::U16,
-      WitType::U32 => Type::U32,
-      WitType::U64 => Type::U64,
-      WitType::S8 => Type::S8,
-      WitType::S16 => Type::S16,
-      WitType::S32 => Type::S32,
-      WitType::S64 => Type::S64,
-      WitType::F32 => Type::Float32,
-      WitType::F64 => Type::Float64,
-      WitType::Char => Type::Char,
-      WitType::String => Type::String,
-      WitType::Id(_) => Type::String,
-  }
+pub fn convert_result_term(
+    result_term: Term,
+    wit_type: &WitType,
+    wit_resolver: &Resolve,
+) -> Result<Val, Error> {
+    match wit_type {
+        WitType::Bool => Ok(Val::Bool(result_term.decode::<bool>()?)),
+        WitType::U8 => Ok(Val::U8(result_term.decode::<u8>()?)),
+        WitType::U16 => Ok(Val::U16(result_term.decode::<u16>()?)),
+        WitType::U32 => Ok(Val::U32(result_term.decode::<u32>()?)),
+        WitType::U64 => Ok(Val::U64(result_term.decode::<u64>()?)),
+        WitType::S8 => Ok(Val::S8(result_term.decode::<i8>()?)),
+        WitType::S16 => Ok(Val::S16(result_term.decode::<i16>()?)),
+        WitType::S32 => Ok(Val::S32(result_term.decode::<i32>()?)),
+        WitType::S64 => Ok(Val::S64(result_term.decode::<i64>()?)),
+        WitType::F32 => Ok(Val::Float32(result_term.decode::<f32>()?)),
+        WitType::F64 => Ok(Val::Float64(result_term.decode::<f64>()?)),
+        WitType::String => Ok(Val::String(result_term.decode::<String>()?)),
+        WitType::Id(type_id) => {
+            let complex_type = &wit_resolver.types[*type_id];
+
+            convert_complex_result(result_term, complex_type, wit_resolver)
+        }
+        // You might want to handle other cases like Id, etc.
+        _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
+    }
+}
+
+fn convert_complex_result(
+    result_term: Term,
+    complex_type: &TypeDef,
+    wit_resolver: &Resolve,
+) -> Result<Val, Error> {
+    match &complex_type.kind {
+        TypeDefKind::List(list_type) => {
+            let decoded_list = result_term.decode::<Vec<Term>>()?;
+            let list_values = decoded_list
+                .iter()
+                .map(|term| convert_result_term(term.clone(), list_type, wit_resolver))
+                .collect::<Result<Vec<Val>, Error>>()?;
+            Ok(Val::List(list_values))
+        },
+        TypeDefKind::Record(record_type) => {
+            let mut kv = Vec::with_capacity(record_type.fields.len());
+            let decoded_map = result_term.decode::<HashMap<Term, Term>>()?;
+            let terms = decoded_map
+                .iter()
+                .map(|(key_term, val)| (term_to_field_name(key_term), val))
+                .collect::<Vec<(String, &Term)>>();
+            for field in &record_type.fields {
+                let field_term_option = terms.iter().find(|(k, _)| *k == field.name);
+                if let Some((_, field_term)) = field_term_option {
+                    let field_value = convert_result_term(**field_term, &field.ty, wit_resolver)?;
+                    kv.push((field.name.to_string(), field_value))
+                }
+            }
+            Ok(Val::Record(kv))
+        },
+        _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
+    }
+    // Type::String
 }

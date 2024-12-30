@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Condvar, Mutex};
 
 use once_cell::sync::Lazy;
-use rustler::env::SavedTerm;
-use wit_parser::{Function, Type, WorldId, WorldItem};
+use rustler::env::{self, SavedTerm};
+use wit_parser::{Function, Resolve, Type, WorldId, WorldItem};
 
 use std::thread;
 
@@ -19,7 +19,7 @@ use wiggle::anyhow::{self, anyhow};
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
-use rustler::NifResult;
+use rustler::{Env, NifResult};
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
@@ -34,8 +34,7 @@ use wasmtime_wasi;
 use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
-    convert_params, encode_result, field_name_to_term, term_to_field_name, term_to_val,
-    val_to_term, vals_to_terms, wit_to_val_type,
+    convert_params, convert_result_term, encode_result, field_name_to_term, term_to_field_name, term_to_val, val_to_term, vals_to_terms
 };
 
 pub struct ComponentCallbackToken {
@@ -322,7 +321,7 @@ pub fn receive_callback_result(
         Error::Term(Box::new(format!("Failed to lock return values: {}", e)))
     })?;
 
-    populate_return_values(import_function, return_values, result).map_err(|e| {
+    populate_return_values(&component_resource.parsed.resolve, import_function, return_values, result).map_err(|e| {
         Error::Term(Box::new(format!("Failed to populate return values: {}", e)))
     })?;
 
@@ -332,6 +331,7 @@ pub fn receive_callback_result(
 }
 
 fn populate_return_values(
+    wit_resolver: &Resolve,
     function: &Function,
     mut return_values: std::sync::MutexGuard<'_, Option<(bool, Vec<Val>)>>,
     result: Term,
@@ -342,8 +342,8 @@ fn populate_return_values(
     // Get the result types from the function
     let results = &function.results;
 
-    let val_type = match results {
-      wit_parser::Results::Anon(wit_type) => wit_to_val_type(wit_type),
+    let wit_type = match results {
+      wit_parser::Results::Anon(wit_type) => wit_type,
       wit_parser::Results::Named(_vec) => return Err(anyhow!("Named return values not supported")), 
     };
 
@@ -351,7 +351,7 @@ fn populate_return_values(
         return Err(anyhow!("Expected exactly one result type, found {}", results.len()));
     }
 
-    vals.push(term_to_val(&result, &val_type).map_err(|e| anyhow!("Failed to convert term: {:?}", e))?);
+    vals.push(convert_result_term(result, wit_type, wit_resolver).map_err(|e| anyhow!("Failed to convert term: {:?}", e))?);
 
     // Set the return values
     *return_values = Some((true, vals));
