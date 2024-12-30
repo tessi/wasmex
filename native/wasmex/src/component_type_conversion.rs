@@ -208,20 +208,20 @@ fn convert_complex_result(
             Ok(Val::List(list_values))
         },
         TypeDefKind::Record(record_type) => {
-            let mut kv = Vec::with_capacity(record_type.fields.len());
+            let mut record_fields = Vec::with_capacity(record_type.fields.len());
             let decoded_map = result_term.decode::<HashMap<Term, Term>>()?;
-            let terms = decoded_map
+            let field_term_tuples = decoded_map
                 .iter()
                 .map(|(key_term, val)| (term_to_field_name(key_term), val))
                 .collect::<Vec<(String, &Term)>>();
             for field in &record_type.fields {
-                let field_term_option = terms.iter().find(|(k, _)| *k == field.name);
+                let field_term_option = field_term_tuples.iter().find(|(k, _)| *k == field.name);
                 if let Some((_, field_term)) = field_term_option {
                     let field_value = convert_result_term(**field_term, &field.ty, wit_resolver)?;
-                    kv.push((field.name.to_string(), field_value))
+                    record_fields.push((field.name.to_string(), field_value))
                 }
             }
-            Ok(Val::Record(kv))
+            Ok(Val::Record(record_fields))
         },
         _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
     }
