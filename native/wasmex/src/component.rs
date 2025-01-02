@@ -1,8 +1,8 @@
 use crate::store::{ComponentStoreData, ComponentStoreResource};
 use rustler::Binary;
+use rustler::Error;
 use rustler::NifResult;
 use rustler::ResourceArc;
-use rustler::Error;
 use wasmtime::Store;
 use wit_parser::decoding::DecodedWasm;
 use wit_parser::Resolve;
@@ -13,12 +13,12 @@ use wasmtime::component::Component;
 
 pub struct ComponentResource {
     pub inner: Mutex<Component>,
-    pub parsed: ParsedComponent
+    pub parsed: ParsedComponent,
 }
 
 pub struct ParsedComponent {
-  pub world_id: WorldId,
-  pub resolve: Resolve
+    pub world_id: WorldId,
+    pub resolve: Resolve,
 }
 
 #[rustler::resource_impl()]
@@ -36,19 +36,16 @@ pub fn new_component(
             )))
         })?);
     let bytes = component_binary.as_slice();
-    let decoded_wasm = wit_parser::decoding::decode(bytes).map_err(|e|
-      Error::Term(Box::new(format!("Unable to decode WASM: {e}")))
-    )?;
+    let decoded_wasm = wit_parser::decoding::decode(bytes)
+        .map_err(|e| Error::Term(Box::new(format!("Unable to decode WASM: {e}"))))?;
     let parsed_component = match decoded_wasm {
         DecodedWasm::WitPackage(_, _) => {
-          return Err(rustler::Error::RaiseAtom("Only components are supported"))
-        },
-        DecodedWasm::Component(resolve, world_id) => {
-          ParsedComponent {
-            world_id: world_id,
-            resolve: resolve
-          }
+            return Err(rustler::Error::RaiseAtom("Only components are supported"))
         }
+        DecodedWasm::Component(resolve, world_id) => ParsedComponent {
+            world_id: world_id,
+            resolve: resolve,
+        },
     };
 
     let component = Component::new(store_or_caller.engine(), bytes)

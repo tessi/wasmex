@@ -206,7 +206,7 @@ fn convert_complex_result(
                 .map(|term| convert_result_term(term.clone(), list_type, wit_resolver))
                 .collect::<Result<Vec<Val>, Error>>()?;
             Ok(Val::List(list_values))
-        },
+        }
         TypeDefKind::Record(record_type) => {
             let mut record_fields = Vec::with_capacity(record_type.fields.len());
             let decoded_map = result_term.decode::<HashMap<Term, Term>>()?;
@@ -222,7 +222,7 @@ fn convert_complex_result(
                 }
             }
             Ok(Val::Record(record_fields))
-        },
+        }
         _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
     }
     // Type::String
