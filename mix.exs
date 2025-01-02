@@ -1,7 +1,7 @@
 defmodule Wasmex.MixProject do
   use Mix.Project
 
-  @version "0.9.2"
+  @version "0.9.3"
 
   def project do
     [
@@ -28,9 +28,9 @@ defmodule Wasmex.MixProject do
   defp deps do
     [
       {:rustler_precompiled, "~> 0.8"},
-      {:rustler, "~> 0.35.0"},
-      {:ex_doc, "~> 0.35.0", only: [:dev, :test]},
-      {:credo, "~> 1.7.10", only: [:dev, :test], runtime: false}
+      {:rustler, "~> 0.35.1"},
+      {:ex_doc, "~> 0.36.1", only: [:dev, :test]},
+      {:credo, "~> 1.7.11", only: [:dev, :test], runtime: false}
     ]
   end
 
