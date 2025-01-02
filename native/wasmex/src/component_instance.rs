@@ -19,9 +19,9 @@ use wiggle::anyhow::{self, anyhow};
 use rustler::types::atom::nil;
 use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
-use rustler::{Env, NifResult};
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
+use rustler::{Env, NifResult};
 use rustler::{Error, LocalPid};
 
 use rustler::Term;
@@ -34,7 +34,8 @@ use wasmtime_wasi;
 use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
-    convert_params, convert_result_term, encode_result, field_name_to_term, term_to_field_name, term_to_val, val_to_term, vals_to_terms
+    convert_params, convert_result_term, encode_result, field_name_to_term, term_to_field_name,
+    term_to_val, val_to_term, vals_to_terms,
 };
 
 pub struct ComponentCallbackToken {
@@ -165,12 +166,9 @@ fn link_import(
 
     linker
         .root()
-        .func_new(
-            &name,
-            move |_store, params, result_values| {
-                call_elixir_import(name_for_closure.clone(), params, result_values, pid.clone())
-            },
-        )
+        .func_new(&name, move |_store, params, result_values| {
+            call_elixir_import(name_for_closure.clone(), params, result_values, pid.clone())
+        })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
 
@@ -248,6 +246,9 @@ pub fn component_execute_function<'a>(
     let param_types = function.params(&mut *component_store);
     let converted_params = match convert_params(&param_types, given_params) {
         Ok(params) => params,
+        Err(Error::Term(e)) => {
+            return make_error_tuple(&thread_env, e.encode(thread_env), from);
+        }
         Err(e) => {
             let reason = format!("Error converting param: {e:?}");
             return make_error_tuple(&thread_env, &reason, from);
@@ -268,13 +269,13 @@ pub fn component_execute_function<'a>(
         Err(err) => {
             let reason = format!("{err}");
             if let Ok(trap) = err.downcast::<Trap>() {
-                return make_error_tuple(
+                return make_raise_tuple(
                     &thread_env,
                     &format!("Error during function excecution ({trap}): {reason}"),
                     from,
                 );
             } else {
-                return make_error_tuple(
+                return make_raise_tuple(
                     &thread_env,
                     &format!("Error during function excecution: {reason}"),
                     from,
@@ -284,12 +285,23 @@ pub fn component_execute_function<'a>(
     }
 }
 
-fn make_error_tuple<'a>(env: &rustler::Env<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
+fn make_error_tuple<'a>(env: &rustler::Env<'a>, reason: impl Encoder, from: Term<'a>) -> Term<'a> {
     make_tuple(
         *env,
         &[
             atoms::returned_function_call().encode(*env),
             env.error_tuple(reason),
+            from,
+        ],
+    )
+}
+
+fn make_raise_tuple<'a>(env: &rustler::Env<'a>, reason: impl Encoder, from: Term<'a>) -> Term<'a> {
+    make_tuple(
+        *env,
+        &[
+            atoms::returned_function_call().encode(*env),
+            make_tuple(*env, &[atoms::raise().encode(*env), reason.encode(*env)]),
             from,
         ],
     )
@@ -305,25 +317,34 @@ pub fn receive_callback_result(
     println!("receive_callback_result {:?}", result);
     let parsed_component = &component_resource.parsed;
     let world = &parsed_component.resolve.worlds[parsed_component.world_id];
-    
+
     let name = &token_resource.token.name;
     // Find the matching import in the world's imports
-    let import_function = world.imports.iter().filter_map(|(_, item)| match item {
-        WorldItem::Function(function) => Some(function),
-        _ => None
-    }).find(|f| f.item_name() == name).ok_or_else(|| {
-        Error::Term(Box::new(format!("Could not find import function {}", name)))
-    })?;
+    let import_function = world
+        .imports
+        .iter()
+        .filter_map(|(_, item)| match item {
+            WorldItem::Function(function) => Some(function),
+            _ => None,
+        })
+        .find(|f| f.item_name() == name)
+        .ok_or_else(|| Error::Term(Box::new(format!("Could not find import function {}", name))))?;
 
     println!("found function: {:?}", import_function);
 
-    let return_values = token_resource.token.return_values.lock().map_err(|e| {
-        Error::Term(Box::new(format!("Failed to lock return values: {}", e)))
-    })?;
+    let return_values = token_resource
+        .token
+        .return_values
+        .lock()
+        .map_err(|e| Error::Term(Box::new(format!("Failed to lock return values: {}", e))))?;
 
-    populate_return_values(&component_resource.parsed.resolve, import_function, return_values, result).map_err(|e| {
-        Error::Term(Box::new(format!("Failed to populate return values: {}", e)))
-    })?;
+    populate_return_values(
+        &component_resource.parsed.resolve,
+        import_function,
+        return_values,
+        result,
+    )
+    .map_err(|e| Error::Term(Box::new(format!("Failed to populate return values: {}", e))))?;
 
     token_resource.token.continue_signal.notify_one();
 
@@ -343,18 +364,26 @@ fn populate_return_values(
     let results = &function.results;
 
     let wit_type = match results {
-      wit_parser::Results::Anon(wit_type) => wit_type,
-      wit_parser::Results::Named(_vec) => return Err(anyhow!("Named return values not supported")), 
+        wit_parser::Results::Anon(wit_type) => wit_type,
+        wit_parser::Results::Named(_vec) => {
+            return Err(anyhow!("Named return values not supported"))
+        }
     };
 
     if results.len() != 1 {
-        return Err(anyhow!("Expected exactly one result type, found {}", results.len()));
+        return Err(anyhow!(
+            "Expected exactly one result type, found {}",
+            results.len()
+        ));
     }
 
-    vals.push(convert_result_term(result, wit_type, wit_resolver).map_err(|e| anyhow!("Failed to convert term: {:?}", e))?);
+    vals.push(
+        convert_result_term(result, wit_type, wit_resolver)
+            .map_err(|e| anyhow!("Failed to convert term: {:?}", e))?,
+    );
 
     // Set the return values
     *return_values = Some((true, vals));
-    
+
     Ok(())
 }

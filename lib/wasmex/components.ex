@@ -50,12 +50,13 @@ defmodule Wasmex.Components do
   end
 
   @impl true
-  def init(
-        %{store: store, component: component, imports: imports} = state
-      ) do
+  def init(%{store: store, component: component, imports: imports} = state) do
     case Wasmex.Components.Instance.new(store, component, imports) do
-      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance, component: component, imports: imports})}
-      {:error, reason} -> {:error, reason}
+      {:ok, instance} ->
+        {:ok, Map.merge(state, %{instance: instance, component: component, imports: imports})}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -74,7 +75,11 @@ defmodule Wasmex.Components do
 
   @impl true
   def handle_info({:returned_function_call, result, from}, state) do
-    GenServer.reply(from, result)
+    case result do
+      {:raise, reason} -> raise(reason)
+      valid_result -> GenServer.reply(from, valid_result)
+    end
+
     {:noreply, state}
   end
 
@@ -98,5 +103,6 @@ defmodule Wasmex.Components do
   defp stringify(s) when is_binary(s), do: s
   defp stringify(s) when is_atom(s), do: Atom.to_string(s)
 
-  defp elixirify(wasm_identifier), do: String.replace(wasm_identifier, "-", "_") |> String.to_atom()
+  defp elixirify(wasm_identifier),
+    do: String.replace(wasm_identifier, "-", "_") |> String.to_atom()
 end

@@ -11,7 +11,7 @@ defmodule Wasmex.Components.GenServer.Test do
 
   test "unrecoverable errors crash the process" do
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
-    component_pid = start_supervised!({Wasmex.Components, %{bytes: component_bytes}})
+    component_pid = start_supervised!({Wasmex.Components, bytes: component_bytes})
 
     assert catch_exit(
              Wasmex.Components.call_function(component_pid, "id-record", [%{not: "expected"}])
@@ -24,10 +24,14 @@ defmodule Wasmex.Components.GenServer.Test do
     component_pid =
       start_supervised!({HelloWorld, bytes: component_bytes, wasi: %WasiP2Options{}})
 
-    assert {:ok, "Hello, Elixir!"} = HelloWorld.greet(component_pid, "Elixir")
+    assert {:ok, "Hello, Elixir from a function defined in the module!"} =
+             HelloWorld.greet(component_pid, "Elixir")
 
-    assert {:ok, ["Hello, Elixir!", "Hello, Elixir!"]} =
+    assert {:ok, [greeting1, greeting2]} =
              HelloWorld.multi_greet(component_pid, "Elixir", 2)
+
+    assert greeting1 =~ "Hello"
+    assert greeting2 =~ "Hello"
   end
 
   test "wasi interaction" do
