@@ -261,17 +261,17 @@ pub fn component_execute_function(
         Err(err) => {
             let reason = format!("{err}");
             if let Ok(trap) = err.downcast::<Trap>() {
-                return make_raise_tuple(
+                make_raise_tuple(
                     &thread_env,
                     format!("Error during function excecution ({trap}): {reason}"),
                     from,
-                );
+                )
             } else {
-                return make_raise_tuple(
+                make_raise_tuple(
                     &thread_env,
                     format!("Error during function excecution: {reason}"),
                     from,
-                );
+                )
             }
         }
     }
