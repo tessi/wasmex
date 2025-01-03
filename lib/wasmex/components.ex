@@ -94,12 +94,6 @@ defmodule Wasmex.Components do
     {:noreply, state}
   end
 
-  @impl true
-  def handle_info(msg, state) do
-    IO.inspect(msg, label: "in genserver handle_info")
-    {:noreply, state}
-  end
-
   defp stringify(s) when is_binary(s), do: s
   defp stringify(s) when is_atom(s), do: Atom.to_string(s)
 
