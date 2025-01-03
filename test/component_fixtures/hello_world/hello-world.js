@@ -1,5 +1,7 @@
+import greeter from 'greeter';
+
 export function greet(who) {
-  return `Hello, ${who}!`;
+  return `Hello, ${who} from ${greeter()}!`;
 }
 
 export function multiGreet(who, times) {

@@ -4,12 +4,21 @@ use rustler::Error;
 use rustler::NifResult;
 use rustler::ResourceArc;
 use wasmtime::Store;
+use wit_parser::decoding::DecodedWasm;
+use wit_parser::Resolve;
+use wit_parser::WorldId;
 
 use std::sync::Mutex;
-use wasmtime::component::{Component, Instance, Linker};
+use wasmtime::component::Component;
 
 pub struct ComponentResource {
     pub inner: Mutex<Component>,
+    pub parsed: ParsedComponent,
+}
+
+pub struct ParsedComponent {
+    pub world_id: WorldId,
+    pub resolve: Resolve,
 }
 
 #[rustler::resource_impl()]
@@ -27,49 +36,20 @@ pub fn new_component(
             )))
         })?);
     let bytes = component_binary.as_slice();
+    let decoded_wasm = wit_parser::decoding::decode(bytes)
+        .map_err(|e| Error::Term(Box::new(format!("Unable to decode WASM: {e}"))))?;
+    let parsed_component = match decoded_wasm {
+        DecodedWasm::WitPackage(_, _) => {
+            return Err(rustler::Error::RaiseAtom("Only components are supported"))
+        }
+        DecodedWasm::Component(resolve, world_id) => ParsedComponent { world_id, resolve },
+    };
 
     let component = Component::new(store_or_caller.engine(), bytes)
         .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
 
     Ok(ResourceArc::new(ComponentResource {
         inner: Mutex::new(component),
+        parsed: parsed_component,
     }))
 }
-
-#[rustler::nif(name = "component_instance_new")]
-pub fn new_component_instance(
-    component_store_resource: ResourceArc<ComponentStoreResource>,
-    component_resource: ResourceArc<ComponentResource>,
-) -> NifResult<ResourceArc<ComponentInstanceResource>> {
-    let component_store: &mut Store<ComponentStoreData> =
-        &mut *(component_store_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock component_store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
-
-    let component = &mut component_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock component resource as the mutex was poisoned: {e}"
-        )))
-    })?;
-
-    let mut linker = Linker::new(component_store.engine());
-    let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
-    let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
-    // Instantiate the component
-    let instance = linker
-        .instantiate(&mut *component_store, component)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-
-    Ok(ResourceArc::new(ComponentInstanceResource {
-        inner: Mutex::new(instance),
-    }))
-}
-
-pub struct ComponentInstanceResource {
-    pub inner: Mutex<Instance>,
-}
-
-#[rustler::resource_impl()]
-impl rustler::Resource for ComponentInstanceResource {}

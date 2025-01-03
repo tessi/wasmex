@@ -33,12 +33,14 @@ defmodule Wasmex.Components.Component do
   end
 
   defmacro __using__(opts) do
+    macro_imports = Keyword.get(opts, :imports, %{})
+
     genserver_setup =
       quote do
         use GenServer
 
         def start_link(opts) do
-          Wasmex.Components.start_link(opts)
+          Wasmex.Components.start_link(opts |> Keyword.put(:imports, unquote(macro_imports)))
         end
 
         def handle_call(request, from, state) do
