@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Condvar, Mutex};
 
-use once_cell::sync::Lazy;
-use rustler::env::{self, SavedTerm};
-use wit_parser::{Function, Resolve, Type, WorldId, WorldItem};
+use rustler::env::SavedTerm;
+use wit_parser::{Function, Resolve, WorldItem};
 
 use std::thread;
 
@@ -11,31 +10,24 @@ use crate::atoms;
 use crate::component::ComponentResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
-use convert_case::{Case, Casing};
-use wasmtime::component::{Func, Instance, Linker, Val};
-use wasmtime::{Caller, Trap, ValType};
-use wiggle::anyhow::{self, anyhow};
-
-use rustler::types::atom::nil;
-use rustler::types::tuple;
 use rustler::types::tuple::make_tuple;
+use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
-use rustler::{Env, NifResult};
 use rustler::{Error, LocalPid};
+use wasmtime::component::{Instance, Linker, Val};
+use wasmtime::Trap;
+use wiggle::anyhow::{self, anyhow};
 
 use rustler::Term;
-use rustler::TermType;
 
-use wasmtime::component::Type as WasmType;
 use wasmtime::Store;
 
 use wasmtime_wasi;
 use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
-    convert_params, convert_result_term, encode_result, field_name_to_term, term_to_field_name,
-    term_to_val, val_to_term, vals_to_terms,
+    convert_params, convert_result_term, encode_result, vals_to_terms,
 };
 
 pub struct ComponentCallbackToken {
@@ -97,8 +89,8 @@ pub fn new_instance(
     }))
 }
 
-static GLOBAL_DATA: Lazy<Mutex<HashMap<i32, Caller<ComponentStoreData>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+// static GLOBAL_DATA: Lazy<Mutex<HashMap<i32, Caller<ComponentStoreData>>>> =
+//     Lazy::new(|| Mutex::new(HashMap::new()));
 
 // fn set_caller(caller: wasmtime::StoreContextMut<'_, ComponentStoreData>) -> i32 {
 //     let mut map = GLOBAL_DATA.lock().unwrap();
@@ -167,7 +159,7 @@ fn link_import(
     linker
         .root()
         .func_new(&name, move |_store, params, result_values| {
-            call_elixir_import(name_for_closure.clone(), params, result_values, pid.clone())
+            call_elixir_import(name_for_closure.clone(), params, result_values, pid)
         })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
@@ -210,16 +202,16 @@ pub fn call_exported_function(
     atoms::ok()
 }
 
-pub fn component_execute_function<'a>(
-    thread_env: rustler::Env<'a>,
+pub fn component_execute_function(
+    thread_env: rustler::Env,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     func_name: String,
     function_params: SavedTerm,
     from: SavedTerm,
-) -> Term<'a> {
+) -> Term {
     let component_store: &mut Store<ComponentStoreData> =
-        &mut *(component_store_resource.inner.lock().unwrap());
+        &mut (component_store_resource.inner.lock().unwrap());
     let instance = &mut instance_resource.inner.lock().unwrap();
 
     let from = from
@@ -237,7 +229,7 @@ pub fn component_execute_function<'a>(
         None => {
             return make_error_tuple(
                 &thread_env,
-                &format!("exported function `{func_name}` not found"),
+                format!("exported function `{func_name}` not found"),
                 from,
             )
         }
@@ -271,13 +263,13 @@ pub fn component_execute_function<'a>(
             if let Ok(trap) = err.downcast::<Trap>() {
                 return make_raise_tuple(
                     &thread_env,
-                    &format!("Error during function excecution ({trap}): {reason}"),
+                    format!("Error during function excecution ({trap}): {reason}"),
                     from,
                 );
             } else {
                 return make_raise_tuple(
                     &thread_env,
-                    &format!("Error during function excecution: {reason}"),
+                    format!("Error during function excecution: {reason}"),
                     from,
                 );
             }
@@ -311,7 +303,7 @@ fn make_raise_tuple<'a>(env: &rustler::Env<'a>, reason: impl Encoder, from: Term
 pub fn receive_callback_result(
     component_resource: ResourceArc<ComponentResource>,
     token_resource: ResourceArc<ComponentCallbackTokenResource>,
-    success: bool,
+    _success: bool,
     result: Term,
 ) -> NifResult<rustler::Atom> {
     println!("receive_callback_result {:?}", result);

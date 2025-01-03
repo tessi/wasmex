@@ -203,7 +203,7 @@ fn convert_complex_result(
             let decoded_list = result_term.decode::<Vec<Term>>()?;
             let list_values = decoded_list
                 .iter()
-                .map(|term| convert_result_term(term.clone(), list_type, wit_resolver))
+                .map(|term| convert_result_term(*term, list_type, wit_resolver))
                 .collect::<Result<Vec<Val>, Error>>()?;
             Ok(Val::List(list_values))
         }

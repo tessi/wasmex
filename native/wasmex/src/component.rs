@@ -42,10 +42,7 @@ pub fn new_component(
         DecodedWasm::WitPackage(_, _) => {
             return Err(rustler::Error::RaiseAtom("Only components are supported"))
         }
-        DecodedWasm::Component(resolve, world_id) => ParsedComponent {
-            world_id: world_id,
-            resolve: resolve,
-        },
+        DecodedWasm::Component(resolve, world_id) => ParsedComponent { world_id, resolve },
     };
 
     let component = Component::new(store_or_caller.engine(), bytes)
