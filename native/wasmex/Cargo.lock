@@ -2032,7 +2032,7 @@ dependencies = [
  "wasmtime-wasi-http",
  "wat",
  "wiggle",
- "wit-parser",
+ "wit-parser 0.222.0",
 ]
 
 [[package]]
@@ -2168,7 +2168,7 @@ dependencies = [
  "syn",
  "wasmtime-component-util",
  "wasmtime-wit-bindgen",
- "wit-parser",
+ "wit-parser 0.221.2",
 ]
 
 [[package]]
@@ -2363,7 +2363,7 @@ dependencies = [
  "anyhow",
  "heck",
  "indexmap",
- "wit-parser",
+ "wit-parser 0.221.2",
 ]
 
 [[package]]
@@ -2623,6 +2623,24 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser 0.221.2",
+]
+
+[[package]]
+name = "wit-parser"
+version = "0.222.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "533abd14901514db88e4107655345fdd8ab8a72fb61e85d871bd361509744c35"
+dependencies = [
+ "anyhow",
+ "id-arena",
+ "indexmap",
+ "log",
+ "semver",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "unicode-xid",
+ "wasmparser 0.222.0",
 ]
 
 [[package]]
