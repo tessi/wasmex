@@ -49,7 +49,13 @@ pub fn component_call_function<'a>(
     };
 
     let param_types = function.params(&mut *component_store);
-    let converted_params = match convert_params(&param_types, given_params) {
+    let param_types = param_types
+        .as_ref()
+        .iter()
+        .map(|x| x.1.clone())
+        .collect::<Vec<Type>>();
+
+    let converted_params = match convert_params(param_types.as_ref(), given_params) {
         Ok(params) => params,
         Err(e) => return Ok(env.error_tuple(format!("Unable to convert params: {:?}", e))),
     };
