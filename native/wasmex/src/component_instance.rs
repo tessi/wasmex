@@ -306,7 +306,6 @@ pub fn receive_callback_result(
     _success: bool,
     result: Term,
 ) -> NifResult<rustler::Atom> {
-    println!("receive_callback_result {:?}", result);
     let parsed_component = &component_resource.parsed;
     let world = &parsed_component.resolve.worlds[parsed_component.world_id];
 
@@ -322,7 +321,6 @@ pub fn receive_callback_result(
         .find(|f| f.item_name() == name)
         .ok_or_else(|| Error::Term(Box::new(format!("Could not find import function {}", name))))?;
 
-    println!("found function: {:?}", import_function);
 
     let return_values = token_resource
         .token

@@ -1,6 +1,5 @@
 defmodule Wasmex.Components.ImportTest do
   use ExUnit.Case
-  alias Wasmex.Components.FunctionServer
   alias Wasmex.Wasi.WasiP2Options
 
   test "import functions" do
