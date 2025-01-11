@@ -15,7 +15,7 @@ use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
-use wasmtime::component::{Instance, Linker, Val, Type};
+use wasmtime::component::{Instance, Linker, Type, Val};
 use wasmtime::Trap;
 use wiggle::anyhow::{self, anyhow};
 
