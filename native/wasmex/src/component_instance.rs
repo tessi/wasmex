@@ -89,22 +89,6 @@ pub fn new_instance(
     }))
 }
 
-// static GLOBAL_DATA: Lazy<Mutex<HashMap<i32, Caller<ComponentStoreData>>>> =
-//     Lazy::new(|| Mutex::new(HashMap::new()));
-
-// fn set_caller(caller: wasmtime::StoreContextMut<'_, ComponentStoreData>) -> i32 {
-//     let mut map = GLOBAL_DATA.lock().unwrap();
-//     // TODO: prevent duplicates by throwing the dice again when the id is already known
-//     let token = rand::random();
-//     let caller = unsafe {
-//         std::mem::transmute::<Caller<'_, ComponentStoreData>, Caller<'static, ComponentStoreData>>(
-//             caller,
-//         )
-//     };
-//     map.insert(token, caller);
-//     token
-// }
-
 fn create_callback_token(name: String) -> ResourceArc<ComponentCallbackTokenResource> {
     ResourceArc::new(ComponentCallbackTokenResource {
         token: ComponentCallbackToken {
@@ -163,12 +147,6 @@ fn link_import(
         })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
-
-// fn encode_callback_results(result_terms: Vec<Term>, result_values: &mut [Val], env: &rustler::Env) -> () {
-//   for (result_term, result_value) in result_terms.iter().zip(result_values.iter_mut()) {
-//     *result_value = term_to_val(result_term, Type::String)?;
-//   }
-// }
 
 #[rustler::nif(name = "component_call_function", schedule = "DirtyCpu")]
 pub fn call_exported_function(
@@ -320,7 +298,6 @@ pub fn receive_callback_result(
         })
         .find(|f| f.item_name() == name)
         .ok_or_else(|| Error::Term(Box::new(format!("Could not find import function {}", name))))?;
-
 
     let return_values = token_resource
         .token
