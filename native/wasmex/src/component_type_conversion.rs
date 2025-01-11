@@ -223,6 +223,16 @@ fn convert_complex_result(
             }
             Ok(Val::Record(record_fields))
         }
+        TypeDefKind::Tuple(tuple_type) => {
+            let tuple_types = tuple_type.types.clone();
+            let decoded_tuple = tuple::get_tuple(result_term)?;
+            let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
+            for (tuple_type, tuple_term) in tuple_types.iter().zip(decoded_tuple) {
+                let component_val = convert_result_term(tuple_term, tuple_type, wit_resolver)?;
+                tuple_vals.push(component_val);
+            }
+            Ok(Val::Tuple(tuple_vals))
+        }
         _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
     }
     // Type::String

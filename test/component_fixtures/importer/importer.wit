@@ -9,5 +9,7 @@ world importer {
   import get-number: func() -> u32;
   import get-list: func() -> list<string>;
   import get-point: func() -> point;
+  import get-tuple: func() -> tuple<u32, string>;
   export reveal-secret-word: func() -> string;
+  export show-tuple: func() -> string;
 }

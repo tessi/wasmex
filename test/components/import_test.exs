@@ -9,7 +9,8 @@ defmodule Wasmex.Components.ImportTest do
       "get-secret-word" => {:fn, fn param1, param2 -> "#{param1} #{param2}" end},
       "get-number" => {:fn, fn -> 42 end},
       "get-list" => {:fn, fn -> ["hi", "there"] end},
-      "get-point" => {:fn, fn -> %{x: 1, y: 2} end}
+      "get-point" => {:fn, fn -> %{x: 1, y: 2} end},
+      "get-tuple" => {:fn, fn -> {1, "foo"} end}
     }
 
     component_pid =
@@ -20,5 +21,8 @@ defmodule Wasmex.Components.ImportTest do
 
     assert {:ok, "7 foo 42 hi,there x: 1 y: 2"} =
              Wasmex.Components.call_function(component_pid, "reveal-secret-word", [7])
+
+    assert {:ok, "1 foo"} =
+             Wasmex.Components.call_function(component_pid, "show-tuple", [])
   end
 end
