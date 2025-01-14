@@ -68,9 +68,6 @@ defmodule Wasmex.Components do
       ) do
     :ok = Wasmex.Components.Instance.call_function(instance, name, params, from)
     {:noreply, state}
-    #   {:ok, result} -> {:reply, {:ok, result}, state}
-    #   {:error, error} -> {:reply, {:error, error}, state}
-    # end
   end
 
   @impl true
@@ -86,7 +83,7 @@ defmodule Wasmex.Components do
   @impl true
   def handle_info(
         {:invoke_callback, name, token, params},
-        %{imports: imports, instance: instance, component: component} = state
+        %{imports: imports, instance: _instance, component: component} = state
       ) do
     {:fn, function} = Map.get(imports, name)
     result = apply(function, params)
