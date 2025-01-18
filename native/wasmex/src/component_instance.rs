@@ -180,7 +180,7 @@ pub fn call_exported_function(
     atoms::ok()
 }
 
-pub fn component_execute_function(
+fn component_execute_function(
     thread_env: rustler::Env,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,

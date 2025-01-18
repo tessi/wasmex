@@ -93,7 +93,4 @@ defmodule Wasmex.Components do
 
   defp stringify(s) when is_binary(s), do: s
   defp stringify(s) when is_atom(s), do: Atom.to_string(s)
-
-  defp elixirify(wasm_identifier),
-    do: String.replace(wasm_identifier, "-", "_") |> String.to_atom()
 end
