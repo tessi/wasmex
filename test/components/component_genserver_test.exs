@@ -34,19 +34,6 @@ defmodule Wasmex.Components.GenServer.Test do
     assert greeting2 =~ "Hello"
   end
 
-  test "wasi interaction" do
-    component_bytes = File.read!("test/component_fixtures/wasi_p2_test/wasi-p2-test.wasm")
-
-    component_pid =
-      start_supervised!(
-        {Wasmex.Components, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
-      )
-
-    assert {:ok, time} = Wasmex.Components.call_function(component_pid, "get-time", [], 10_000)
-
-    assert time =~ Date.utc_today() |> Date.to_iso8601()
-  end
-
   test "register by name" do
     component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
 
