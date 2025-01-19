@@ -25,8 +25,13 @@ defmodule Wasmex.Components do
   def start_link(opts) when is_list(opts) do
     with {:ok, store} <- build_store(opts),
          component_bytes <- Keyword.get(opts, :bytes),
+         imports <- Keyword.get(opts, :imports, %{}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
-      GenServer.start_link(__MODULE__, %{store: store, component: component}, opts)
+      GenServer.start_link(
+        __MODULE__,
+        %{store: store, component: component, imports: imports},
+        opts
+      )
     end
   end
 
@@ -45,23 +50,45 @@ defmodule Wasmex.Components do
   end
 
   @impl true
-  def init(%{store: store, component: component} = state) do
-    case Wasmex.Components.Instance.new(store, component) do
-      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
-      {:error, reason} -> {:error, reason}
+  def init(%{store: store, component: component, imports: imports} = state) do
+    case Wasmex.Components.Instance.new(store, component, imports) do
+      {:ok, instance} ->
+        {:ok, Map.merge(state, %{instance: instance, component: component, imports: imports})}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   @impl true
   def handle_call(
         {:call_function, name, params},
-        _from,
+        from,
         %{instance: instance} = state
       ) do
-    case Wasmex.Components.Instance.call_function(instance, name, params) do
-      {:ok, result} -> {:reply, {:ok, result}, state}
-      {:error, error} -> {:reply, {:error, error}, state}
+    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:returned_function_call, result, from}, state) do
+    case result do
+      {:raise, reason} -> raise(reason)
+      valid_result -> GenServer.reply(from, valid_result)
     end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(
+        {:invoke_callback, name, token, params},
+        %{imports: imports, instance: _instance, component: component} = state
+      ) do
+    {:fn, function} = Map.get(imports, name)
+    result = apply(function, params)
+    :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
+    {:noreply, state}
   end
 
   defp stringify(s) when is_binary(s), do: s

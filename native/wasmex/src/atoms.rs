@@ -1,6 +1,7 @@
 rustler::atoms! {
     ok,
     error,
+    raise,
     __nil__ = "nil",
 
     // memory types
