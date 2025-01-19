@@ -42,7 +42,7 @@ defmodule Wasmex.Components.GenServer.Test do
         {Wasmex.Components, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
       )
 
-    assert {:ok, time} = Wasmex.Components.call_function(component_pid, "get-time", [])
+    assert {:ok, time} = Wasmex.Components.call_function(component_pid, "get-time", [], 10_000)
 
     assert time =~ Date.utc_today() |> Date.to_iso8601()
   end
