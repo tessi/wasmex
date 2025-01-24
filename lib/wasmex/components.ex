@@ -2,29 +2,111 @@ defmodule Wasmex.Components do
   @moduledoc """
   This is the entry point to support for the [WebAssembly Component Model](https://component-model.bytecodealliance.org/).
 
-  Support should be considered experimental at this point, with not all types yet supported.
+  The Component Model is a higher-level way to interact with WebAssembly modules that provides:
+  - Better type safety through interface types
+  - Standardized way to define imports and exports using WIT (WebAssembly Interface Types)
+  - WASI support for system interface capabilities
+
+  ## Basic Usage
+
+  To use a WebAssembly component:
+
+  1. Start a component instance:
+  ```elixir
+  # Using raw bytes
+  bytes = File.read!("path/to/component.wasm")
+  {:ok, pid} = Wasmex.Components.start_link(%{bytes: bytes})
+
+  # Using a file path
+  {:ok, pid} = Wasmex.Components.start_link(%{path: "path/to/component.wasm"})
+
+  # With WASI support
+  {:ok, pid} = Wasmex.Components.start_link(%{
+    path: "path/to/component.wasm",
+    wasi: %Wasmex.Wasi.WasiP2Options{}
+  })
+
+  # With imports (host functions the component can call)
+  {:ok, pid} = Wasmex.Components.start_link(%{
+    bytes: bytes,
+    imports: %{
+      "host_function" => {:fn, &MyModule.host_function/1}
+    }
+  })
+  ```
+
+  2. Call exported functions:
+  ```elixir
+  {:ok, result} = Wasmex.Components.call_function(pid, "exported_function", ["param1"])
+  ```
+
+  ## Component Interface Types
+
+  The component model supports the following WIT (WebAssembly Interface Type) types:
+
+  ### Currently Supported Types
+
+  - **Primitive Types**
+    - Integers: `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, `u64`
+    - Floats: `f32`, `f64`
+    - `bool`
+    - `string`
+
+  - **Compound Types**
+    - `record` (maps to Elixir maps with atom keys)
+      ```wit
+      record point { x: u32, y: u32 }
+      ```
+      ```elixir
+      %{x: 1, y: 2}
+      ```
+
+    - `list<T>` (maps to Elixir lists)
+      ```wit
+      list<u32>
+      ```
+      ```elixir
+      [1, 2, 3]
+      ```
+
+    - `tuple<T1, T2>` (maps to Elixir tuples)
+      ```wit
+      tuple<u32, string>
+      ```
+      ```elixir
+      {1, "two"}
+      ```
+
+    - `option<T>` (maps to `nil` or the value)
+      ```wit
+      option<u32>
+      ```
+      ```elixir
+      nil  # or
+      42
+      ```
+
+  ### Currently Unsupported Types
+
+  The following WIT types are not yet supported:
+  - `char`
+  - `variant` (tagged unions)
+  - `enum`
+  - `flags`
+  - `result` types
+  - Resources
+
+  Support should be considered experimental at this point.
   """
 
   use GenServer
   alias Wasmex.Wasi.WasiP2Options
 
-  def start_link(%{bytes: component_bytes, wasi: %WasiP2Options{} = wasi_options}) do
-    with {:ok, store} <- Wasmex.Components.Store.new_wasi(wasi_options),
-         {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
-      GenServer.start_link(__MODULE__, %{store: store, component: component})
-    end
-  end
+  def start_link(opts) when is_list(opts) or is_map(opts) do
+    opts = normalize_opts(opts)
 
-  def start_link(%{bytes: component_bytes}) do
-    with {:ok, store} <- Wasmex.Components.Store.new(),
-         {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
-      GenServer.start_link(__MODULE__, %{store: store, component: component})
-    end
-  end
-
-  def start_link(opts) when is_list(opts) do
     with {:ok, store} <- build_store(opts),
-         component_bytes <- Keyword.get(opts, :bytes),
+         component_bytes <- get_component_bytes(opts),
          imports <- Keyword.get(opts, :imports, %{}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
       GenServer.start_link(
@@ -32,6 +114,22 @@ defmodule Wasmex.Components do
         %{store: store, component: component, imports: imports},
         opts
       )
+    end
+  end
+
+  defp normalize_opts(opts) when is_map(opts) do
+    opts
+    |> Map.to_list()
+    |> Keyword.new()
+  end
+
+  defp normalize_opts(opts) when is_list(opts), do: opts
+
+  defp get_component_bytes(opts) do
+    cond do
+      bytes = Keyword.get(opts, :bytes) -> bytes
+      path = Keyword.get(opts, :path) -> File.read!(path)
+      true -> raise ArgumentError, "Either :bytes or :path must be provided"
     end
   end
 

@@ -1,4 +1,4 @@
-defmodule Wasmex.Components.GenServer.Test do
+defmodule Wasmex.Components.GenServerTest do
   use ExUnit.Case, async: true
   alias Wasmex.Wasi.WasiP2Options
 
@@ -7,6 +7,25 @@ defmodule Wasmex.Components.GenServer.Test do
     component_pid = start_supervised!({Wasmex.Components, bytes: component_bytes})
     assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
     assert {:error, _error} = Wasmex.Components.call_function(component_pid, "garbage", ["wut"])
+  end
+
+  test "loading a component from a path" do
+    component_pid =
+      start_supervised!(
+        {Wasmex.Components, path: "test/component_fixtures/component_types/component_types.wasm"}
+      )
+
+    assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
+  end
+
+  test "specifying options as a map" do
+    component_pid =
+      start_supervised!(
+        {Wasmex.Components,
+         %{path: "test/component_fixtures/component_types/component_types.wasm"}}
+      )
+
+    assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
   end
 
   test "unrecoverable errors crash the process" do
@@ -18,7 +37,7 @@ defmodule Wasmex.Components.GenServer.Test do
            )
   end
 
-  test "using the component macro" do
+  test "using the component server macro" do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 
     component_pid =
