@@ -18,8 +18,8 @@ defmodule Wasmex.Components.ComponentServer do
   package example:greeter
 
   world greeter {
-    export greet: func(name: string) -> string
-    export add: func(a: s32, b: s32) -> s32
+    export greet: func(who: string) -> string;
+    export multi-greet: func(who: string, times: u16) -> list<string>;
   }
   ```
 
@@ -40,12 +40,12 @@ defmodule Wasmex.Components.ComponentServer do
 
   # Generated function wrappers:
   iex> MyApp.Greeter.greet(pid, "World")  # Returns: "Hello, World!"
-  iex> MyApp.Greeter.add(pid, 40, 2)      # Returns: 42
+  iex> MyApp.Greeter.multi_greet(pid, "World", 2) # Returns: ["Hello, World!", "Hello, World!"]
   ```
 
   ## Imports Example
 
-  When your WebAssembly component requires host functions, you can provide them using the `:imports` option.
+  When your WebAssembly component imports functions, you can provide them using the `:imports` option.
   For example, given a WIT file `logger.wit`:
 
   ```wit
@@ -59,7 +59,7 @@ defmodule Wasmex.Components.ComponentServer do
   }
   ```
 
-  You can implement the host functions like this:
+  You can implement the imported functions like this:
 
   ```elixir
   defmodule MyApp.Logger do
@@ -78,12 +78,13 @@ defmodule Wasmex.Components.ComponentServer do
   ```
 
   # Usage:
+  ```elixir
   iex> {:ok, pid} = MyApp.Logger.start_link(wasm: "path/to/logger.wasm")
   iex> MyApp.Logger.log_with_timestamp(pid, "Hello from Wasm!")
-  # The component will internally call your host functions for logging and timestamps
+  ```
 
-  The import functions should match the types defined in the WIT file. The WebAssembly component
-  can then call these host functions, and they will be executed in the Elixir runtime.
+  The import functions should return the correct types as defined in the WIT file. Incorrect types will likely
+  cause a crash, or possibly a NIF panic.
 
   ## Options
 
