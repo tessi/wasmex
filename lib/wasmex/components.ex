@@ -97,11 +97,69 @@ defmodule Wasmex.Components do
   - Resources
 
   Support should be considered experimental at this point.
+
+  ## Options
+
+  The `start_link/1` function accepts the following options:
+
+  * `:bytes` - Raw WebAssembly component bytes (mutually exclusive with `:path`)
+  * `:path` - Path to a WebAssembly component file (mutually exclusive with `:bytes`)
+  * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct for system interface capabilities
+  * `:imports` - Optional map of host functions that can be called by the WebAssembly component
+    * Keys are function names as strings
+    * Values are tuples of `{:fn, function}` where function is the host function to call
+
+  Additionally, any standard GenServer options (like `:name`) are supported.
+
+  ### Examples
+
+  ```elixir
+  # With raw bytes
+  {:ok, pid} = Wasmex.Components.start_link(%{
+    bytes: File.read!("component.wasm"),
+    name: MyComponent
+  })
+
+  # With WASI configuration
+  {:ok, pid} = Wasmex.Components.start_link(%{
+    path: "component.wasm",
+    wasi: %Wasmex.Wasi.WasiP2Options{
+      args: ["arg1", "arg2"],
+      env: %{"KEY" => "value"},
+      preopened_dirs: ["/tmp"]
+    }
+  })
+
+  # With host functions
+  {:ok, pid} = Wasmex.Components.start_link(%{
+    path: "component.wasm",
+    imports: %{
+      "log" => {:fn, &IO.puts/1},
+      "add" => {:fn, fn(a, b) -> a + b end}
+    }
+  })
+  ```
   """
 
   use GenServer
   alias Wasmex.Wasi.WasiP2Options
 
+  @doc """
+  Starts a new WebAssembly component instance.
+
+  ## Options
+
+    * `:bytes` - Raw WebAssembly component bytes (mutually exclusive with `:path`)
+    * `:path` - Path to a WebAssembly component file (mutually exclusive with `:bytes`)
+    * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct
+    * `:imports` - Optional map of host functions that can be called by the component
+    * Any standard GenServer options (like `:name`)
+
+  ## Returns
+
+    * `{:ok, pid}` on success
+    * `{:error, reason}` on failure
+  """
   def start_link(opts) when is_list(opts) or is_map(opts) do
     opts = normalize_opts(opts)
 

@@ -36,7 +36,7 @@ defmodule Wasmex.Components.ComponentServer do
 
   ```elixir
   # Start the component server
-  iex> {:ok, pid} = MyApp.Greeter.start_link(wasm: "path/to/greeter.wasm")
+  iex> {:ok, pid} = MyApp.Greeter.start_link(path: "path/to/greeter.wasm")
 
   # Generated function wrappers:
   iex> MyApp.Greeter.greet(pid, "World")  # Returns: "Hello, World!"
