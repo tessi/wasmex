@@ -1,7 +1,7 @@
 defmodule HelloWorld do
   @moduledoc false
 
-  use Wasmex.Components.Component,
+  use Wasmex.Components.ComponentServer,
     wit: "test/component_fixtures/hello_world/hello-world.wit",
     imports: %{
       "greeter" => {:fn, &greeter/0}
