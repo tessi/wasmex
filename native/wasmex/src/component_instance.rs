@@ -71,7 +71,10 @@ pub fn new_instance(
 
     let mut linker = Linker::new(store.engine());
     let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
-    let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+    if store.data().http.is_some() {
+        let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+    }
+
     // Instantiate the component
 
     // Handle imports

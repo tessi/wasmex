@@ -16,7 +16,9 @@ defmodule Wasmex.Components.ImportTest do
     component_pid =
       start_supervised!(
         {Wasmex.Components,
-         bytes: component_bytes, wasi: %WasiP2Options{inherit_stdout: true}, imports: imports}
+         bytes: component_bytes,
+         wasi: %WasiP2Options{inherit_stdout: true, allow_http: true},
+         imports: imports}
       )
 
     assert {:ok, "7 foo 42 hi,there x: 1 y: 2"} =

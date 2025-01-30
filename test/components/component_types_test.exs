@@ -48,7 +48,9 @@ defmodule Wasm.Components.ComponentTypesTest do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 
     instance =
-      start_supervised!({HelloWorld, bytes: component_bytes, wasi: %WasiP2Options{}})
+      start_supervised!(
+        {HelloWorld, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
+      )
 
     assert {:ok, %{kebab_field: "foo"}} =
              Wasmex.Components.call_function(instance, "echo-kebab", [

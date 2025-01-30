@@ -265,12 +265,19 @@ pub fn component_store_new_wasi(
     } else {
         StoreLimits::default()
     };
+
+    let http_option = if options.allow_http {
+        Some(WasiHttpCtx::new())
+    } else {
+        None
+    };
+
     let mut store = Store::new(
         &engine,
         ComponentStoreData {
             ctx: Some(wasi_ctx_builder.build()),
             limits,
-            http: Some(WasiHttpCtx::new()),
+            http: http_option,
             table: wasmtime_wasi::ResourceTable::new(),
         },
     );
