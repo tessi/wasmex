@@ -7,6 +7,9 @@ defmodule Wasmex.EngineConfig do
     * `:consume_fuel` - Whether or not to consume fuel when executing Wasm instructions. This defaults to `false`.
     * `:cranelift_opt_level` - Optimization level for the Cranelift code generator. This defaults to `:none`.
     * `:wasm_backtrace_details` - Whether or not backtraces in traps will parse debug info in the Wasm file to have filename/line number information. This defaults to `false`.
+    * `:debug_info` - Configures whether DWARF debug information will be emitted during compilation. This defaults to `false`.
+    * `:memory64` - Whether or not to use 64-bit memory. This defaults to `false`.
+    * `:wasm_component_model` - Whether or not to use the WebAssembly component model. This defaults to `true`.
 
   ## Example
 
@@ -20,13 +23,16 @@ defmodule Wasmex.EngineConfig do
             cranelift_opt_level: :none,
             wasm_backtrace_details: false,
             memory64: false,
-            wasm_component_model: true
+            wasm_component_model: true,
+            debug_info: false
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),
           cranelift_opt_level: :none | :speed | :speed_and_size,
           wasm_backtrace_details: boolean(),
-          memory64: boolean()
+          memory64: boolean(),
+          wasm_component_model: boolean(),
+          debug_info: boolean()
         }
 
   @doc ~S"""
