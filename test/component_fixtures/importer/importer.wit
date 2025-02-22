@@ -12,6 +12,7 @@ world importer {
   import get-tuple: func() -> tuple<u32, string>;
   import print: func(word: string);
 
+  export print-or-error: func(msg: string) -> result<string, string>;
   export print-secret-word: func();
   export reveal-secret-word: func() -> string;
   export show-tuple: func() -> string;

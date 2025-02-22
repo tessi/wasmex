@@ -29,5 +29,11 @@ defmodule Wasmex.Components.ImportTest do
              Wasmex.Components.call_function(component_pid, "show-tuple", [])
 
     assert {:ok, _} = Wasmex.Components.call_function(component_pid, "print-secret-word", [])
+
+    assert {:ok, {:ok, "bananas"}} =
+             Wasmex.Components.call_function(component_pid, "print-or-error", ["bananas"])
+
+    assert {:ok, {:error, "error"}} =
+             Wasmex.Components.call_function(component_pid, "print-or-error", ["error"])
   end
 end
