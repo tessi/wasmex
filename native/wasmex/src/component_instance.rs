@@ -131,7 +131,9 @@ fn call_elixir_import(
         return Err(anyhow::anyhow!("Callback failed"));
     }
 
-    result_values[0] = returned_values[0].clone();
+    if !returned_values.is_empty() {
+        result_values[0] = returned_values[0].clone();
+    }
     Ok(())
 }
 
@@ -341,6 +343,10 @@ fn populate_return_values(
 
     let wit_type = match results {
         wit_parser::Results::Anon(wit_type) => wit_type,
+        wit_parser::Results::Named(vec) if vec.is_empty() => {
+            *return_values = Some((true, vals));
+            return Ok(());
+        }
         wit_parser::Results::Named(_vec) => {
             return Err(anyhow!("Named return values not supported"))
         }

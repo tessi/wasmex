@@ -10,6 +10,9 @@ world importer {
   import get-list: func() -> list<string>;
   import get-point: func() -> point;
   import get-tuple: func() -> tuple<u32, string>;
+  import print: func(word: string);
+
+  export print-secret-word: func();
   export reveal-secret-word: func() -> string;
   export show-tuple: func() -> string;
 }
