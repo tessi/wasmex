@@ -6,7 +6,14 @@ defmodule Wasmex.WasmComponentsTest do
 
   test "bring your own store with debug info enabled" do
     {:ok, engine} = Wasmex.Engine.new(%EngineConfig{debug_info: true})
-    {:ok, store} = Wasmex.Components.Store.new_wasi(%WasiP2Options{allow_http: true}, %Wasmex.StoreLimits{}, engine)
+
+    {:ok, store} =
+      Wasmex.Components.Store.new_wasi(
+        %WasiP2Options{allow_http: true},
+        %Wasmex.StoreLimits{},
+        engine
+      )
+
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 
     instance =
