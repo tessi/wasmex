@@ -72,4 +72,10 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:ok, 7} = Wasmex.Components.call_function(instance, "id-option", [7])
     assert {:ok, nil} = Wasmex.Components.call_function(instance, "id-option", [nil])
   end
+
+  test "enums", %{instance: instance} do
+    assert {:error, message} = Wasmex.Components.call_function(instance, "id-enum", [:foo])
+    assert message =~ "Enum value not found: foo"
+    assert {:ok, :s} = Wasmex.Components.call_function(instance, "id-enum", [:s])
+  end
 end

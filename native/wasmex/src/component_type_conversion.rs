@@ -67,6 +67,19 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 Ok(Val::Option(Some(Box::new(converted_val))))
             }
         }
+        (TermType::Atom, Type::Enum(enum_type)) => {
+            let the_atom = param_term.atom_to_string()?;
+            let enum_val = enum_type.names().find(|v| *v == the_atom);
+            if let Some(enum_val) = enum_val {
+                Ok(Val::Enum(enum_val.to_string()))
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Enum value not found: {}",
+                    the_atom
+                ))))
+            }
+        }
+
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
@@ -115,7 +128,8 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             Some(boxed_val) => val_to_term(boxed_val, env),
             None => nil().encode(env),
         },
-        _ => String::from("wut").encode(env),
+        Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(&env, enum_val).unwrap(),
+        _ => String::from("Unsupported type").encode(env),
     }
 }
 
