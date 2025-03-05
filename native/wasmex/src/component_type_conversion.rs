@@ -79,7 +79,26 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 ))))
             }
         }
+        (TermType::Tuple, Type::Result(result_type)) => {
+            let tuple_terms = param_term.decode::<(Term, Term)>()?;
+            let first_term = tuple_terms.0;
+            let second_term = tuple_terms.1;
 
+            let the_atom = first_term.atom_to_string()?;
+            if the_atom == "ok" {
+                if let Some(ok_type) = result_type.ok() {
+                    let ok_val = term_to_val(&second_term, &ok_type)?;
+                    Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
+                } else {
+                    Ok(Val::Result(Ok(None)))
+                }
+            } else if let Some(err_type) = result_type.err() {
+                let err_val = term_to_val(&second_term, &err_type)?;
+                Ok(Val::Result(Err(Some(Box::new(err_val)))))
+            } else {
+                Ok(Val::Result(Err(None)))
+            }
+        }
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
@@ -129,6 +148,30 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             None => nil().encode(env),
         },
         Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(&env, enum_val).unwrap(),
+        Val::Result(result) => match result {
+            Ok(maybe_val) => {
+                if let Some(inner_val) = maybe_val {
+                    let ok_atom = rustler::types::atom::Atom::from_str(env, "ok").unwrap();
+                    let inner_term = val_to_term(inner_val, env);
+                    (ok_atom, inner_term).encode(env)
+                } else {
+                    let ok_atom = rustler::types::atom::Atom::from_str(env, "ok").unwrap();
+                    let nil_atom = rustler::types::atom::Atom::from_str(env, "nil").unwrap();
+                    (ok_atom, nil_atom).encode(env)
+                }
+            }
+            Err(maybe_val) => {
+                if let Some(inner_val) = maybe_val {
+                    let error_atom = rustler::types::atom::Atom::from_str(env, "error").unwrap();
+                    let inner_term = val_to_term(inner_val, env);
+                    (error_atom, inner_term).encode(env)
+                } else {
+                    let error_atom = rustler::types::atom::Atom::from_str(env, "error").unwrap();
+                    let nil_atom = rustler::types::atom::Atom::from_str(env, "nil").unwrap();
+                    (error_atom, nil_atom).encode(env)
+                }
+            }
+        },
         _ => String::from("Unsupported type").encode(env),
     }
 }
