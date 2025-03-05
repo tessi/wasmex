@@ -142,7 +142,6 @@ defmodule Wasmex.Components do
   """
 
   use GenServer
-  alias Wasmex.Wasi.WasiP2Options
 
   @doc """
   Starts a new WebAssembly component instance.
