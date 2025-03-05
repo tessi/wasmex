@@ -1,7 +1,27 @@
 defmodule Wasmex.WasmComponentsTest do
   use ExUnit.Case, async: true
 
+  alias Wasmex.EngineConfig
   alias Wasmex.Wasi.WasiP2Options
+
+  test "bring your own store with debug info enabled" do
+    {:ok, engine} = Wasmex.Engine.new(%EngineConfig{debug_info: true})
+
+    {:ok, store} =
+      Wasmex.Components.Store.new_wasi(
+        %WasiP2Options{allow_http: true},
+        %Wasmex.StoreLimits{},
+        engine
+      )
+
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    instance =
+      start_supervised!({HelloWorld, bytes: component_bytes, store: store})
+
+    assert {:ok, greeting} = Wasmex.Components.call_function(instance, "greet", ["World"])
+    assert greeting =~ "Hello"
+  end
 
   describe "error handling" do
     setup do
@@ -25,6 +45,19 @@ defmodule Wasmex.WasmComponentsTest do
     test "invalid arguments", %{instance: instance} do
       assert {:error, error} = Wasmex.Components.call_function(instance, "greet", [1])
       assert error =~ "Could not convert Integer to String"
+    end
+  end
+
+  describe "setting debug info" do
+    test "with debug info" do
+      component_pid =
+        start_supervised!(
+          {Wasmex.Components,
+           path: "test/component_fixtures/component_types/component_types.wasm",
+           engine_config: %EngineConfig{debug_info: true}}
+        )
+
+      assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
     end
   end
 end

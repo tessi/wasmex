@@ -142,7 +142,6 @@ defmodule Wasmex.Components do
   """
 
   use GenServer
-  alias Wasmex.Wasi.WasiP2Options
 
   @doc """
   Starts a new WebAssembly component instance.
@@ -163,7 +162,7 @@ defmodule Wasmex.Components do
   def start_link(opts) when is_list(opts) or is_map(opts) do
     opts = normalize_opts(opts)
 
-    with {:ok, store} <- build_store(opts),
+    with {:ok, store} <- get_store(opts),
          component_bytes <- get_component_bytes(opts),
          imports <- Keyword.get(opts, :imports, %{}),
          {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
@@ -191,11 +190,20 @@ defmodule Wasmex.Components do
     end
   end
 
+  defp get_store(opts) do
+    case Keyword.get(opts, :store) do
+      nil -> build_store(opts)
+      store -> {:ok, store}
+    end
+  end
+
   defp build_store(opts) do
+    store_limits = Keyword.get(opts, :store_limits, %Wasmex.StoreLimits{})
+
     if wasi_options = Keyword.get(opts, :wasi) do
-      Wasmex.Components.Store.new_wasi(wasi_options)
+      Wasmex.Components.Store.new_wasi(wasi_options, store_limits)
     else
-      Wasmex.Components.Store.new()
+      Wasmex.Components.Store.new(store_limits)
     end
   end
 
