@@ -151,24 +151,18 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::Result(result) => match result {
             Ok(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
-                    let ok_atom = rustler::types::atom::Atom::from_str(env, "ok").unwrap();
                     let inner_term = val_to_term(inner_val, env);
-                    (ok_atom, inner_term).encode(env)
+                    (rustler::atoms::ok(), inner_term).encode(env)
                 } else {
-                    let ok_atom = rustler::types::atom::Atom::from_str(env, "ok").unwrap();
-                    let nil_atom = rustler::types::atom::Atom::from_str(env, "nil").unwrap();
-                    (ok_atom, nil_atom).encode(env)
+                    (rustler::atoms::ok(), rustler::atoms::nil()).encode(env)
                 }
-            }
+            },
             Err(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
-                    let error_atom = rustler::types::atom::Atom::from_str(env, "error").unwrap();
                     let inner_term = val_to_term(inner_val, env);
-                    (error_atom, inner_term).encode(env)
+                    (rustler::atoms::error(), inner_term).encode(env)
                 } else {
-                    let error_atom = rustler::types::atom::Atom::from_str(env, "error").unwrap();
-                    let nil_atom = rustler::types::atom::Atom::from_str(env, "nil").unwrap();
-                    (error_atom, nil_atom).encode(env)
+                    (rustler::atoms::error(), rustler::atoms::nil()).encode(env)
                 }
             }
         },
