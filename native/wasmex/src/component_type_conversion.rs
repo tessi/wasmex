@@ -20,6 +20,36 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (TermType::Integer, Type::S16) => Ok(Val::S16(param_term.decode::<i16>()?)),
         (TermType::Integer, Type::S64) => Ok(Val::S64(param_term.decode::<i64>()?)),
         (TermType::Integer, Type::S32) => Ok(Val::S32(param_term.decode::<i32>()?)),
+        (TermType::Integer, Type::Char) => {
+            let integer = param_term.decode::<u32>()?;
+            match char::from_u32(integer) {
+                Some(ch) => Ok(Val::Char(ch)),
+                None => Err(Error::Term(Box::new(format!(
+                    "Invalid character code point: {}",
+                    integer
+                )))),
+            }
+        }
+        (TermType::Binary, Type::Char) => {
+            let string = param_term.decode::<String>()?;
+            let mut chars = string.chars();
+            // Get the first character from the string
+            match chars.next() {
+                Some(ch) => {
+                    // Ensure it's a single character
+                    if chars.next().is_none() {
+                        Ok(Val::Char(ch))
+                    } else {
+                        Err(Error::Term(Box::new(
+                            "Expected a single character, got multiple characters".to_string(),
+                        )))
+                    }
+                }
+                None => Err(Error::Term(Box::new(
+                    "Empty string, expected a character".to_string(),
+                ))),
+            }
+        }
         (TermType::Float, Type::Float32) => Ok(Val::Float32(param_term.decode::<f32>()?)),
         (TermType::Float, Type::Float64) => Ok(Val::Float64(param_term.decode::<f64>()?)),
         (TermType::Atom, Type::Bool) => Ok(Val::Bool(param_term.decode::<bool>()?)),
@@ -187,8 +217,9 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::S16(num) => num.encode(env),
         Val::S32(num) => num.encode(env),
         Val::S64(num) => num.encode(env),
-        Val::Float32(num) => num.encode(env),
-        Val::Float64(num) => num.encode(env),
+        Val::Float32(float) => float.encode(env),
+        Val::Float64(float) => float.encode(env),
+        Val::Char(ch) => ch.to_string().encode(env),
         Val::List(list) => list
             .iter()
             .map(|val| val_to_term(val, env))
@@ -233,7 +264,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         },
         Val::Variant(case_name, payload) => {
             let atom = rustler::serde::atoms::str_to_term(&env, case_name).unwrap();
-            
+
             match payload {
                 Some(boxed_val) => {
                     let payload_term = val_to_term(boxed_val, env);

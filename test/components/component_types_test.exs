@@ -109,4 +109,15 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:ok, %{}} =
              Wasmex.Components.call_function(instance, "id-flags", [%{}])
   end
+
+  test "char", %{instance: instance} do
+    # Test with a Unicode character passed as a string
+    assert {:ok, "A"} = Wasmex.Components.call_function(instance, "id-char", ["A"])
+
+    # Test with a Unicode character from an integer code point
+    assert {:ok, "Ω"} = Wasmex.Components.call_function(instance, "id-char", [937])
+
+    # Test with an emoji
+    assert {:ok, "🚀"} = Wasmex.Components.call_function(instance, "id-char", ["🚀"])
+  end
 end
