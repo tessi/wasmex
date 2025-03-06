@@ -99,6 +99,47 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 Ok(Val::Result(Err(None)))
             }
         }
+        (TermType::Atom, Type::Variant(variant_type)) => {
+            let case_name = param_term.atom_to_string()?;
+            // Check if the case exists in the variant
+            if variant_type.cases().any(|case| case.name == case_name) {
+                Ok(Val::Variant(case_name, None))
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Variant case not found: {}",
+                    case_name
+                ))))
+            }
+        }
+        (TermType::Tuple, Type::Variant(variant_type)) => {
+            let tuple_terms = param_term.decode::<(Term, Term)>()?;
+            let case_term = tuple_terms.0;
+            let payload_term = tuple_terms.1;
+            
+            if case_term.get_type() != TermType::Atom {
+                return Err(Error::Term(Box::new(
+                    "First element of variant tuple must be an atom".to_string()
+                )));
+            }
+            
+            let case_name = case_term.atom_to_string()?;
+            // Find the matching case and its type
+            let case = variant_type.cases().find(|case| case.name == case_name);
+            
+            if let Some(case) = case {
+                if let Some(case_type) = case.ty {
+                    let payload_val = term_to_val(&payload_term, &case_type)?;
+                    Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
+                } else {
+                    Ok(Val::Variant(case_name, None))
+                }
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Variant case not found: {}",
+                    case_name
+                ))))
+            }
+        }
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
@@ -166,6 +207,17 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
                 }
             }
         },
+        Val::Variant(case_name, payload) => {
+            let atom = rustler::serde::atoms::str_to_term(&env, &case_name).unwrap();
+            
+            match payload {
+                Some(boxed_val) => {
+                    let payload_term = val_to_term(boxed_val, env);
+                    (atom, payload_term).encode(env)
+                }
+                None => atom
+            }
+        }
         _ => String::from("Unsupported type").encode(env),
     }
 }

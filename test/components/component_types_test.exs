@@ -85,4 +85,10 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:ok, {:error, 3}} =
              Wasmex.Components.call_function(instance, "id-result", [{:error, 3}])
   end
+
+  test "variant", %{instance: instance} do
+    assert {:ok, :all} = Wasmex.Components.call_function(instance, "id-variant", [:all])
+    assert {:ok, :none} = Wasmex.Components.call_function(instance, "id-variant", [:none])
+    assert {:ok, {:lt, 7}} = Wasmex.Components.call_function(instance, "id-variant", [{:lt, 7}])
+  end
 end
