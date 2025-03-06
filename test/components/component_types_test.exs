@@ -91,4 +91,22 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert {:ok, :none} = Wasmex.Components.call_function(instance, "id-variant", [:none])
     assert {:ok, {:lt, 7}} = Wasmex.Components.call_function(instance, "id-variant", [{:lt, 7}])
   end
+
+  test "flags", %{instance: instance} do
+    # Test with all flags set
+    assert {:ok, %{read: true, write: true, exec: true}} =
+             Wasmex.Components.call_function(instance, "id-flags", [
+               %{read: true, write: true, exec: true}
+             ])
+
+    # Test with some flags set - note that in the result, only the true flags are included
+    assert {:ok, %{read: true, exec: true}} =
+             Wasmex.Components.call_function(instance, "id-flags", [
+               %{read: true, write: false, exec: true}
+             ])
+
+    # Test with no flags set
+    assert {:ok, %{}} =
+             Wasmex.Components.call_function(instance, "id-flags", [%{}])
+  end
 end

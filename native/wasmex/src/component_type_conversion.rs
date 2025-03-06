@@ -115,17 +115,17 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let tuple_terms = param_term.decode::<(Term, Term)>()?;
             let case_term = tuple_terms.0;
             let payload_term = tuple_terms.1;
-            
+
             if case_term.get_type() != TermType::Atom {
                 return Err(Error::Term(Box::new(
-                    "First element of variant tuple must be an atom".to_string()
+                    "First element of variant tuple must be an atom".to_string(),
                 )));
             }
-            
+
             let case_name = case_term.atom_to_string()?;
             // Find the matching case and its type
             let case = variant_type.cases().find(|case| case.name == case_name);
-            
+
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
                     let payload_val = term_to_val(&payload_term, &case_type)?;
@@ -143,6 +143,30 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
+        }
+        (TermType::Map, Type::Flags(flags_type)) => {
+            let decoded_map = param_term.decode::<HashMap<Term, Term>>()?;
+            let mut flags = vec![];
+
+            // Convert the map entries to flag names and values
+            for (flag_term, value_term) in decoded_map {
+                let flag_name = term_to_field_name(&flag_term);
+
+                // Check if the flag exists in the type
+                if flags_type.names().any(|name| name == flag_name) {
+                    let is_set = value_term.decode::<bool>()?;
+                    if is_set {
+                        flags.push(flag_name);
+                    }
+                } else {
+                    return Err(Error::Term(Box::new(format!(
+                        "Flag not found: {}",
+                        flag_name
+                    ))));
+                }
+            }
+
+            Ok(Val::Flags(flags))
         }
         (term_type, val_type) => Err(rustler::Error::Term(Box::new(format!(
             "Could not convert {:?} to {:?}",
@@ -208,15 +232,28 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             }
         },
         Val::Variant(case_name, payload) => {
-            let atom = rustler::serde::atoms::str_to_term(&env, &case_name).unwrap();
+            let atom = rustler::serde::atoms::str_to_term(&env, case_name).unwrap();
             
             match payload {
                 Some(boxed_val) => {
                     let payload_term = val_to_term(boxed_val, env);
                     (atom, payload_term).encode(env)
                 }
-                None => atom
+                None => atom,
             }
+        }
+        Val::Flags(flags) => {
+            // Create an empty map
+            let mut map_term = rustler::Term::map_new(env);
+
+            // Add each set flag as a key with value true
+            for flag in flags {
+                let key = field_name_to_term(&env, flag);
+                let value = true.encode(env);
+                map_term = map_term.map_put(key, value).unwrap();
+            }
+
+            map_term
         }
         _ => String::from("Unsupported type").encode(env),
     }
@@ -236,7 +273,7 @@ pub fn term_to_field_name(key_term: &Term) -> String {
 }
 
 pub fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
-    rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
+    rustler::serde::atoms::str_to_term(env, field_name.to_case(Case::Snake).as_str()).unwrap()
 }
 
 pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
