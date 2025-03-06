@@ -44,13 +44,21 @@ defmodule Wasmex.Components do
 
   The component model supports the following WIT (WebAssembly Interface Type) types:
 
-  ### Currently Supported Types
+  ### Supported Types
 
   - **Primitive Types**
     - Integers: `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, `u64`
     - Floats: `f32`, `f64`
     - `bool`
     - `string`
+    - `char` (maps to Elixir strings with a single character)
+      ```wit
+      char
+      ```
+      ```elixir
+      "A"  # or from a code point
+      937  # Ω
+      ```
 
   - **Compound Types**
     - `record` (maps to Elixir maps with atom keys)
@@ -86,17 +94,49 @@ defmodule Wasmex.Components do
       42
       ```
 
+    - `enum` (maps to Elixir atoms)
+      ```wit
+      enum size { s, m, l }
+      ```
+      ```elixir
+      :s  # or :m or :l
+      ```
+
+    - `variant` (tagged unions, maps to atoms or tuples)
+      ```wit
+      variant filter { all, none, lt(u32) }
+      ```
+      ```elixir
+      :all     # variant without payload
+      :none    # variant without payload
+      {:lt, 7} # variant with payload
+      ```
+
+    - `flags` (maps to Elixir maps with boolean values)
+      ```wit
+      flags permission { read, write, exec }
+      ```
+      ```elixir
+      %{read: true, write: true, exec: false}
+      # Note: When returned from WebAssembly, only the flags set to true are included
+      # %{read: true, exec: true}
+      ```
+
+    - `result<T, E>` (maps to Elixir tuples with :ok/:error)
+      ```wit
+      result<u32, u32>
+      ```
+      ```elixir
+      {:ok, 42}      # success case
+      {:error, 404}  # error case
+      ```
+
   ### Currently Unsupported Types
 
-  The following WIT types are not yet supported:
-  - `char`
-  - `variant` (tagged unions)
-  - `enum`
-  - `flags`
-  - `result` types
+  The following WIT type is not yet supported:
   - Resources
 
-  Support should be considered experimental at this point.
+  Support for the Component Model should be considered beta quality.
 
   ## Options
 
@@ -124,9 +164,7 @@ defmodule Wasmex.Components do
   {:ok, pid} = Wasmex.Components.start_link(%{
     path: "component.wasm",
     wasi: %Wasmex.Wasi.WasiP2Options{
-      args: ["arg1", "arg2"],
-      env: %{"KEY" => "value"},
-      preopened_dirs: ["/tmp"]
+      allow_http: true
     }
   })
 
