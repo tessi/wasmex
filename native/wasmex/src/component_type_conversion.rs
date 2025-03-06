@@ -1,5 +1,5 @@
 use convert_case::{Case, Casing};
-use rustler::types::atom::nil;
+use rustler::types::atom;
 use rustler::types::tuple::{self, make_tuple};
 use rustler::{Encoder, Error, Term, TermType};
 use std::collections::HashMap;
@@ -145,24 +145,24 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         }
         Val::Option(option) => match option {
             Some(boxed_val) => val_to_term(boxed_val, env),
-            None => nil().encode(env),
+            None => atom::nil().encode(env),
         },
         Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(&env, enum_val).unwrap(),
         Val::Result(result) => match result {
             Ok(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
                     let inner_term = val_to_term(inner_val, env);
-                    (rustler::atoms::ok(), inner_term).encode(env)
+                    (atom::ok(), inner_term).encode(env)
                 } else {
-                    (rustler::atoms::ok(), rustler::atoms::nil()).encode(env)
+                    (atom::ok(), atom::nil()).encode(env)
                 }
-            },
+            }
             Err(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
                     let inner_term = val_to_term(inner_val, env);
-                    (rustler::atoms::error(), inner_term).encode(env)
+                    (atom::error(), inner_term).encode(env)
                 } else {
-                    (rustler::atoms::error(), rustler::atoms::nil()).encode(env)
+                    (atom::error(), atom::nil()).encode(env)
                 }
             }
         },
