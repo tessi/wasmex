@@ -78,4 +78,46 @@ defmodule Wasm.Components.ComponentTypesTest do
     assert message =~ "Enum value not found: foo"
     assert {:ok, :s} = Wasmex.Components.call_function(instance, "id-enum", [:s])
   end
+
+  test "results", %{instance: instance} do
+    assert {:ok, {:ok, 7}} = Wasmex.Components.call_function(instance, "id-result", [{:ok, 7}])
+
+    assert {:ok, {:error, 3}} =
+             Wasmex.Components.call_function(instance, "id-result", [{:error, 3}])
+  end
+
+  test "variant", %{instance: instance} do
+    assert {:ok, :all} = Wasmex.Components.call_function(instance, "id-variant", [:all])
+    assert {:ok, :none} = Wasmex.Components.call_function(instance, "id-variant", [:none])
+    assert {:ok, {:lt, 7}} = Wasmex.Components.call_function(instance, "id-variant", [{:lt, 7}])
+  end
+
+  test "flags", %{instance: instance} do
+    # Test with all flags set
+    assert {:ok, %{read: true, write: true, exec: true}} =
+             Wasmex.Components.call_function(instance, "id-flags", [
+               %{read: true, write: true, exec: true}
+             ])
+
+    # Test with some flags set - note that in the result, only the true flags are included
+    assert {:ok, %{read: true, exec: true}} =
+             Wasmex.Components.call_function(instance, "id-flags", [
+               %{read: true, write: false, exec: true}
+             ])
+
+    # Test with no flags set
+    assert {:ok, %{}} =
+             Wasmex.Components.call_function(instance, "id-flags", [%{}])
+  end
+
+  test "char", %{instance: instance} do
+    # Test with a Unicode character passed as a string
+    assert {:ok, "A"} = Wasmex.Components.call_function(instance, "id-char", ["A"])
+
+    # Test with a Unicode character from an integer code point
+    assert {:ok, "Ω"} = Wasmex.Components.call_function(instance, "id-char", [937])
+
+    # Test with an emoji
+    assert {:ok, "🚀"} = Wasmex.Components.call_function(instance, "id-char", ["🚀"])
+  end
 end

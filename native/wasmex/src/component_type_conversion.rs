@@ -1,5 +1,5 @@
 use convert_case::{Case, Casing};
-use rustler::types::atom::nil;
+use rustler::types::atom;
 use rustler::types::tuple::{self, make_tuple};
 use rustler::{Encoder, Error, Term, TermType};
 use std::collections::HashMap;
@@ -20,6 +20,36 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (TermType::Integer, Type::S16) => Ok(Val::S16(param_term.decode::<i16>()?)),
         (TermType::Integer, Type::S64) => Ok(Val::S64(param_term.decode::<i64>()?)),
         (TermType::Integer, Type::S32) => Ok(Val::S32(param_term.decode::<i32>()?)),
+        (TermType::Integer, Type::Char) => {
+            let integer = param_term.decode::<u32>()?;
+            match char::from_u32(integer) {
+                Some(ch) => Ok(Val::Char(ch)),
+                None => Err(Error::Term(Box::new(format!(
+                    "Invalid character code point: {}",
+                    integer
+                )))),
+            }
+        }
+        (TermType::Binary, Type::Char) => {
+            let string = param_term.decode::<String>()?;
+            let mut chars = string.chars();
+            // Get the first character from the string
+            match chars.next() {
+                Some(ch) => {
+                    // Ensure it's a single character
+                    if chars.next().is_none() {
+                        Ok(Val::Char(ch))
+                    } else {
+                        Err(Error::Term(Box::new(
+                            "Expected a single character, got multiple characters".to_string(),
+                        )))
+                    }
+                }
+                None => Err(Error::Term(Box::new(
+                    "Empty string, expected a character".to_string(),
+                ))),
+            }
+        }
         (TermType::Float, Type::Float32) => Ok(Val::Float32(param_term.decode::<f32>()?)),
         (TermType::Float, Type::Float64) => Ok(Val::Float64(param_term.decode::<f64>()?)),
         (TermType::Atom, Type::Bool) => Ok(Val::Bool(param_term.decode::<bool>()?)),
@@ -79,10 +109,94 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 ))))
             }
         }
+        (TermType::Tuple, Type::Result(result_type)) => {
+            let tuple_terms = param_term.decode::<(Term, Term)>()?;
+            let first_term = tuple_terms.0;
+            let second_term = tuple_terms.1;
 
+            let the_atom = first_term.atom_to_string()?;
+            if the_atom == "ok" {
+                if let Some(ok_type) = result_type.ok() {
+                    let ok_val = term_to_val(&second_term, &ok_type)?;
+                    Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
+                } else {
+                    Ok(Val::Result(Ok(None)))
+                }
+            } else if let Some(err_type) = result_type.err() {
+                let err_val = term_to_val(&second_term, &err_type)?;
+                Ok(Val::Result(Err(Some(Box::new(err_val)))))
+            } else {
+                Ok(Val::Result(Err(None)))
+            }
+        }
+        (TermType::Atom, Type::Variant(variant_type)) => {
+            let case_name = param_term.atom_to_string()?;
+            // Check if the case exists in the variant
+            if variant_type.cases().any(|case| case.name == case_name) {
+                Ok(Val::Variant(case_name, None))
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Variant case not found: {}",
+                    case_name
+                ))))
+            }
+        }
+        (TermType::Tuple, Type::Variant(variant_type)) => {
+            let tuple_terms = param_term.decode::<(Term, Term)>()?;
+            let case_term = tuple_terms.0;
+            let payload_term = tuple_terms.1;
+
+            if case_term.get_type() != TermType::Atom {
+                return Err(Error::Term(Box::new(
+                    "First element of variant tuple must be an atom".to_string(),
+                )));
+            }
+
+            let case_name = case_term.atom_to_string()?;
+            // Find the matching case and its type
+            let case = variant_type.cases().find(|case| case.name == case_name);
+
+            if let Some(case) = case {
+                if let Some(case_type) = case.ty {
+                    let payload_val = term_to_val(&payload_term, &case_type)?;
+                    Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
+                } else {
+                    Ok(Val::Variant(case_name, None))
+                }
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Variant case not found: {}",
+                    case_name
+                ))))
+            }
+        }
         (_term_type, Type::Option(option_type)) => {
             let converted_val = term_to_val(param_term, &option_type.ty())?;
             Ok(Val::Option(Some(Box::new(converted_val))))
+        }
+        (TermType::Map, Type::Flags(flags_type)) => {
+            let decoded_map = param_term.decode::<HashMap<Term, Term>>()?;
+            let mut flags = vec![];
+
+            // Convert the map entries to flag names and values
+            for (flag_term, value_term) in decoded_map {
+                let flag_name = term_to_field_name(&flag_term);
+
+                // Check if the flag exists in the type
+                if flags_type.names().any(|name| name == flag_name) {
+                    let is_set = value_term.decode::<bool>()?;
+                    if is_set {
+                        flags.push(flag_name);
+                    }
+                } else {
+                    return Err(Error::Term(Box::new(format!(
+                        "Flag not found: {}",
+                        flag_name
+                    ))));
+                }
+            }
+
+            Ok(Val::Flags(flags))
         }
         (term_type, val_type) => Err(rustler::Error::Term(Box::new(format!(
             "Could not convert {:?} to {:?}",
@@ -103,8 +217,9 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::S16(num) => num.encode(env),
         Val::S32(num) => num.encode(env),
         Val::S64(num) => num.encode(env),
-        Val::Float32(num) => num.encode(env),
-        Val::Float64(num) => num.encode(env),
+        Val::Float32(float) => float.encode(env),
+        Val::Float64(float) => float.encode(env),
+        Val::Char(ch) => ch.to_string().encode(env),
         Val::List(list) => list
             .iter()
             .map(|val| val_to_term(val, env))
@@ -126,9 +241,51 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         }
         Val::Option(option) => match option {
             Some(boxed_val) => val_to_term(boxed_val, env),
-            None => nil().encode(env),
+            None => atom::nil().encode(env),
         },
         Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(&env, enum_val).unwrap(),
+        Val::Result(result) => match result {
+            Ok(maybe_val) => {
+                if let Some(inner_val) = maybe_val {
+                    let inner_term = val_to_term(inner_val, env);
+                    (atom::ok(), inner_term).encode(env)
+                } else {
+                    (atom::ok(), atom::nil()).encode(env)
+                }
+            }
+            Err(maybe_val) => {
+                if let Some(inner_val) = maybe_val {
+                    let inner_term = val_to_term(inner_val, env);
+                    (atom::error(), inner_term).encode(env)
+                } else {
+                    (atom::error(), atom::nil()).encode(env)
+                }
+            }
+        },
+        Val::Variant(case_name, payload) => {
+            let atom = rustler::serde::atoms::str_to_term(&env, case_name).unwrap();
+
+            match payload {
+                Some(boxed_val) => {
+                    let payload_term = val_to_term(boxed_val, env);
+                    (atom, payload_term).encode(env)
+                }
+                None => atom,
+            }
+        }
+        Val::Flags(flags) => {
+            // Create an empty map
+            let mut map_term = rustler::Term::map_new(env);
+
+            // Add each set flag as a key with value true
+            for flag in flags {
+                let key = field_name_to_term(&env, flag);
+                let value = true.encode(env);
+                map_term = map_term.map_put(key, value).unwrap();
+            }
+
+            map_term
+        }
         _ => String::from("Unsupported type").encode(env),
     }
 }
@@ -147,7 +304,7 @@ pub fn term_to_field_name(key_term: &Term) -> String {
 }
 
 pub fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
-    rustler::serde::atoms::str_to_term(env, &field_name.to_case(Case::Snake)).unwrap()
+    rustler::serde::atoms::str_to_term(env, field_name.to_case(Case::Snake).as_str()).unwrap()
 }
 
 pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
