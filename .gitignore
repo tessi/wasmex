@@ -36,3 +36,6 @@ wapm.lock
 # ignore local builds
 checksum-Elixir.Wasmex.Native.exs
 *.so
+
+package.json
+package-lock.json
