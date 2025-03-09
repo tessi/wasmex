@@ -61,11 +61,17 @@ defmodule Wasm.Components.ComponentTypesTest do
   test "lists", %{instance: instance} do
     assert {:ok, [1, 2, 3]} =
              Wasmex.Components.call_function(instance, "id-list", [[1, 2, 3]])
+
+    assert {:error, message} = Wasmex.Components.call_function(instance, "id-list", [[1, "two"]])
+    assert message =~ "Could not convert"
   end
 
   test "tuples", %{instance: instance} do
     assert {:ok, {1, "two"}} =
              Wasmex.Components.call_function(instance, "id-tuple", [{1, "two"}])
+
+    assert {:error, message} = Wasmex.Components.call_function(instance, "id-tuple", [{1, 3}])
+    assert message =~ "Could not convert"
   end
 
   test "option types", %{instance: instance} do

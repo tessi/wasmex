@@ -55,10 +55,11 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (TermType::Atom, Type::Bool) => Ok(Val::Bool(param_term.decode::<bool>()?)),
         (TermType::List, Type::List(list)) => {
             let decoded_list = param_term.decode::<Vec<Term>>()?;
-            let list_values = decoded_list
-                .iter()
-                .map(|term| term_to_val(term, &list.ty()).unwrap())
-                .collect::<Vec<Val>>();
+            let mut list_values = Vec::with_capacity(decoded_list.len());
+            for term in decoded_list {
+                let val = term_to_val(&term, &list.ty())?;
+                list_values.push(val);
+            }
             Ok(Val::List(list_values))
         }
         (TermType::Tuple, Type::Tuple(tuple)) => {
