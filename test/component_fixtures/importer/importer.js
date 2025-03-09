@@ -2,6 +2,7 @@ import getSecretWord from "get-secret-word";
 import getNumber from "get-number";
 import getList from "get-list";
 import getPoint from "get-point";
+import maybeGetNumber from "maybe-get-number";
 import getTuple from "get-tuple";
 import print from "print";
 
@@ -27,4 +28,8 @@ export function revealSecretWord() {
 export function showTuple() {
   const [x, y] = getTuple();
   return `${x} ${y}`;
+}
+
+export function maybeReturnNumber() {
+  return maybeGetNumber();
 }

@@ -405,6 +405,30 @@ fn convert_complex_result(
             }
             Ok(Val::Tuple(tuple_vals))
         }
+        TypeDefKind::Result(result_type) => {
+            let decoded_tuple = tuple::get_tuple(result_term)?;
+            let first_term = decoded_tuple
+                .first()
+                .ok_or(Error::Term(Box::new("Invalid tuple")))?;
+            let second_term = decoded_tuple
+                .get(1)
+                .ok_or(Error::Term(Box::new("Invalid tuple")))?;
+
+            let the_atom = first_term.atom_to_string()?;
+            if the_atom == "ok" {
+                if let Some(ok_type) = result_type.ok {
+                    let ok_val = convert_result_term(*second_term, &ok_type, wit_resolver)?;
+                    Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
+                } else {
+                    Ok(Val::Result(Ok(None)))
+                }
+            } else if let Some(err_type) = result_type.err {
+                let err_val = convert_result_term(*second_term, &err_type, wit_resolver)?;
+                Ok(Val::Result(Err(Some(Box::new(err_val)))))
+            } else {
+                Ok(Val::Result(Err(None)))
+            }
+        }
         _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
     }
     // Type::String

@@ -117,7 +117,10 @@ defmodule WasiTest do
     }
 
     {:ok, pid} =
-      Wasmex.start_link(%{bytes: File.read!(TestHelper.wasi_test_file_path()), wasi: wasi_options})
+      Wasmex.start_link(%{
+        bytes: File.read!(TestHelper.wasi_test_file_path()),
+        wasi: wasi_options
+      })
 
     Wasmex.Pipe.write(stdin, "Hey! It compiles! Ship it!")
     Wasmex.Pipe.seek(stdin, 0)

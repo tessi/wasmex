@@ -11,7 +11,8 @@ defmodule Wasmex.Components.ImportTest do
       "get-list" => {:fn, fn -> ["hi", "there"] end},
       "get-point" => {:fn, fn -> %{x: 1, y: 2} end},
       "get-tuple" => {:fn, fn -> {1, "foo"} end},
-      "print" => {:fn, fn x -> IO.puts(x) end}
+      "print" => {:fn, fn x -> IO.puts(x) end},
+      "maybe-get-number" => {:fn, fn -> {:ok, 42} end}
     }
 
     component_pid =
@@ -35,5 +36,8 @@ defmodule Wasmex.Components.ImportTest do
 
     assert {:ok, {:error, "error"}} =
              Wasmex.Components.call_function(component_pid, "print-or-error", ["error"])
+
+    assert {:ok, {:ok, 42}} =
+             Wasmex.Components.call_function(component_pid, "maybe-return-number", [])
   end
 end
