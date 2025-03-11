@@ -10,7 +10,7 @@ use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
 };
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiView};
+use wasmtime_wasi::{IoView, ResourceTable, WasiCtx, WasiView};
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
 
 #[derive(Debug, NifStruct)]
@@ -108,21 +108,21 @@ pub struct ComponentStoreData {
     pub(crate) table: ResourceTable,
 }
 
+impl IoView for ComponentStoreData {
+    fn table(&mut self) -> &mut ResourceTable {
+        &mut self.table
+    }
+}
+
 impl WasiHttpView for ComponentStoreData {
     fn ctx(&mut self) -> &mut WasiHttpCtx {
         self.http.as_mut().expect("WasiHttpCtx is not set")
-    }
-    fn table(&mut self) -> &mut ResourceTable {
-        &mut self.table
     }
 }
 
 impl WasiView for ComponentStoreData {
     fn ctx(&mut self) -> &mut WasiCtx {
         self.ctx.as_mut().expect("WasiCtx is not set")
-    }
-    fn table(&mut self) -> &mut ResourceTable {
-        &mut self.table
     }
 }
 
