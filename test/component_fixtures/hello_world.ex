@@ -7,5 +7,9 @@ defmodule HelloWorld do
       "greeter" => {:fn, &greeter/0}
     }
 
+  def init(init_arg) do
+    {:ok, init_arg}
+  end
+
   def greeter(), do: "a function defined in the module"
 end

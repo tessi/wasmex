@@ -335,37 +335,18 @@ fn populate_return_values(
     mut return_values: std::sync::MutexGuard<'_, Option<(bool, Vec<Val>)>>,
     result: Term,
 ) -> Result<(), anyhow::Error> {
-    // Initialize an empty vector for the return values
-    let mut vals = Vec::new();
+    if let Some(result_type) = &function.result {
+        let mut vals = Vec::new();
+        vals.push(
+            convert_result_term(result, result_type, wit_resolver)
+                .map_err(|e| anyhow!("Failed to convert term: {:?}", e))?,
+        );
 
-    // Get the result types from the function
-    let results = &function.results;
-
-    let wit_type = match results {
-        wit_parser::Results::Anon(wit_type) => wit_type,
-        wit_parser::Results::Named(vec) if vec.is_empty() => {
-            *return_values = Some((true, vals));
-            return Ok(());
-        }
-        wit_parser::Results::Named(_vec) => {
-            return Err(anyhow!("Named return values not supported"))
-        }
-    };
-
-    if results.len() != 1 {
-        return Err(anyhow!(
-            "Expected exactly one result type, found {}",
-            results.len()
-        ));
+        // Set the return values
+        *return_values = Some((true, vals));
+    } else {
+        *return_values = Some((true, vec![]));
     }
-
-    vals.push(
-        convert_result_term(result, wit_type, wit_resolver)
-            .map_err(|e| anyhow!("Failed to convert term: {:?}", e))?,
-    );
-
-    // Set the return values
-    *return_values = Some((true, vals));
 
     Ok(())
 }
