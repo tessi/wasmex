@@ -14,6 +14,17 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.10.0 - 2025-03-11]
+
+### Added
+
+- Support for Wasm Components - Huge thanks to @superchris for his amazing first contribution and continues effort to improve this feature. Read more about Wasm Component support in the [Wasmex.Components](https://hexdocs.pm/wasmex/Wasmex.Components.html) module documentation.
+- wasmtime trap information is now available on function call errors, if available #620
+
+### Changed
+
+- Updated wasmtime to 30.0.2 (thanks to @mangas for the intermediate wasmtime update to 28.0.0 as his first contribution! #694)
+
 ## [0.9.2 - 2024-11-08]
 
 ### Added
