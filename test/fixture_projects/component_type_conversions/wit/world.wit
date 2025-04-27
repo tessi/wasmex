@@ -1,0 +1,102 @@
+package component:component-type-conversions;
+
+world root {
+    record point {
+        x: u32,
+        y: u32,
+    }
+
+    variant variant-type {
+        none,
+        str(string),
+        int(u32),
+        float(f32),
+        boolean(bool),
+        point(point),
+        list-point(list<point>),
+        option-u8(option<u8>),
+        enum-type(enum-type),
+    }
+
+    enum enum-type {
+        a,
+        b,
+        c,
+    }
+
+    flags permission {
+        read,
+        write,
+        exec,
+    }
+
+    record complex-type {
+        str: string,
+        int: u32,
+        float: f32,
+        boolean: bool,
+        list-u8: list<u8>,
+        list-point: list<point>,
+        option-u8: option<u8>,
+        option-string: option<string>,
+        option-point: option<point>,
+        option-list-point: option<list<point>>,
+        result-u8-string: result<u8, string>,
+        empty-result: result,
+        tuple-u8-point: tuple<u8, point>,
+    }
+
+    import import-id-string: func(str: string) -> string;
+    import import-id-u8: func(int: u8) -> u8;
+    import import-id-u16: func(int: u16) -> u16;
+    import import-id-u32: func(int: u32) -> u32;
+    import import-id-u64: func(int: u64) -> u64;
+    import import-id-s8: func(int: s8) -> s8;
+    import import-id-s16: func(int: s16) -> s16;
+    import import-id-s32: func(int: s32) -> s32;
+    import import-id-s64: func(int: s64) -> s64;
+    import import-id-f32: func(float: f32) -> f32;
+    import import-id-f64: func(float: f64) -> f64;
+    import import-id-bool: func(boolean: bool) -> bool;
+    import import-id-char: func(chr: char) -> char;
+    import import-id-list-u8: func(l: list<u8>) -> list<u8>;
+    import import-id-tuple-u8-string: func(t: tuple<u8, string>) -> tuple<u8, string>;
+    import import-id-flags: func(f: permission) -> permission;
+    import import-id-variant: func(v: variant-type) -> variant-type;
+    import import-id-enum: func(e: enum-type) -> enum-type;
+    import import-id-point: func(p: point) -> point;
+    import import-id-option-u8: func(o: option<u8>) -> option<u8>;
+    import import-id-result-u8-string: func(r: result<u8, string>) -> result<u8, string>;
+    import import-id-result-u8-none: func(r: result<u8>) -> result<u8>;
+    import import-id-result-none-string: func(r: result<_, string>) -> result<_, string>;
+    import import-id-result-none-none: func(r: result) -> result;
+    import import-id-record-complex: func(r: complex-type) -> complex-type;
+
+    export export-id-string: func(str: string) -> string;
+    export export-id-u8: func(int: u8) -> u8;
+    export export-id-u16: func(int: u16) -> u16;
+    export export-id-u32: func(int: u32) -> u32;
+    export export-id-u64: func(int: u64) -> u64;
+    export export-id-s8: func(int: s8) -> s8;
+    export export-id-s16: func(int: s16) -> s16;
+    export export-id-s32: func(int: s32) -> s32;
+    export export-id-s64: func(int: s64) -> s64;
+    export export-id-f32: func(float: f32) -> f32;
+    export export-id-f64: func(float: f64) -> f64;
+    export export-id-bool: func(boolean: bool) -> bool;
+    export export-id-char: func(chr: char) -> char;
+    export export-id-list-u8: func(l: list<u8>) -> list<u8>;
+    export export-id-tuple-u8-string: func(t: tuple<u8, string>) -> tuple<u8, string>;
+    export export-id-flags: func(f: permission) -> permission;
+    export export-id-variant: func(v: variant-type) -> variant-type;
+    export export-id-enum: func(e: enum-type) -> enum-type;
+    export export-id-point: func(p: point) -> point;
+    export export-id-option-u8: func(o: option<u8>) -> option<u8>;
+    export export-id-result-u8-string: func(r: result<u8, string>) -> result<u8, string>;
+    export export-id-result-u8-none: func(r: result<u8>) -> result<u8>;
+    export export-id-result-none-string: func(r: result<_, string>) -> result<_, string>;
+    export export-id-result-none-none: func(r: result) -> result;
+    export export-id-record-complex: func(r: complex-type) -> complex-type;
+
+    export get-random-bytes: func(len: u32) -> list<u8>;
+}

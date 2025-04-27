@@ -1,0 +1,16 @@
+[package]
+name = "component_type_conversions"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wit-bindgen-rt = { version = "0.41.0", features = ["bitflags"] }
+wasi = "0.14.2"
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "component:component-type-conversions"
+
+[package.metadata.component.dependencies]

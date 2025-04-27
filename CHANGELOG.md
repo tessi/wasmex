@@ -14,6 +14,14 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## unreleased
+
+### Added
+
+- Added support for components to import namespaces. This allows, for example, to implement the default `wasi` implementation in Elixir.
+- Added more type conversions and better error messages for component function imports/exports
+
+
 ## [0.10.0 - 2025-03-11]
 
 ### Added

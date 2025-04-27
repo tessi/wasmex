@@ -53,11 +53,16 @@ defmodule Wasmex.WasmComponentsTest do
       component_pid =
         start_supervised!(
           {Wasmex.Components,
-           path: "test/component_fixtures/component_types/component_types.wasm",
+           path: "test/component_fixtures/hello_world/hello_world.wasm",
+           wasi: %WasiP2Options{allow_http: true},
+           imports: %{
+             "greeter" => {:fn, fn -> "Space" end}
+           },
            engine_config: %EngineConfig{debug_info: true}}
         )
 
-      assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
+      assert {:ok, "Hello, World from Space!"} =
+               Wasmex.Components.call_function(component_pid, "greet", ["World"])
     end
   end
 end

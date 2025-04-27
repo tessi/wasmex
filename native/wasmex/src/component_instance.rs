@@ -15,7 +15,7 @@ use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
-use wasmtime::component::{Instance, Linker, Type, Val};
+use wasmtime::component::{Instance, Linker, LinkerInstance, Type, Val};
 use wasmtime::Trap;
 use wiggle::anyhow::{self, anyhow};
 
@@ -33,6 +33,7 @@ use crate::component_type_conversion::{
 pub struct ComponentCallbackToken {
     pub continue_signal: Condvar,
     pub name: String,
+    pub namespace: Option<String>,
     pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
 }
 
@@ -70,6 +71,7 @@ pub fn new_instance(
     })?;
 
     let mut linker = Linker::new(store.engine());
+    linker.allow_shadowing(true);
     let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
     if store.data().http.is_some() {
         let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
@@ -80,7 +82,23 @@ pub fn new_instance(
     // Handle imports
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
-        link_import(&mut linker, name, implementation)?;
+        if Term::is_tuple(implementation) {
+            // root imports
+            link_import(&mut linker.root(), name, None, implementation)?;
+        } else {
+            let imports_map = implementation.decode::<HashMap<String, Term>>()?;
+            let mut namespace = linker
+                .instance(&name)
+                .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
+            for (implementation_name, implementation) in imports_map {
+                link_import(
+                    &mut namespace,
+                    implementation_name,
+                    Some(name.clone()),
+                    implementation,
+                )?;
+            }
+        }
     }
 
     let instance = linker
@@ -92,11 +110,15 @@ pub fn new_instance(
     }))
 }
 
-fn create_callback_token(name: String) -> ResourceArc<ComponentCallbackTokenResource> {
+fn create_callback_token(
+    name: String,
+    namespace: Option<String>,
+) -> ResourceArc<ComponentCallbackTokenResource> {
     ResourceArc::new(ComponentCallbackTokenResource {
         token: ComponentCallbackToken {
             continue_signal: Condvar::new(),
             name,
+            namespace,
             return_values: Mutex::new(None),
         },
     })
@@ -104,17 +126,19 @@ fn create_callback_token(name: String) -> ResourceArc<ComponentCallbackTokenReso
 
 fn call_elixir_import(
     name: String,
+    namespace: Option<String>,
     params: &[Val],
     result_values: &mut [Val],
     pid: LocalPid,
 ) -> Result<(), anyhow::Error> {
     let mut msg_env = OwnedEnv::new();
-    let callback_token = create_callback_token(name.clone());
+    let callback_token = create_callback_token(name.clone(), namespace.clone());
 
     let _ = msg_env.send_and_clear(&pid, |env| {
         let param_terms = vals_to_terms(params, env);
         (
             atoms::invoke_callback(),
+            namespace,
             name,
             callback_token.clone(),
             param_terms,
@@ -138,17 +162,23 @@ fn call_elixir_import(
 }
 
 fn link_import(
-    linker: &mut Linker<ComponentStoreData>,
+    linker_instance: &mut LinkerInstance<ComponentStoreData>,
     name: String,
+    namespace: Option<String>,
     implementation: Term,
 ) -> NifResult<()> {
     let pid = implementation.get_env().pid();
     let name_for_closure = name.clone();
 
-    linker
-        .root()
+    linker_instance
         .func_new(&name, move |_store, params, result_values| {
-            call_elixir_import(name_for_closure.clone(), params, result_values, pid)
+            call_elixir_import(
+                name_for_closure.clone(),
+                namespace.clone(),
+                params,
+                result_values,
+                pid,
+            )
         })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
@@ -203,7 +233,13 @@ fn component_execute_function(
         .unwrap_or_else(|_| "could not load 'from' param".encode(thread_env));
     let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
         Ok(vec) => vec,
-        Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),
+        Err(err) => {
+            return make_error_tuple(
+                &thread_env,
+                format!("could not load 'function params': {:?}", err),
+                from,
+            )
+        }
     };
 
     let function_result = instance.get_func(&mut *component_store, func_name.clone());
@@ -297,18 +333,60 @@ pub fn receive_callback_result(
 ) -> NifResult<rustler::Atom> {
     let parsed_component = &component_resource.parsed;
     let world = &parsed_component.resolve.worlds[parsed_component.world_id];
-
     let name = &token_resource.token.name;
-    // Find the matching import in the world's imports
-    let import_function = world
-        .imports
-        .iter()
-        .filter_map(|(_, item)| match item {
-            WorldItem::Function(function) => Some(function),
-            _ => None,
-        })
-        .find(|f| f.item_name() == name)
-        .ok_or_else(|| Error::Term(Box::new(format!("Could not find import function {}", name))))?;
+    let namespace = &token_resource.token.namespace;
+
+    let import_function = if let Some(namespace) = namespace {
+        let (_package_name, _interface_name, interface_id) = parsed_component
+            .resolve
+            .package_names
+            .iter()
+            .flat_map(|(package_name, package_id)| {
+                let package = parsed_component.resolve.packages.get(*package_id).unwrap();
+                package
+                    .interfaces
+                    .iter()
+                    .map(|(interface_name, interface_id)| {
+                        (package_name.clone(), interface_name.clone(), *interface_id)
+                    })
+            })
+            .find(|(package_name, interface_name, _interface_id)| {
+                let namespace = namespace.to_string();
+                let full_name = package_name.interface_id(interface_name);
+                full_name == namespace
+            })
+            .ok_or_else(|| {
+                Error::Term(Box::new(format!(
+                    "Could not find package name {}",
+                    namespace
+                )))
+            })?;
+        let interface = parsed_component
+            .resolve
+            .interfaces
+            .get(interface_id)
+            .unwrap();
+        let (_function_name, function) = interface
+            .functions
+            .iter()
+            .find(|(function_name, _function)| function_name.as_str() == name)
+            .ok_or_else(|| {
+                Error::Term(Box::new(format!("Could not find import function {}", name)))
+            })?;
+        function
+    } else {
+        world
+            .imports
+            .iter()
+            .filter_map(|(_, item)| match item {
+                WorldItem::Function(function) => Some(function),
+                _ => None,
+            })
+            .find(|f| f.item_name() == name)
+            .ok_or_else(|| {
+                Error::Term(Box::new(format!("Could not find import function {}", name)))
+            })?
+    };
 
     let return_values = token_resource
         .token
