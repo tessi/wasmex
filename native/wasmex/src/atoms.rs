@@ -43,8 +43,11 @@ rustler::atoms! {
     returned_function_call,
     invoke_callback,
 
-    // engine config - cranelift_opt_level
+    // option
+    some,
     none,
+
+    // engine config - cranelift_opt_level
     speed,
     speed_and_size,
 }

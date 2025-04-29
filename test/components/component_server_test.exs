@@ -3,38 +3,46 @@ defmodule Wasmex.Components.GenServerTest do
   alias Wasmex.Wasi.WasiP2Options
 
   test "interacting with a component GenServer" do
-    component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
-    component_pid = start_supervised!({Wasmex.Components, bytes: component_bytes})
-    assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
-    assert {:error, _error} = Wasmex.Components.call_function(component_pid, "garbage", ["wut"])
+    component_bytes = File.read!(TestHelper.component_type_conversions_file_path())
+
+    imports =
+      TestHelper.component_type_conversions_import_map()
+      |> Map.merge(%{"import-id-string" => {:fn, fn _ -> "Polo" end}})
+
+    component_pid =
+      start_supervised!({Wasmex.Components, bytes: component_bytes, imports: imports})
+
+    assert {:ok, "Polo"} =
+             Wasmex.Components.call_function(component_pid, "export-id-string", ["Marco!"])
+
+    assert {:error, _error} =
+             Wasmex.Components.call_function(component_pid, "non-existent-export", ["wut"])
   end
 
   test "loading a component from a path" do
     component_pid =
       start_supervised!(
-        {Wasmex.Components, path: "test/component_fixtures/component_types/component_types.wasm"}
+        {Wasmex.Components,
+         path: TestHelper.component_type_conversions_file_path(),
+         imports: TestHelper.component_type_conversions_import_map()}
       )
 
-    assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
+    assert {:ok, "Echo"} =
+             Wasmex.Components.call_function(component_pid, "export-id-string", ["Echo"])
   end
 
   test "specifying options as a map" do
     component_pid =
       start_supervised!(
         {Wasmex.Components,
-         %{path: "test/component_fixtures/component_types/component_types.wasm"}}
+         %{
+           path: TestHelper.component_type_conversions_file_path(),
+           imports: TestHelper.component_type_conversions_import_map()
+         }}
       )
 
-    assert {:ok, "mom"} = Wasmex.Components.call_function(component_pid, "id-string", ["mom"])
-  end
-
-  test "unrecoverable errors crash the process" do
-    component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
-    component_pid = start_supervised!({Wasmex.Components, bytes: component_bytes})
-
-    assert catch_exit(
-             Wasmex.Components.call_function(component_pid, "id-record", [%{not: "expected"}])
-           )
+    assert {:ok, "Echo"} =
+             Wasmex.Components.call_function(component_pid, "export-id-string", ["Echo"])
   end
 
   test "using the component server macro" do
@@ -56,11 +64,17 @@ defmodule Wasmex.Components.GenServerTest do
   end
 
   test "register by name" do
-    component_bytes = File.read!("test/component_fixtures/component_types/component_types.wasm")
+    component_bytes = File.read!(TestHelper.component_type_conversions_file_path())
 
     {:ok, _pid} =
-      start_supervised({Wasmex.Components, bytes: component_bytes, name: ComponentTypes})
+      start_supervised(
+        {Wasmex.Components,
+         bytes: component_bytes,
+         name: ComponentTypes,
+         imports: TestHelper.component_type_conversions_import_map()}
+      )
 
-    assert {:ok, "mom"} = Wasmex.Components.call_function(ComponentTypes, "id-string", ["mom"])
+    assert {:ok, "Echo"} =
+             Wasmex.Components.call_function(ComponentTypes, "export-id-string", ["Echo"])
   end
 end

@@ -121,6 +121,10 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasip1
 
+      - name: "Install cargo-component"
+        run: cargo install --locked cargo-component
+        shell: bash
+
       - uses: actions/cache@v4
         with:
           path: |

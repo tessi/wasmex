@@ -14,6 +14,20 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## unreleased
+
+### Added
+
+- Added support for components to import namespaces. This allows, for example, to implement the default `wasi` implementation in Elixir.
+- Added more type conversions and better error messages for component function imports/exports
+- Better error messages when casting a component-model record type with missing fields (before we ran into a runtime error instead)
+
+### Changed
+
+- Component model type conversion:
+  - Options are now converted to/from Elixir with either `:none` or `{:some, term()}`. Previously, the `nil` value was used to represent `:none`.
+  - Result types, when not having a value associated with its error or ok case, just returns the `:error` or `:ok` atom instead of a tuple.
+
 ## [0.10.0 - 2025-03-11]
 
 ### Added

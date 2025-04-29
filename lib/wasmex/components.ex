@@ -284,10 +284,18 @@ defmodule Wasmex.Components do
 
   @impl true
   def handle_info(
-        {:invoke_callback, name, token, params},
+        {:invoke_callback, namespace, name, token, params},
         %{imports: imports, instance: _instance, component: component} = state
       ) do
-    {:fn, function} = Map.get(imports, name)
+    {:fn, function} =
+      if namespace do
+        imports
+        |> Map.get(namespace)
+        |> Map.get(name)
+      else
+        Map.get(imports, name)
+      end
+
     result = apply(function, params)
     :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
     {:noreply, state}
