@@ -27,6 +27,8 @@ defmodule Wasmex do
 
   See `start_link/1` for starting and configuring a Wasm instance and `call_function/3` for details about calling Wasm functions.
   """
+  alias Wasmex.StoreOrCaller
+  alias Wasmex.Module
   use GenServer
 
   # Client
@@ -208,37 +210,43 @@ defmodule Wasmex do
   In the example above, we call a WASI program which echoes a line from stdin
   back to stdout.
   """
-  def start_link(%{} = opts) when not is_map_key(opts, :imports),
-    do: start_link(Map.merge(opts, %{imports: %{}}))
-
-  def start_link(%{} = opts) when not is_map_key(opts, :links),
-    do: start_link(Map.merge(opts, %{links: %{}}))
-
   def start_link(%{} = opts) when is_map_key(opts, :module) and not is_map_key(opts, :store),
     do: {:error, :must_specify_store_used_to_compile_module}
 
-  def start_link(%{wasi: true} = opts),
-    do: start_link(Map.merge(opts, %{wasi: %Wasmex.Wasi.WasiOptions{}}))
+  def start_link(%{} = opts)
+      when is_map_key(opts, :instance) and
+             (not is_map_key(opts, :store) or not is_map_key(opts, :module)),
+      do: {:error, :must_specify_store_and_module_used_to_instantiate_instance}
 
-  def start_link(%{bytes: bytes, store: store} = opts) when is_binary(bytes) do
-    with {:ok, module} <- Wasmex.Module.compile(store, bytes) do
-      opts
-      |> Map.delete(:bytes)
-      |> Map.put(:module, module)
-      |> start_link()
-    end
-  end
+  def start_link(%{} = opts) do
+    imports = Map.get(opts, :imports, %{})
+    links = Map.get(opts, :links, %{})
+    bytes = Map.get(opts, :bytes, nil)
+    store = Map.get(opts, :store, nil)
+    module = Map.get(opts, :module, nil)
+    instance = Map.get(opts, :instance, nil)
 
-  def start_link(%{bytes: bytes} = opts) when is_binary(bytes) do
-    with {:ok, store} <- build_store(opts) do
-      opts
-      |> Map.put(:store, store)
-      |> start_link()
-    end
-  end
+    {:ok, store} =
+      if store do
+        {:ok, store}
+      else
+        store_opts =
+          case Map.get(opts, :wasi, false) do
+            true -> %{wasi: %Wasmex.Wasi.WasiOptions{}}
+            false -> %{}
+            %Wasmex.Wasi.WasiOptions{} = wasi_options -> %{wasi: wasi_options}
+          end
 
-  def start_link(%{links: links, store: store} = opts)
-      when is_map(links) and not is_map_key(opts, :compiled_links) do
+        build_store(store_opts)
+      end
+
+    {:ok, module} =
+      if is_binary(bytes) and is_nil(module) and is_nil(instance) do
+        Wasmex.Module.compile(store, bytes)
+      else
+        {:ok, module}
+      end
+
     compiled_links =
       links
       |> flatten_links()
@@ -246,19 +254,12 @@ defmodule Wasmex do
       |> Enum.uniq_by(&elem(&1, 0))
       |> Enum.map(&build_compiled_links(&1, store))
 
-    opts
-    |> Map.delete(:links)
-    |> Map.put(:compiled_links, compiled_links)
-    |> start_link()
-  end
-
-  def start_link(%{store: store, module: module, imports: imports, compiled_links: links} = opts)
-      when is_map(imports) and is_list(links) and not is_map_key(opts, :bytes) do
     GenServer.start_link(__MODULE__, %{
       store: store,
       module: module,
-      links: links,
-      imports: stringify_keys(imports)
+      instance: instance,
+      links: compiled_links,
+      imports: imports
     })
   end
 
@@ -274,7 +275,7 @@ defmodule Wasmex do
 
   defp build_store(opts) do
     if Map.has_key?(opts, :wasi) do
-      Wasmex.Store.new_wasi(stringify_keys(opts[:wasi]))
+      Wasmex.Store.new_wasi(opts[:wasi])
     else
       Wasmex.Store.new()
     end
@@ -283,12 +284,12 @@ defmodule Wasmex do
   defp build_compiled_links({name, %{bytes: bytes} = opts}, store)
        when not is_map_key(opts, :module) do
     with {:ok, module} <- Wasmex.Module.compile(store, bytes) do
-      %{name: stringify(name), module: module}
+      %{name: Wasmex.Utils.stringify(name), module: module}
     end
   end
 
   defp build_compiled_links({name, %{module: module}}, _store) do
-    %{name: stringify(name), module: module}
+    %{name: Wasmex.Utils.stringify(name), module: module}
   end
 
   @doc ~S"""
@@ -308,7 +309,7 @@ defmodule Wasmex do
   """
   @spec function_exists(pid(), String.t()) :: boolean()
   def function_exists(pid, name) do
-    GenServer.call(pid, {:exported_function_exists, stringify(name)})
+    GenServer.call(pid, {:exported_function_exists, Wasmex.Utils.stringify(name)})
   end
 
   @doc ~S"""
@@ -403,7 +404,7 @@ defmodule Wasmex do
   @spec call_function(pid(), String.t() | atom(), list(number()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
-    GenServer.call(pid, {:call_function, stringify(name), params}, timeout)
+    GenServer.call(pid, {:call_function, Wasmex.Utils.stringify(name), params}, timeout)
   end
 
   @doc ~S"""
@@ -450,30 +451,30 @@ defmodule Wasmex do
   @spec instance(pid()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
   def instance(pid), do: GenServer.call(pid, {:instance})
 
-  defp stringify_keys(struct) when is_struct(struct), do: struct
-
-  defp stringify_keys(map) when is_map(map) do
-    for {key, val} <- map, into: %{}, do: {stringify(key), stringify_keys(val)}
-  end
-
-  defp stringify_keys(list) when is_list(list) do
-    for val <- list, into: [], do: stringify_keys(val)
-  end
-
-  defp stringify_keys(value), do: value
-
-  defp stringify(s) when is_binary(s), do: s
-  defp stringify(s) when is_atom(s), do: Atom.to_string(s)
-
   # Server
 
   @impl true
-  def init(%{store: store, module: module, imports: imports, links: links} = state)
+  def init(%{store: %StoreOrCaller{}, module: %Module{}, imports: imports, links: links} = opts)
       when is_map(imports) and is_list(links) do
-    case Wasmex.Instance.new(store, module, imports, links) do
-      {:ok, instance} -> {:ok, Map.merge(state, %{instance: instance})}
-      {:error, reason} -> {:error, reason}
-    end
+    state = %{
+      store: opts.store,
+      module: opts.module,
+      imports: Wasmex.Utils.stringify_keys(opts.imports),
+      links: opts.links,
+      instance: Map.get(opts, :instance, nil)
+    }
+
+    state =
+      if state.instance do
+        state
+      else
+        {:ok, instance} =
+          Wasmex.Instance.new(state.store, state.module, state.imports, state.links)
+
+        Map.put(state, :instance, instance)
+      end
+
+    {:ok, state}
   end
 
   @impl true

@@ -67,6 +67,7 @@ defmodule Wasmex.Store do
           {:error, reason :: binary()} | {:ok, StoreOrCaller.t()}
   def new_wasi(%WasiOptions{} = options, store_limits \\ nil, engine \\ nil) do
     %Engine{resource: engine_resource} = engine || Engine.default()
+    options = Wasmex.Utils.stringify_keys(options)
 
     case Wasmex.Native.store_new_wasi(
            options,

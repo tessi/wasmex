@@ -1,6 +1,5 @@
 defmodule Wasmex.ComponentTypeConversionsTest do
   use ExUnit.Case, async: true
-  doctest Wasmex
 
   alias Wasmex.Wasi.WasiP2Options
 

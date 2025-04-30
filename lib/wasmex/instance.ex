@@ -77,6 +77,7 @@ defmodule Wasmex.Instance do
       when is_map(imports) and is_list(links) do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %Wasmex.Module{resource: module_resource} = module
+    imports = Wasmex.Utils.stringify_keys(imports)
 
     links =
       links
