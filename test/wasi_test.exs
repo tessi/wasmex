@@ -1,6 +1,5 @@
 defmodule WasiTest do
   use ExUnit.Case, async: true
-  doctest Wasmex
 
   alias Wasmex.Wasi.PreopenOptions
   alias Wasmex.Wasi.WasiOptions
