@@ -73,6 +73,7 @@ pub fn exports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) 
             ExternType::Global(ty) => global_info(env, &ty),
             ExternType::Memory(ty) => memory_info(env, &ty),
             ExternType::Table(ty) => table_info(env, &ty),
+            ExternType::Tag(ty) => tag_info(env, &ty),
         };
         map = map.map_put(export_name, export_info)?;
     }
@@ -96,6 +97,7 @@ pub fn imports(env: rustler::Env, module_resource: ResourceArc<ModuleResource>) 
             ExternType::Global(ty) => global_info(env, &ty),
             ExternType::Table(ty) => table_info(env, &ty),
             ExternType::Memory(ty) => memory_info(env, &ty),
+            ExternType::Tag(ty) => tag_info(env, &ty),
         };
         let map = namespaces
             .entry(import_module)
@@ -196,6 +198,29 @@ fn global_info<'a>(env: rustler::Env<'a>, global_type: &GlobalType) -> Term<'a> 
         .map_put(atoms::__type__().to_term(env), ty.encode(env))
         .expect("cannot fail; is always a map");
     let terms = vec![atoms::global().to_term(env), map];
+    make_tuple(env, &terms)
+}
+
+fn tag_info<'a>(env: rustler::Env<'a>, tag_type: &wasmtime::TagType) -> Term<'a> {
+    let params = tag_type.ty()
+        .params()
+        .fold(Term::list_new_empty(env), |acc, ref param_type| {
+            let typ: WasmValueType = param_type.into();
+            acc.list_prepend(typ.encode(env))
+        });
+    let params = params
+        .list_reverse()
+        .expect("cannot fail, its always a list");
+    let results = tag_type.ty()
+        .results()
+        .fold(Term::list_new_empty(env), |acc, ref param_type| {
+            let typ: WasmValueType = param_type.into();
+            acc.list_prepend(typ.encode(env))
+        });
+    let results = results
+        .list_reverse()
+        .expect("cannot fail, its always a list");
+    let terms = vec![atoms::tag().to_term(env), params, results];
     make_tuple(env, &terms)
 }
 
