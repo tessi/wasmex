@@ -28,6 +28,7 @@ rustler::atoms! {
     global,
     memory,
     table,
+    tag,
     params,
     results,
     maximum,
