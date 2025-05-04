@@ -202,7 +202,8 @@ fn global_info<'a>(env: rustler::Env<'a>, global_type: &GlobalType) -> Term<'a> 
 }
 
 fn tag_info<'a>(env: rustler::Env<'a>, tag_type: &wasmtime::TagType) -> Term<'a> {
-    let params = tag_type.ty()
+    let params = tag_type
+        .ty()
         .params()
         .fold(Term::list_new_empty(env), |acc, ref param_type| {
             let typ: WasmValueType = param_type.into();
@@ -211,7 +212,8 @@ fn tag_info<'a>(env: rustler::Env<'a>, tag_type: &wasmtime::TagType) -> Term<'a>
     let params = params
         .list_reverse()
         .expect("cannot fail, its always a list");
-    let results = tag_type.ty()
+    let results = tag_type
+        .ty()
         .results()
         .fold(Term::list_new_empty(env), |acc, ref param_type| {
             let typ: WasmValueType = param_type.into();
