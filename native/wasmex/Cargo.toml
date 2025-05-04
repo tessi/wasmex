@@ -16,8 +16,8 @@ crate-type = ["dylib"]
 
 [dependencies]
 rustler = { version = "0.36.1", features = ["big_integer", "serde"] }
-once_cell = "1.21.1"
-rand = "0.9.0"
+once_cell = "1.21.3"
+rand = "0.9.1"
 wasmtime = "32.0.0"
 wasmtime-wasi = "32.0.0"
 wasmtime-wasi-http = "32.0.0"
