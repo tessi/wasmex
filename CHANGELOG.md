@@ -14,13 +14,14 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## unreleased
+## [0.11.0 - 2025-05-11]
 
 ### Added
 
 - Added support for components to import namespaces. This allows, for example, to implement the default `wasi` implementation in Elixir.
 - Added more type conversions and better error messages for component function imports/exports
 - Better error messages when casting a component-model record type with missing fields (before we ran into a runtime error instead)
+- Added support for passing an Instance to Wasmex.start_link (allowing efficient pre-compilation of wasm modules) #765
 
 ### Changed
 
