@@ -14,7 +14,7 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [0.11.0 - 2025-05-11]
+## [0.11.0 - 2025-05-12]
 
 ### Added
 
