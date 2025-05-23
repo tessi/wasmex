@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.11.1 - 2025-05-23]
+
+### Changed
+
+- Build precompiled binaries on older github runners to support a wider range of platforms. See https://github.com/tessi/wasmex/issues/774
+
 ## [0.11.0 - 2025-05-12]
 
 ### Added
