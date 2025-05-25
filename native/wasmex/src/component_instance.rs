@@ -242,7 +242,27 @@ fn component_execute_function(
         }
     };
 
-    let function_result = instance.get_func(&mut *component_store, func_name.clone());
+    let function_result = match func_name.split_once("#") {
+        Some((left, right)) => {
+            match instance.get_export(&mut *component_store, None, &left) {
+                Some(export_index) => {
+                    dbg!(&export_index);
+                    // instance.get_func(&mut *component_store, export_index)
+                    match instance.get_export(&mut *component_store, Some(&export_index), &right) {
+                        Some(export_index) => {
+                            dbg!(&export_index);
+                            instance.get_func(&mut *component_store, export_index)
+                        }
+                        None => None
+                    }
+                }
+                None => None
+            }
+        }
+        None => instance.get_func(&mut *component_store, func_name.clone())
+    };
+
+    // let function_result = instance.get_func(&mut *component_store, func_name.clone());
     let function = match function_result {
         Some(func) => func,
         None => {

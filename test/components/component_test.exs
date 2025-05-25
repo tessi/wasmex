@@ -23,6 +23,25 @@ defmodule Wasmex.WasmComponentsTest do
     assert greeting =~ "Hello"
   end
 
+  test "call function from interface" do
+    {:ok, engine} = Wasmex.Engine.new(%EngineConfig{debug_info: true})
+
+    {:ok, store} =
+      Wasmex.Components.Store.new_wasi(
+        %WasiP2Options{},
+        %Wasmex.StoreLimits{},
+        engine
+      )
+
+    component_bytes = File.read!("test/component_fixtures/export-interface/adder.wasm")
+
+    instance =
+      start_supervised!({HelloWorld, bytes: component_bytes, store: store})
+
+    assert {:ok, answer} = Wasmex.Components.call_function(instance, "local:adder/adder#add", [45, 123])
+    assert answer == 45+123
+  end
+
   describe "error handling" do
     setup do
       component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")

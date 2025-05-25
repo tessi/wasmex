@@ -1,0 +1,9 @@
+package local:adder;
+
+interface adder {
+  add: func(a: u32, b: u32) -> u32;
+}
+
+world root {
+  export adder;
+}
