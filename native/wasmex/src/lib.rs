@@ -12,6 +12,7 @@ pub mod module;
 pub mod pipe;
 pub mod printable_term_type;
 pub mod store;
+pub mod wat;
 pub mod wit;
 
 rustler::init!("Elixir.Wasmex.Native");
