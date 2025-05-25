@@ -10,7 +10,8 @@ use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
 };
-use wasmtime_wasi::{IoView, ResourceTable, WasiCtx, WasiView};
+use wasmtime_wasi::p2::{IoView, WasiCtx, WasiView};
+use wasmtime_wasi::ResourceTable;
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
 
 #[derive(Debug, NifStruct)]
@@ -238,7 +239,7 @@ pub fn component_store_new_wasi(
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect::<Vec<_>>();
-    let mut wasi_ctx_builder = wasmtime_wasi::WasiCtxBuilder::new();
+    let mut wasi_ctx_builder = wasmtime_wasi::p2::WasiCtxBuilder::new();
     wasi_ctx_builder.args(&options.args).envs(wasi_env);
 
     if options.inherit_stdin {

@@ -72,7 +72,7 @@ pub fn new_instance(
 
     let mut linker = Linker::new(store.engine());
     linker.allow_shadowing(true);
-    let _ = wasmtime_wasi::add_to_linker_sync(&mut linker);
+    let _ = wasmtime_wasi::p2::add_to_linker_sync(&mut linker);
     if store.data().http.is_some() {
         let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
     }
@@ -246,9 +246,13 @@ fn component_execute_function(
     let mut lookup_index = None;
     for (index, name) in function_name_path.iter().enumerate() {
         if let Some(inner) = lookup_index {
-            lookup_index = instance.get_export(&mut *component_store, Some(&inner), name.as_str());
+            lookup_index = instance
+                .get_export(&mut *component_store, Some(&inner), name.as_str())
+                .map(|(_, index)| index);
         } else {
-            lookup_index = instance.get_export(&mut *component_store, None, name.as_str());
+            lookup_index = instance
+                .get_export(&mut *component_store, None, name.as_str())
+                .map(|(_, index)| index);
         }
 
         if lookup_index.is_none() {
