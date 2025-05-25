@@ -35,10 +35,28 @@ defmodule Wasmex.Components.Instance do
 
   def call_function(
         %__MODULE__{store_resource: store_resource, instance_resource: instance_resource},
-        function,
+        function_or_path,
         args,
         from
       ) do
-    Wasmex.Native.component_call_function(store_resource, instance_resource, function, args, from)
+    path =
+      cond do
+        is_list(function_or_path) ->
+          Enum.map(function_or_path, &Wasmex.Utils.stringify/1)
+
+        is_atom(function_or_path) ->
+          [Wasmex.Utils.stringify(function_or_path)]
+
+        is_binary(function_or_path) ->
+          [function_or_path]
+
+        is_tuple(function_or_path) ->
+          function_or_path |> Tuple.to_list() |> Enum.map(&Wasmex.Utils.stringify/1)
+
+        true ->
+          raise "Invalid function or path - needs to be a list, binary, or tuple"
+      end
+
+    Wasmex.Native.component_call_function(store_resource, instance_resource, path, args, from)
   end
 end

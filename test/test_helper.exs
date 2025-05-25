@@ -1,6 +1,7 @@
 defmodule TestHelper do
   @fixture_project_dir "#{Path.dirname(__ENV__.file)}/fixture_projects"
   @component_type_conversions_source_dir "#{@fixture_project_dir}/component_type_conversions"
+  @component_exported_interface_source_dir "#{@fixture_project_dir}/component_exported_interface"
   @wasm_test_source_dir "#{@fixture_project_dir}/wasm_test"
   @wasm_link_test_source_dir "#{@fixture_project_dir}/wasm_link_test"
   @wasm_link_dep_test_source_dir "#{@fixture_project_dir}/wasm_link_dep_test"
@@ -11,6 +12,10 @@ defmodule TestHelper do
   def component_type_conversions_file_path,
     do:
       "#{@component_type_conversions_source_dir}/target/wasm32-wasip1/debug/component_type_conversions.wasm"
+
+  def component_exported_interface_file_path,
+    do:
+      "#{@component_exported_interface_source_dir}/target/wasm32-wasip1/debug/exported_interface.wasm"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -66,6 +71,9 @@ defmodule TestHelper do
 
     {"", 0} =
       System.cmd("cargo", ["component", "build"], cd: @component_type_conversions_source_dir)
+
+    {"", 0} =
+      System.cmd("cargo", ["component", "build"], cd: @component_exported_interface_source_dir)
   end
 
   def wasm_module do
