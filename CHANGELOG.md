@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.11.2 - unreleased]
+
+### Added
+
+- Added support for compiling Wasm text format (WAT) to Wasm binaries -> `Wasmex.Wat.to_wasm/1`
+
 ## [0.11.1 - 2025-05-23]
 
 ### Changed
