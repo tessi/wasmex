@@ -14,6 +14,14 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.11.3 - unreleased]
+
+### Added
+
+- Added support for calling Wasm Components functions by path. This allows e.g. exported interface functions to be called by using the fully qualified path `{"wasmex:simple/add@0.1.0", "add"}`.
+
+### Changed
+
 ## [0.11.2 - 2025-05-25]
 
 ### Added

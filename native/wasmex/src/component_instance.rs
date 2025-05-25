@@ -188,7 +188,7 @@ pub fn call_exported_function(
     env: rustler::Env,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
-    function_name: String,
+    function_name_path: Vec<String>,
     given_params: Term,
     from: Term,
 ) -> rustler::Atom {
@@ -205,7 +205,7 @@ pub fn call_exported_function(
                 thread_env,
                 component_store_resource,
                 instance_resource,
-                function_name,
+                function_name_path,
                 function_params,
                 from,
             )
@@ -219,7 +219,7 @@ fn component_execute_function(
     thread_env: rustler::Env,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
-    func_name: String,
+    function_name_path: Vec<String>,
     function_params: SavedTerm,
     from: SavedTerm,
 ) -> Term {
@@ -242,13 +242,64 @@ fn component_execute_function(
         }
     };
 
-    let function_result = instance.get_func(&mut *component_store, func_name.clone());
+    // reduce function_name_path to a lookup index by iterating over function_name_path and calling instance.get_export
+    let mut lookup_index = None;
+    for (index, name) in function_name_path.iter().enumerate() {
+        if let Some(inner) = lookup_index {
+            lookup_index = instance.get_export(&mut *component_store, Some(&inner), name.as_str());
+        } else {
+            lookup_index = instance.get_export(&mut *component_store, None, name.as_str());
+        }
+
+        if lookup_index.is_none() {
+            if function_name_path.len() == 1 {
+                return make_error_tuple(
+                    &thread_env,
+                    format!(
+                        "exported function `{}` not found.",
+                        function_name_path.join(", ")
+                    ),
+                    from,
+                );
+            } else {
+                return make_error_tuple(
+                    &thread_env,
+                    format!(
+                        "exported function `[{}]` not found. Could not find `{}` at position {}",
+                        function_name_path.join(", "),
+                        name,
+                        index
+                    ),
+                    from,
+                );
+            }
+        }
+    }
+
+    let lookup_index = match lookup_index {
+        Some(index) => index,
+        None => {
+            return make_error_tuple(
+                &thread_env,
+                format!(
+                    "exported function `{}` not found.",
+                    function_name_path.join(", ")
+                ),
+                from,
+            );
+        }
+    };
+
+    let function_result = instance.get_func(&mut *component_store, lookup_index);
     let function = match function_result {
         Some(func) => func,
         None => {
             return make_error_tuple(
                 &thread_env,
-                format!("exported function `{func_name}` not found"),
+                format!(
+                    "exported function `{}` not found",
+                    function_name_path.join(", ")
+                ),
                 from,
             )
         }

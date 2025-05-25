@@ -245,10 +245,12 @@ defmodule Wasmex.Components do
     end
   end
 
-  @spec call_function(pid(), String.t() | atom(), list(number()), pos_integer()) ::
+  @type function_name_or_path :: String.t() | list(String.t()) | tuple() | atom() | list(atom())
+
+  @spec call_function(pid(), function_name_or_path(), list(number()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
-  def call_function(pid, name, params, timeout \\ 5000) do
-    GenServer.call(pid, {:call_function, stringify(name), params}, timeout)
+  def call_function(pid, name_or_path, params, timeout \\ 5000) do
+    GenServer.call(pid, {:call_function, name_or_path, params}, timeout)
   end
 
   @impl true
@@ -300,7 +302,4 @@ defmodule Wasmex.Components do
     :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
     {:noreply, state}
   end
-
-  defp stringify(s) when is_binary(s), do: s
-  defp stringify(s) when is_atom(s), do: Atom.to_string(s)
 end

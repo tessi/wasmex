@@ -91,7 +91,7 @@ defmodule Wasmex.Native do
 
   def component_instance_new(_store, _component, _imports), do: error()
 
-  def component_call_function(_store, _instance, _function_name, _params, _from), do: error()
+  def component_call_function(_store, _instance, _function_name_path, _params, _from), do: error()
 
   def component_receive_callback_result(_component, _2, _3, _4), do: error()
 
