@@ -111,7 +111,7 @@ pub fn term_to_val(
                     .iter()
                     .find(|(field_name, _)| field_name == field.name);
                 if let Some((field_name, field_term)) = field_term_option {
-                    path.push(format!("record({})", field_name));
+                    path.push(format!("record('{field_name}')"));
                     let field_value = term_to_val(field_term, &field.ty, path.clone())?;
                     path.pop();
                     kv.push((field.name.to_string(), field_value))
@@ -304,7 +304,7 @@ pub fn term_to_val(
 
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
-                    path.push(format!("variant({})", case.name));
+                    path.push(format!("variant('{}')", case.name));
                     let payload_val = term_to_val(payload_term, &case_type, path.clone())?;
                     path.pop();
                     Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
@@ -394,7 +394,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             let converted_pairs = record
                 .iter()
                 .map(|(key, val)| {
-                    path.push(format!("record({})", key));
+                    path.push(format!("record('{key}')"));
                     let term = (
                         field_name_to_term(&env, key),
                         val_to_term(val, env, path.clone()),
@@ -455,7 +455,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
 
             match payload {
                 Some(boxed_val) => {
-                    path.push(format!("variant({})", case_name));
+                    path.push(format!("variant('{case_name}')"));
                     let payload_term = val_to_term(boxed_val, env, path.clone());
                     path.pop();
                     (atom, payload_term).encode(env)
@@ -683,7 +683,7 @@ fn convert_complex_result(
             for field in &record_type.fields {
                 let field_term_option = field_term_tuples.iter().find(|(k, _)| *k == field.name);
                 if let Some((field_name, field_term)) = field_term_option {
-                    path.push(format!("record({})", field_name));
+                    path.push(format!("record('{field_name}')"));
                     let field_value =
                         convert_result_term(**field_term, &field.ty, wit_resolver, path.clone())?;
                     path.pop();
@@ -927,7 +927,7 @@ fn convert_complex_result(
                 // Check if the flag exists in the type
                 if flags_type.flags.iter().any(|flag| flag.name == flag_name) {
                     let is_set = value_term.decode::<bool>().map_err(|_e| {
-                        path.push(format!("flags({flag_name})"));
+                        path.push(format!("flags('{flag_name}')"));
                         let error = (
                             "Expected a bool value in flags map".to_string(),
                             path.clone(),
@@ -1006,7 +1006,7 @@ fn convert_complex_result(
                         path.pop();
                         error
                     })?;
-                    path.push(format!("variant({})", variant_val.name));
+                    path.push(format!("variant('{}')", variant_val.name));
                     let result = Ok(Val::Variant(
                         variant_val.name.clone(),
                         Some(Box::new(convert_result_term(

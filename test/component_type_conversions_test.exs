@@ -373,7 +373,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
       }
 
       assert {:error,
-              "Expected 2 fields, got 1 - missing fields: y at \"record(option-list-point).option(some).list[1]\""} =
+              "Expected 2 fields, got 1 - missing fields: y at \"record('option-list-point').option(some).list[1]\""} =
                Wasmex.Components.call_function(component_pid, "export-id-record-complex", [
                  erroneus_record
                ])
