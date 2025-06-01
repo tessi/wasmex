@@ -84,7 +84,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
       assert {:ok, [1, 2, 3]} =
                Wasmex.Components.call_function(component_pid, "export-id-list-u8", [[1, 2, 3]])
 
-      assert {:error, "Could not convert Atom to U8"} =
+      assert {:error, "Could not convert Atom to U8 at \"list[1]\""} =
                Wasmex.Components.call_function(component_pid, "export-id-list-u8", [
                  [1, :two, "three"]
                ])
@@ -103,7 +103,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                  {1, :two}
                ])
 
-      assert {:error, "Could not convert Integer to String"} =
+      assert {:error, "Could not convert Integer to String at \"tuple[1]\""} =
                Wasmex.Components.call_function(component_pid, "export-id-tuple-u8-string", [
                  {1, 2}
                ])
@@ -366,6 +366,17 @@ defmodule Wasmex.ComponentTypeConversionsTest do
       assert Map.get(result, :"result-u8-string") == {:error, "hello"}
       assert Map.get(result, :"empty-result") == :ok
       assert Map.get(result, :"tuple-u8-point") == {123, %{x: 1, y: 2}}
+
+      erroneus_record = %{
+        complex_record
+        | "option-list-point": {:some, [%{x: 1, y: 2}, %{x: 3, why: 4}]}
+      }
+
+      assert {:error,
+              "Expected 2 fields, got 1 - missing fields: y at \"record('option-list-point').option(some).list[1]\""} =
+               Wasmex.Components.call_function(component_pid, "export-id-record-complex", [
+                 erroneus_record
+               ])
     end
   end
 

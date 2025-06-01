@@ -7,7 +7,15 @@ use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 
 use crate::atoms;
 
-pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
+/// Convert an Elixir term to a Wasm value.
+///
+/// Used to for Wasm function calls from Elixir and translating params to Wasm values.
+/// The opposite of this is `val_to_term` and `convert_result_term`.
+pub fn term_to_val(
+    param_term: &Term,
+    param_type: &Type,
+    mut path: Vec<String>,
+) -> Result<Val, Error> {
     let term_type = param_term.get_type();
     match (term_type, param_type) {
         (TermType::Binary, Type::String) => Ok(Val::String(param_term.decode::<String>()?)),
@@ -70,8 +78,10 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
         (TermType::List, Type::List(list)) => {
             let decoded_list = param_term.decode::<Vec<Term>>()?;
             let mut list_values = Vec::with_capacity(decoded_list.len());
-            for term in decoded_list {
-                let val = term_to_val(&term, &list.ty())?;
+            for (index, term) in decoded_list.iter().enumerate() {
+                path.push(format!("list[{}]", index));
+                let val = term_to_val(term, &list.ty(), path.clone())?;
+                path.pop();
                 list_values.push(val);
             }
             Ok(Val::List(list_values))
@@ -80,8 +90,10 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let dedoded_tuple = tuple::get_tuple(*param_term)?;
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
-            for (tuple_type, tuple_term) in tuple_types.zip(dedoded_tuple) {
-                let component_val = term_to_val(&tuple_term, &tuple_type)?;
+            for (index, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
+                path.push(format!("tuple[{}]", index));
+                let component_val = term_to_val(&tuple_term, &tuple_type, path.clone())?;
+                path.pop();
                 tuple_vals.push(component_val);
             }
             Ok(Val::Tuple(tuple_vals))
@@ -98,8 +110,10 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 let field_term_option = terms
                     .iter()
                     .find(|(field_name, _)| field_name == field.name);
-                if let Some((_, field_term)) = field_term_option {
-                    let field_value = term_to_val(field_term, &field.ty)?;
+                if let Some((field_name, field_term)) = field_term_option {
+                    path.push(format!("record('{field_name}')"));
+                    let field_value = term_to_val(field_term, &field.ty, path.clone())?;
+                    path.pop();
                     kv.push((field.name.to_string(), field_value))
                 }
             }
@@ -108,16 +122,30 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                     .fields()
                     .filter(|field| !terms.iter().any(|(name, _)| name == field.name))
                     .collect::<Vec<_>>();
-                return Err(Error::Term(Box::new(format!(
-                    "Expected {} fields, got {} - missing fields: {}",
-                    record.fields().len(),
-                    kv.len(),
-                    missing_fields
-                        .iter()
-                        .map(|field| field.name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ))));
+                if path.is_empty() {
+                    return Err(Error::Term(Box::new(format!(
+                        "Expected {} fields, got {} - missing fields: {}",
+                        record.fields().len(),
+                        kv.len(),
+                        missing_fields
+                            .iter()
+                            .map(|field| field.name)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))));
+                } else {
+                    return Err(Error::Term(Box::new(format!(
+                        "Expected {} fields, got {} - missing fields: {} at {:?}",
+                        record.fields().len(),
+                        kv.len(),
+                        missing_fields
+                            .iter()
+                            .map(|field| field.name)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        path.join(".")
+                    ))));
+                }
             }
             Ok(Val::Record(kv))
         }
@@ -143,7 +171,9 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
 
             let some_atom = first_term.atom_to_string()?;
             if some_atom == "some" {
-                let inner_val = term_to_val(second_term, &option_type.ty())?;
+                path.push("option(some)".to_string());
+                let inner_val = term_to_val(second_term, &option_type.ty(), path.clone())?;
+                path.pop();
                 Ok(Val::Option(Some(Box::new(inner_val))))
             } else {
                 Err(Error::Term(Box::new(format!(
@@ -214,7 +244,9 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
             let result_kind = first_term.atom_to_string()?;
             if result_kind == "ok" {
                 if let Some(ok_type) = result_type.ok() {
-                    let ok_val = term_to_val(second_term, &ok_type)?;
+                    path.push("result(ok)".to_string());
+                    let ok_val = term_to_val(second_term, &ok_type, path.clone())?;
+                    path.pop();
                     Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
                 } else {
                     Err(Error::Term(Box::new(
@@ -223,7 +255,9 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
                 }
             } else if result_kind == "error" {
                 if let Some(err_type) = result_type.err() {
-                    let err_val = term_to_val(second_term, &err_type)?;
+                    path.push("result(error)".to_string());
+                    let err_val = term_to_val(second_term, &err_type, path.clone())?;
+                    path.pop();
                     Ok(Val::Result(Err(Some(Box::new(err_val)))))
                 } else {
                     Err(Error::Term(Box::new(
@@ -270,7 +304,9 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
 
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
-                    let payload_val = term_to_val(payload_term, &case_type)?;
+                    path.push(format!("variant('{}')", case.name));
+                    let payload_val = term_to_val(payload_term, &case_type, path.clone())?;
+                    path.pop();
                     Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
                 } else {
                     Ok(Val::Variant(case_name, None))
@@ -306,14 +342,29 @@ pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
 
             Ok(Val::Flags(flags))
         }
-        (term_type, val_type) => Err(rustler::Error::Term(Box::new(format!(
-            "Could not convert {:?} to {:?}",
-            term_type, val_type
-        )))),
+        (term_type, val_type) => {
+            if path.is_empty() {
+                Err(Error::Term(Box::new(format!(
+                    "Could not convert {:?} to {:?}",
+                    term_type, val_type
+                ))))
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Could not convert {:?} to {:?} at {:?}",
+                    term_type,
+                    val_type,
+                    path.join(".")
+                ))))
+            }
+        }
     }
 }
 
-pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
+/// Convert a Wasm value to an Elixir term.
+///
+/// Used to for Wasm function calls when passing Wasm params to an Elixir function call.
+/// The opposite of this is `term_to_val`, similar to `convert_result_term`.
+pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) -> Term<'a> {
     match val {
         Val::String(string) => string.encode(env),
         Val::Bool(bool) => bool.encode(env),
@@ -330,26 +381,48 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::Char(ch) => ch.to_string().encode(env),
         Val::List(list) => list
             .iter()
-            .map(|val| val_to_term(val, env))
+            .enumerate()
+            .map(|(index, val)| {
+                path.push(format!("list[{}]", index));
+                let term = val_to_term(val, env, path.clone());
+                path.pop();
+                term
+            })
             .collect::<Vec<Term<'a>>>()
             .encode(env),
         Val::Record(record) => {
             let converted_pairs = record
                 .iter()
-                .map(|(key, val)| (field_name_to_term(&env, key), val_to_term(val, env)))
+                .map(|(key, val)| {
+                    path.push(format!("record('{key}')"));
+                    let term = (
+                        field_name_to_term(&env, key),
+                        val_to_term(val, env, path.clone()),
+                    );
+                    path.pop();
+                    term
+                })
                 .collect::<Vec<(Term, Term)>>();
             Term::map_from_pairs(env, converted_pairs.as_slice()).unwrap()
         }
         Val::Tuple(tuple) => {
             let tuple_terms = tuple
                 .iter()
-                .map(|val| val_to_term(val, env))
+                .enumerate()
+                .map(|(index, val)| {
+                    path.push(format!("tuple[{}]", index));
+                    let term = val_to_term(val, env, path.clone());
+                    path.pop();
+                    term
+                })
                 .collect::<Vec<Term<'a>>>();
             make_tuple(env, tuple_terms.as_slice())
         }
         Val::Option(option) => match option {
             Some(boxed_val) => {
-                let inner_term = val_to_term(boxed_val, env);
+                path.push("option(some)".to_string());
+                let inner_term = val_to_term(boxed_val, env, path.clone());
+                path.pop();
                 (atoms::some(), inner_term).encode(env)
             }
             None => atoms::none().encode(env),
@@ -358,7 +431,9 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
         Val::Result(result) => match result {
             Ok(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
-                    let inner_term = val_to_term(inner_val, env);
+                    path.push("result(ok)".to_string());
+                    let inner_term = val_to_term(inner_val, env, path.clone());
+                    path.pop();
                     (atom::ok(), inner_term).encode(env)
                 } else {
                     atom::ok().encode(env)
@@ -366,7 +441,9 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
             }
             Err(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
-                    let inner_term = val_to_term(inner_val, env);
+                    path.push("result(error)".to_string());
+                    let inner_term = val_to_term(inner_val, env, path.clone());
+                    path.pop();
                     (atom::error(), inner_term).encode(env)
                 } else {
                     atom::error().encode(env)
@@ -378,7 +455,9 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
 
             match payload {
                 Some(boxed_val) => {
-                    let payload_term = val_to_term(boxed_val, env);
+                    path.push(format!("variant('{case_name}')"));
+                    let payload_term = val_to_term(boxed_val, env, path.clone());
+                    path.pop();
                     (atom, payload_term).encode(env)
                 }
                 None => atom,
@@ -397,13 +476,19 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>) -> Term<'a> {
 
             map_term
         }
-        _ => String::from("Unsupported type").encode(env),
+        _ => {
+            if path.is_empty() {
+                String::from("Unsupported type").encode(env)
+            } else {
+                format!("Unsupported type at {:?}", path.join(".")).encode(env)
+            }
+        }
     }
 }
 
 pub fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
     vals.iter()
-        .map(|val| val_to_term(val, env))
+        .map(|val| val_to_term(val, env, vec![]))
         .collect::<Vec<Term<'a>>>()
 }
 
@@ -425,7 +510,7 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
     let mut params = Vec::with_capacity(param_types.len());
 
     for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
-        let param = term_to_val(param_term, param_type)?;
+        let param = term_to_val(param_term, param_type, vec![])?;
         params.push(param);
     }
     Ok(params)
@@ -433,10 +518,10 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
 
 pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
     let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), *env),
+        1 => val_to_term(vals.first().unwrap(), *env, vec![]),
         _ => vals
             .iter()
-            .map(|term| val_to_term(term, *env))
+            .map(|term| val_to_term(term, *env, vec![]))
             .collect::<Vec<Term>>()
             .encode(*env),
     };
@@ -450,54 +535,116 @@ pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>)
     )
 }
 
+/// Convert an Elixir function call result to a Wasm value.
+///
+/// Used to for Wasm function calls when passing Elixir results back to Wasm.
+/// The opposite of this is `term_to_val`, similar to `val_to_term`.
 pub fn convert_result_term(
     result_term: Term,
     wit_type: &WitType,
     wit_resolver: &Resolve,
-) -> Result<Val, Error> {
+    path: Vec<String>,
+) -> Result<Val, (String, Vec<String>)> {
     match wit_type {
         WitType::Bool => Ok(Val::Bool(rustler::types::atom::is_truthy(result_term))),
-        WitType::U8 => Ok(Val::U8(result_term.decode::<u8>()?)),
-        WitType::U16 => Ok(Val::U16(result_term.decode::<u16>()?)),
-        WitType::U32 => Ok(Val::U32(result_term.decode::<u32>()?)),
-        WitType::U64 => Ok(Val::U64(result_term.decode::<u64>()?)),
-        WitType::S8 => Ok(Val::S8(result_term.decode::<i8>()?)),
-        WitType::S16 => Ok(Val::S16(result_term.decode::<i16>()?)),
-        WitType::S32 => Ok(Val::S32(result_term.decode::<i32>()?)),
-        WitType::S64 => Ok(Val::S64(result_term.decode::<i64>()?)),
-        WitType::F32 => Ok(Val::Float32(result_term.decode::<f32>()?)),
-        WitType::F64 => Ok(Val::Float64(result_term.decode::<f64>()?)),
+        WitType::U8 => Ok(Val::U8(
+            result_term
+                .decode::<u8>()
+                .map_err(|_e| ("Expected u8".to_string(), path))?,
+        )),
+        WitType::U16 => Ok(Val::U16(
+            result_term
+                .decode::<u16>()
+                .map_err(|_e| ("Expected u16".to_string(), path))?,
+        )),
+        WitType::U32 => Ok(Val::U32(
+            result_term
+                .decode::<u32>()
+                .map_err(|_e| ("Expected u32".to_string(), path))?,
+        )),
+        WitType::U64 => Ok(Val::U64(
+            result_term
+                .decode::<u64>()
+                .map_err(|_e| ("Expected u64".to_string(), path))?,
+        )),
+        WitType::S8 => Ok(Val::S8(
+            result_term
+                .decode::<i8>()
+                .map_err(|_e| ("Expected i8".to_string(), path))?,
+        )),
+        WitType::S16 => Ok(Val::S16(
+            result_term
+                .decode::<i16>()
+                .map_err(|_e| ("Expected i16".to_string(), path))?,
+        )),
+        WitType::S32 => Ok(Val::S32(
+            result_term
+                .decode::<i32>()
+                .map_err(|_e| ("Expected i32".to_string(), path))?,
+        )),
+        WitType::S64 => Ok(Val::S64(
+            result_term
+                .decode::<i64>()
+                .map_err(|_e| ("Expected i64".to_string(), path))?,
+        )),
+        WitType::F32 => Ok(Val::Float32(
+            result_term
+                .decode::<f32>()
+                .map_err(|_e| ("Expected f32".to_string(), path))?,
+        )),
+        WitType::F64 => Ok(Val::Float64(
+            result_term
+                .decode::<f64>()
+                .map_err(|_e| ("Expected f64".to_string(), path))?,
+        )),
         WitType::Char => match result_term.get_type() {
-            TermType::Integer => Ok(Val::Char(result_term.decode::<u32>()?.try_into().map_err(
-                |e| Error::Term(Box::new(format!("Could not convert u32 to char: {}", e))),
-            )?)),
+            TermType::Integer => Ok(Val::Char(
+                result_term
+                    .decode::<u32>()
+                    .map_err(|_e| ("Expected a u32".to_string(), path.clone()))?
+                    .try_into()
+                    .map_err(|_e| ("Could not convert u32 to char".to_string(), path.clone()))?,
+            )),
             TermType::Binary => {
-                let str = result_term.decode::<String>()?;
+                let str = result_term
+                    .decode::<String>()
+                    .map_err(|_e| ("Expected a string".to_string(), path.clone()))?;
                 if let Some(char) = str.chars().next() {
                     Ok(Val::Char(char))
                 } else {
-                    Err(Error::Term(Box::new("Expected a single char")))
+                    Err(("Expected a single character".to_string(), path.clone()))
                 }
             }
             TermType::List => {
-                let list = result_term.decode::<Vec<Term>>()?;
+                let list = result_term
+                    .decode::<Vec<Term>>()
+                    .map_err(|_e| ("Expected alist".to_string(), path.clone()))?;
                 if list.len() != 1 {
-                    Err(Error::Term(Box::new("Expected a single char")))
+                    Err(("Expected a single character".to_string(), path.clone()))
                 } else {
-                    Ok(Val::Char(list[0].decode::<u32>()?.try_into().map_err(
-                        |e| Error::Term(Box::new(format!("Could not convert u32 to char: {}", e))),
-                    )?))
+                    Ok(Val::Char(
+                        list[0]
+                            .decode::<u32>()
+                            .map_err(|_e| ("Expected a u32".to_string(), path.clone()))?
+                            .try_into()
+                            .map_err(|_e| {
+                                ("Could not convert u32 to char".to_string(), path.clone())
+                            })?,
+                    ))
                 }
             }
-            _ => Err(Error::Atom("unsupported_type_conversion")),
+            _ => Err(("Unsupported type conversion for char".to_string(), path)),
         },
-        WitType::String => Ok(Val::String(result_term.decode::<String>()?)),
+        WitType::String => Ok(Val::String(
+            result_term
+                .decode::<String>()
+                .map_err(|_e| ("Expected a string".to_string(), path))?,
+        )),
         WitType::Id(type_id) => {
             let complex_type = &wit_resolver.types[*type_id];
-            convert_complex_result(result_term, complex_type, wit_resolver)
+            convert_complex_result(result_term, complex_type, wit_resolver, path)
         }
-        // You might want to handle other cases like Id, etc.
-        _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
+        _ => Err(("Unsupported type conversion".to_string(), path)),
     }
 }
 
@@ -505,27 +652,41 @@ fn convert_complex_result(
     result_term: Term,
     complex_type: &TypeDef,
     wit_resolver: &Resolve,
-) -> Result<Val, Error> {
+    mut path: Vec<String>,
+) -> Result<Val, (String, Vec<String>)> {
     match &complex_type.kind {
         TypeDefKind::List(list_type) => {
-            let decoded_list = result_term.decode::<Vec<Term>>()?;
+            let decoded_list = result_term
+                .decode::<Vec<Term>>()
+                .map_err(|_e| ("Expected a list".to_string(), path.clone()))?;
             let list_values = decoded_list
                 .iter()
-                .map(|term| convert_result_term(*term, list_type, wit_resolver))
-                .collect::<Result<Vec<Val>, Error>>()?;
+                .enumerate()
+                .map(|(index, term)| {
+                    path.push(format!("list[{}]", index));
+                    let val = convert_result_term(*term, list_type, wit_resolver, path.clone())?;
+                    path.pop();
+                    Ok(val)
+                })
+                .collect::<Result<Vec<Val>, (String, Vec<String>)>>()?;
             Ok(Val::List(list_values))
         }
         TypeDefKind::Record(record_type) => {
             let mut record_fields = Vec::with_capacity(record_type.fields.len());
-            let decoded_map = result_term.decode::<HashMap<Term, Term>>()?;
+            let decoded_map = result_term
+                .decode::<HashMap<Term, Term>>()
+                .map_err(|_e| ("Expected a record".to_string(), path.clone()))?;
             let field_term_tuples = decoded_map
                 .iter()
                 .map(|(key_term, val)| (term_to_field_name(key_term), val))
                 .collect::<Vec<(String, &Term)>>();
             for field in &record_type.fields {
                 let field_term_option = field_term_tuples.iter().find(|(k, _)| *k == field.name);
-                if let Some((_, field_term)) = field_term_option {
-                    let field_value = convert_result_term(**field_term, &field.ty, wit_resolver)?;
+                if let Some((field_name, field_term)) = field_term_option {
+                    path.push(format!("record('{field_name}')"));
+                    let field_value =
+                        convert_result_term(**field_term, &field.ty, wit_resolver, path.clone())?;
+                    path.pop();
                     record_fields.push((field.name.to_string(), field_value))
                 }
             }
@@ -533,116 +694,230 @@ fn convert_complex_result(
         }
         TypeDefKind::Tuple(tuple_type) => {
             let tuple_types = tuple_type.types.clone();
-            let decoded_tuple = tuple::get_tuple(result_term)?;
+            let decoded_tuple = tuple::get_tuple(result_term)
+                .map_err(|_e| ("Expected a tuple".to_string(), path.clone()))?;
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
-            for (tuple_type, tuple_term) in tuple_types.iter().zip(decoded_tuple) {
-                let component_val = convert_result_term(tuple_term, tuple_type, wit_resolver)?;
+            for (index, (tuple_type, tuple_term)) in
+                tuple_types.iter().zip(decoded_tuple).enumerate()
+            {
+                path.push(format!("tuple[{}]", index));
+                let component_val =
+                    convert_result_term(tuple_term, tuple_type, wit_resolver, path.clone())?;
+                path.pop();
                 tuple_vals.push(component_val);
             }
             Ok(Val::Tuple(tuple_vals))
         }
         TypeDefKind::Result(result_type) => {
             if result_term.is_atom() {
-                let result_kind = result_term.atom_to_string()?;
+                let result_kind = result_term.atom_to_string().map_err(|_e| {
+                    path.push("result".to_string());
+                    let error = ("Expected a result atom".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
                 if result_kind == "ok" {
                     if let Some(_ok_type) = result_type.ok {
-                        Err(Error::Term(Box::new(
-                            "Result-type expected to have an 'ok' tuple, but got :ok atom",
-                        )))
+                        path.push("result(ok)".to_string());
+                        let error = Err((
+                            "Result-type expected to have an 'ok' tuple, but got :ok atom"
+                                .to_string(),
+                            path.clone(),
+                        ));
+                        path.pop();
+                        error
                     } else {
                         Ok(Val::Result(Ok(None)))
                     }
                 } else if result_kind == "error" {
                     if let Some(_error_type) = result_type.err {
-                        Err(Error::Term(Box::new(
-                            "Result-type expected to have an 'error' tuple, but got :error atom",
-                        )))
+                        path.push("result(error)".to_string());
+                        let error = Err((
+                            "Result-type expected to have an 'error' tuple, but got :error atom"
+                                .to_string(),
+                            path.clone(),
+                        ));
+                        path.pop();
+                        error
                     } else {
                         Ok(Val::Result(Err(None)))
                     }
                 } else {
-                    Err(Error::Term(Box::new(format!(
-                        "Invalid atom: {}, expected ':ok' or ':error' as result",
-                        result_kind
-                    ))))
+                    path.push("result".to_string());
+                    let error = Err((
+                        format!(
+                            "Invalid atom: {}, expected ':ok' or ':error' as result",
+                            result_kind
+                        ),
+                        path.clone(),
+                    ));
+                    path.pop();
+                    error
                 }
             } else if result_term.is_tuple() {
-                let decoded_tuple = tuple::get_tuple(result_term)?;
-                let first_term = decoded_tuple
-                    .first()
-                    .ok_or(Error::Term(Box::new("Invalid tuple")))?;
-                let second_term = decoded_tuple
-                    .get(1)
-                    .ok_or(Error::Term(Box::new("Invalid tuple")))?;
+                let decoded_tuple = tuple::get_tuple(result_term).map_err(|_e| {
+                    path.push("result".to_string());
+                    let error = ("Result tuple expected".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
+                let first_term = decoded_tuple.first().ok_or({
+                    path.push("result".to_string());
+                    (
+                        "Expected result tuple to have 2 elements".to_string(),
+                        path.clone(),
+                    )
+                })?;
+                let second_term = decoded_tuple.get(1).ok_or({
+                    path.push("result".to_string());
+                    (
+                        "Expected result tuple to have 2 elements".to_string(),
+                        path.clone(),
+                    )
+                })?;
 
-                let ok_atom = first_term.atom_to_string()?;
+                let ok_atom = first_term.atom_to_string().map_err(|_e| {
+                    path.push("result".to_string());
+                    let error = ("Expected a result-tuple atom".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
                 if ok_atom == "ok" {
                     if let Some(ok_type) = result_type.ok {
-                        let ok_val = convert_result_term(*second_term, &ok_type, wit_resolver)?;
+                        path.push("result(ok)".to_string());
+                        let ok_val = convert_result_term(
+                            *second_term,
+                            &ok_type,
+                            wit_resolver,
+                            path.clone(),
+                        )?;
+                        path.pop();
                         Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
                     } else {
                         Ok(Val::Result(Ok(None)))
                     }
                 } else if let Some(err_type) = result_type.err {
-                    let err_val = convert_result_term(*second_term, &err_type, wit_resolver)?;
+                    path.push("result(error)".to_string());
+                    let err_val =
+                        convert_result_term(*second_term, &err_type, wit_resolver, path.clone())?;
+                    path.pop();
                     Ok(Val::Result(Err(Some(Box::new(err_val)))))
                 } else {
                     Ok(Val::Result(Err(None)))
                 }
             } else {
-                Err(Error::Term(Box::new(
-                    "Result-tuple, :ok, or :error expected",
-                )))
+                path.push("result".to_string());
+                let error = Err((
+                    "Expected one of: result-tuple, :ok, or :error".to_string(),
+                    path.clone(),
+                ));
+                path.pop();
+                error
             }
         }
         TypeDefKind::Option(option_type) => {
             if result_term.is_atom() {
-                let none_atom = result_term.atom_to_string()?;
+                let none_atom = result_term.atom_to_string().map_err(|_e| {
+                    path.push("option".to_string());
+                    let error = ("Expected an option atom".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
                 if none_atom == "none" {
                     Ok(Val::Option(None))
                 } else {
-                    Err(Error::Term(Box::new(format!(
-                        "Invalid atom: {}, expected ':none' or '{{:some, term}}' tuple",
-                        none_atom
-                    ))))
+                    path.push("option".to_string());
+                    let error = Err((
+                        format!(
+                            "Invalid atom: {}, expected ':none' or '{{:some, term}}' tuple",
+                            none_atom
+                        ),
+                        path.clone(),
+                    ));
+                    path.pop();
+                    error
                 }
             } else {
-                let decoded_tuple = tuple::get_tuple(result_term)
-                    .map_err(|_| Error::Term(Box::new("Option-tuple expected")))?;
-                let first_term = decoded_tuple.first().ok_or(Error::Term(Box::new(
-                    "Option-tuple expected to have :some as first element",
-                )))?;
+                let decoded_tuple = tuple::get_tuple(result_term).map_err(|_| {
+                    path.push("option".to_string());
+                    let error = ("Expected an option tuple".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
+                let first_term = decoded_tuple.first().ok_or({
+                    path.push("option".to_string());
+                    let error = (
+                        "Option-tuple expected to have :some as first element".to_string(),
+                        path.clone(),
+                    );
+                    path.pop();
+                    error
+                })?;
                 let some_atom = first_term.atom_to_string().map_err(|e| {
-                    Error::Term(Box::new(format!(
-                        "Option-tuple expected to have :some as first element - {:?}",
-                        e
-                    )))
+                    path.push("option".to_string());
+                    let error = (
+                        format!(
+                            "Option-tuple expected to have :some as first element - {:?}",
+                            e
+                        ),
+                        path.clone(),
+                    );
+                    path.pop();
+                    error
                 })?;
                 if some_atom != "some" {
-                    return Err(Error::Term(Box::new(format!(
-                        "Invalid atom: {}, expected ':some' as first element in option-tuple",
-                        some_atom
-                    ))));
+                    path.push("option".to_string());
+                    let error = Err((
+                        format!(
+                            "Invalid atom: {}, expected ':some' as first element in option-tuple",
+                            some_atom
+                        ),
+                        path.clone(),
+                    ));
+                    path.pop();
+                    return error;
                 }
-                let second_term = decoded_tuple.get(1).ok_or(Error::Term(Box::new(
-                    "Option-tuple expected to have a second element",
-                )))?;
+                let second_term = decoded_tuple.get(1).ok_or({
+                    path.push("option".to_string());
+                    let error = (
+                        "Option-tuple expected to have a second element".to_string(),
+                        path.clone(),
+                    );
+                    path.pop();
+                    error
+                })?;
 
-                let some_val = convert_result_term(*second_term, option_type, wit_resolver)?;
+                path.push("option(some)".to_string());
+                let some_val =
+                    convert_result_term(*second_term, option_type, wit_resolver, path.clone())?;
+                path.pop();
                 Ok(Val::Option(Some(Box::new(some_val))))
             }
         }
         TypeDefKind::Enum(enum_type) => {
-            let atom = result_term.atom_to_string()?;
+            let atom = result_term.atom_to_string().map_err(|_e| {
+                path.push("enum".to_string());
+                let error = ("Enum expected to be an atom".to_string(), path.clone());
+                path.pop();
+                error
+            })?;
             let enum_val = enum_type.cases.iter().find(|v| v.name == atom);
             if let Some(enum_val) = enum_val {
                 Ok(Val::Enum(enum_val.name.clone()))
             } else {
-                Err(Error::Term(Box::new("Enum value not found")))
+                path.push("enum".to_string());
+                let error = Err(("Unknown enum value".to_string(), path.clone()));
+                path.pop();
+                error
             }
         }
         TypeDefKind::Flags(flags_type) => {
-            let decoded_map = result_term.decode::<HashMap<Term, Term>>()?;
+            let decoded_map = result_term.decode::<HashMap<Term, Term>>().map_err(|_e| {
+                path.push("flags".to_string());
+                let error = ("Expected a flags map".to_string(), path.clone());
+                path.pop();
+                error
+            })?;
             let mut flags = vec![];
 
             // Convert the map entries to flag names and values
@@ -651,15 +926,23 @@ fn convert_complex_result(
 
                 // Check if the flag exists in the type
                 if flags_type.flags.iter().any(|flag| flag.name == flag_name) {
-                    let is_set = value_term.decode::<bool>()?;
+                    let is_set = value_term.decode::<bool>().map_err(|_e| {
+                        path.push(format!("flags('{flag_name}')"));
+                        let error = (
+                            "Expected a bool value in flags map".to_string(),
+                            path.clone(),
+                        );
+                        path.pop();
+                        error
+                    })?;
                     if is_set {
                         flags.push(flag_name);
                     }
                 } else {
-                    return Err(Error::Term(Box::new(format!(
-                        "Flag not found: {}",
-                        flag_name
-                    ))));
+                    path.push("flags".to_string());
+                    let error = Err((format!("Flag not found: {}", flag_name), path.clone()));
+                    path.pop();
+                    return error;
                 }
             }
 
@@ -667,46 +950,90 @@ fn convert_complex_result(
         }
         TypeDefKind::Variant(variant_type) => {
             let case_name = if result_term.is_atom() {
-                result_term.atom_to_string()?
+                result_term.atom_to_string().map_err(|_e| {
+                    path.push("variant".to_string());
+                    let error = ("Expected a variant atom".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?
             } else if result_term.is_tuple() {
-                let decoded_tuple = tuple::get_tuple(result_term)
-                    .map_err(|_| Error::Term(Box::new("Variant-tuple expected")))?;
-                let first_term = decoded_tuple.first().ok_or(Error::Term(Box::new(
-                    "Variant-tuple expected to have at least one element",
-                )))?;
+                let decoded_tuple = tuple::get_tuple(result_term).map_err(|_| {
+                    path.push("variant".to_string());
+                    let error = ("Expected a variant tuple".to_string(), path.clone());
+                    path.pop();
+                    error
+                })?;
+                let first_term = decoded_tuple.first().ok_or({
+                    path.push("variant".to_string());
+                    let error = (
+                        "Variant-tuple expected to have at least one element".to_string(),
+                        path.clone(),
+                    );
+                    path.pop();
+                    error
+                })?;
                 first_term.atom_to_string().map_err(|_| {
-                    Error::Term(Box::new(
-                        "Variant-tuple expected to have an atom as first element",
-                    ))
+                    path.push("variant".to_string());
+                    let error = (
+                        "Variant-tuple expected to have an atom as first element".to_string(),
+                        path.clone(),
+                    );
+                    path.pop();
+                    error
                 })?
             } else {
-                return Err(Error::Term(Box::new("Variant-tuple or atom expected")));
+                path.push("variant".to_string());
+                let error = Err(("Variant-tuple or atom expected".to_string(), path.clone()));
+                path.pop();
+                return error;
             };
 
             let variant_val = variant_type.cases.iter().find(|v| v.name == case_name);
             if let Some(variant_val) = variant_val {
                 if let Some(payload_type) = variant_val.ty {
-                    let decoded_tuple = tuple::get_tuple(result_term)
-                        .map_err(|_| Error::Term(Box::new("Variant-tuple expected")))?;
-                    let variant_inner_result_term = decoded_tuple.get(1).ok_or_else(|| {
-                        Error::Term(Box::new("Variant-tuple expected to have a second element"))
+                    let decoded_tuple = tuple::get_tuple(result_term).map_err(|_| {
+                        path.push("variant".to_string());
+                        let error = ("Variant-tuple expected".to_string(), path.clone());
+                        path.pop();
+                        error
                     })?;
-                    Ok(Val::Variant(
+                    let variant_inner_result_term = decoded_tuple.get(1).ok_or_else(|| {
+                        path.push("variant".to_string());
+                        let error = (
+                            "Variant-tuple expected to have a second element".to_string(),
+                            path.clone(),
+                        );
+                        path.pop();
+                        error
+                    })?;
+                    path.push(format!("variant('{}')", variant_val.name));
+                    let result = Ok(Val::Variant(
                         variant_val.name.clone(),
                         Some(Box::new(convert_result_term(
                             *variant_inner_result_term,
                             &payload_type,
                             wit_resolver,
+                            path.clone(),
                         )?)),
-                    ))
+                    ));
+                    path.pop();
+                    result
                 } else {
                     Ok(Val::Variant(variant_val.name.clone(), None))
                 }
             } else {
-                Err(Error::Term(Box::new("Variant value not found")))
+                path.push("variant".to_string());
+                let error = Err(("Variant value not found".to_string(), path.clone()));
+                path.pop();
+                error
             }
         }
-        _ => Err(Error::Term(Box::new("Unsupported type conversion"))),
+        _ => {
+            path.push("variant".to_string());
+            let error = Err(("Unsupported type conversion".to_string(), path.clone()));
+            path.pop();
+            error
+        }
     }
     // Type::String
 }
