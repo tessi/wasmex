@@ -23,6 +23,7 @@ Types of changes
 ### Changed
 
 * Updated dependencies, including wasmtime to 33.0.0
+* Changed error messages when converting between Wasm types and Elixir types to include the field name and path where the error occurred.
 
 ## [0.11.2 - 2025-05-25]
 
