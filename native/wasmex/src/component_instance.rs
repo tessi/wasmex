@@ -17,7 +17,7 @@ use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
 use wasmtime::component::{Instance, Linker, LinkerInstance, Type, Val};
 use wasmtime::Trap;
-use wiggle::anyhow::{self, anyhow};
+use wiggle::anyhow::{self};
 
 use rustler::Term;
 
@@ -426,7 +426,7 @@ pub fn receive_callback_result(
             .iter()
             .find(|(function_name, _function)| function_name.as_str() == name)
             .ok_or_else(|| {
-                Error::Term(Box::new(format!("Could not find import function {}", name)))
+                Error::Term(Box::new(format!("Could not find import function {name}")))
             })?;
         function
     } else {
@@ -439,7 +439,7 @@ pub fn receive_callback_result(
             })
             .find(|f| f.item_name() == name)
             .ok_or_else(|| {
-                Error::Term(Box::new(format!("Could not find import function {}", name)))
+                Error::Term(Box::new(format!("Could not find import function {name}")))
             })?
     };
 
@@ -447,32 +447,43 @@ pub fn receive_callback_result(
         .token
         .return_values
         .lock()
-        .map_err(|e| Error::Term(Box::new(format!("Failed to lock return values: {}", e))))?;
+        .map_err(|e| Error::Term(Box::new(format!("Failed to lock return values: {e}"))))?;
 
-    populate_return_values(
+    convert_return_values(
         &component_resource.parsed.resolve,
         import_function,
         return_values,
         result,
     )
-    .map_err(|e| Error::Term(Box::new(format!("Failed to populate return values: {}", e))))?;
+    .map_err(|e| {
+        Error::Term(Box::new(format!(
+            "Failed to convert imported function return values - {e}"
+        )))
+    })?;
 
     token_resource.token.continue_signal.notify_one();
 
     Ok(atoms::ok())
 }
 
-fn populate_return_values(
+fn convert_return_values(
     wit_resolver: &Resolve,
     function: &Function,
     mut return_values: std::sync::MutexGuard<'_, Option<(bool, Vec<Val>)>>,
     result: Term,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), String> {
     if let Some(result_type) = &function.result {
         let mut vals = Vec::new();
         vals.push(
-            convert_result_term(result, result_type, wit_resolver)
-                .map_err(|e| anyhow!("Failed to convert term: {:?}", e))?,
+            convert_result_term(result, result_type, wit_resolver, vec![]).map_err(
+                |(msg, path)| {
+                    if path.is_empty() {
+                        msg
+                    } else {
+                        format!("{:?} at path: {:?}", msg, path)
+                    }
+                },
+            )?,
         );
 
         // Set the return values
