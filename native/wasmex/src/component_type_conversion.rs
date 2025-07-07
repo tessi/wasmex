@@ -1028,8 +1028,11 @@ fn convert_complex_result(
                 error
             }
         }
+        TypeDefKind::Type(wit_type) => {
+            convert_result_term(result_term, wit_type, wit_resolver, path)
+        }
         _ => {
-            path.push("variant".to_string());
+            path.push("unsupported type".to_string());
             let error = Err(("Unsupported type conversion".to_string(), path.clone()));
             path.pop();
             error
