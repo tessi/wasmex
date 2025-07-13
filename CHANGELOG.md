@@ -23,7 +23,7 @@ Types of changes
 
 ### Changed
 
-- Updated dependencies, including wasmtime to 33.0.0
+- Updated dependencies, including wasmtime to 34.0.1
 - Changed error messages when converting between Wasm types and Elixir types to include the field name and path where the error occurred.
 - Fixed edge case for converting results from a call into an imported function from a wasm component when the type conversion needs to de-reference a wasmtime type. See: https://github.com/tessi/wasmex/issues/810 - thanks @Lucky1313
 
