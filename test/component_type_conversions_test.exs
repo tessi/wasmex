@@ -264,6 +264,10 @@ defmodule Wasmex.ComponentTypeConversionsTest do
       assert {:ok, :none} =
                Wasmex.Components.call_function(component_pid, "export-id-variant", [:none])
 
+      # works the same when using a string to identify the variant
+      assert {:ok, :none} =
+               Wasmex.Components.call_function(component_pid, "export-id-variant", ["none"])
+
       assert {:ok, {:str, "hello"}} =
                Wasmex.Components.call_function(component_pid, "export-id-variant", [
                  {:str, "hello"}

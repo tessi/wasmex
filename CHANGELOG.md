@@ -19,6 +19,7 @@ Types of changes
 ### Added
 
 - Added support for calling Wasm Components functions by path. This allows e.g. exported interface functions to be called by using the fully qualified path `{"wasmex:simple/add@0.1.0", "add"}`.
+- Wasm Components: Variants can now be addressed using binaries (before it was only atoms)
 
 ### Changed
 
