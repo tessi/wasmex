@@ -431,7 +431,7 @@ pub fn decode_function_param_terms(
                 return Err(format!(
                     "Cannot convert argument #{} to a WebAssembly {} value.",
                     nth + 1,
-                    format!("{:?}", param).to_lowercase()
+                    format!("{param:?}").to_lowercase()
                 ))
             }
             (_, term_type) => {

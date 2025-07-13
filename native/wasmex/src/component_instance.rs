@@ -236,7 +236,7 @@ fn component_execute_function(
         Err(err) => {
             return make_error_tuple(
                 &thread_env,
-                format!("could not load 'function params': {:?}", err),
+                format!("could not load 'function params': {err:?}"),
                 from,
             )
         }
@@ -411,10 +411,7 @@ pub fn receive_callback_result(
                 full_name == namespace
             })
             .ok_or_else(|| {
-                Error::Term(Box::new(format!(
-                    "Could not find package name {}",
-                    namespace
-                )))
+                Error::Term(Box::new(format!("Could not find package name {namespace}")))
             })?;
         let interface = parsed_component
             .resolve
@@ -480,7 +477,7 @@ fn convert_return_values(
                     if path.is_empty() {
                         msg
                     } else {
-                        format!("{:?} at path: {:?}", msg, path)
+                        format!("{msg:?} at path: {path:?}")
                     }
                 },
             )?,

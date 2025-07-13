@@ -1,13 +1,18 @@
 #[allow(warnings)]
 mod bindings;
 
-use bindings::exports::wasmex::simple::add::Guest;
+use bindings::wasmex::simple::get::get;
 
 struct Component;
 
-impl Guest for Component {
+impl bindings::exports::wasmex::simple::add::Guest for Component {
     fn add(x:u32,y:u32,) -> u32 {
         x.saturating_add(y)
+    }
+
+    fn call_into_imported_module_func() -> u32 {
+        let tag = get();
+        tag.id.len() as u32
     }
 }
 
