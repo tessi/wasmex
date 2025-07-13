@@ -281,8 +281,7 @@ pub fn term_to_val(
                 Ok(Val::Variant(case_name, None))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Variant case not found: {}",
-                    case_name
+                    "Variant case not found: {case_name}"
                 ))))
             }
         }
@@ -1017,7 +1016,10 @@ fn convert_complex_result(
                 }
             } else {
                 path.push("Variant".to_string());
-                let error = Err((format!("Variant value '{case_name}' not found"), path.clone()));
+                let error = Err((
+                    format!("Variant value '{case_name}' not found"),
+                    path.clone(),
+                ));
                 path.pop();
                 error
             }
