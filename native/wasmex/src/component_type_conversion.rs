@@ -274,6 +274,18 @@ pub fn term_to_val(
                 ))))
             }
         }
+        (TermType::Binary, Type::Variant(variant_type)) => {
+            let case_name = param_term.decode::<String>()?;
+            // Check if the case exists in the variant
+            if variant_type.cases().any(|case| case.name == case_name) {
+                Ok(Val::Variant(case_name, None))
+            } else {
+                Err(Error::Term(Box::new(format!(
+                    "Variant case not found: {}",
+                    case_name
+                ))))
+            }
+        }
         (TermType::Tuple, Type::Variant(variant_type)) => {
             let tuple_term = tuple::get_tuple(*param_term)?;
             let case_term = tuple_term.first().ok_or(Error::Term(Box::new(
@@ -295,7 +307,7 @@ pub fn term_to_val(
 
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
-                    path.push(format!("variant('{}')", case.name));
+                    path.push(format!("Variant('{}')", case.name));
                     let payload_val = term_to_val(payload_term, &case_type, path.clone())?;
                     path.pop();
                     Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
@@ -443,7 +455,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
 
             match payload {
                 Some(boxed_val) => {
-                    path.push(format!("variant('{case_name}')"));
+                    path.push(format!("Variant('{case_name}')"));
                     let payload_term = val_to_term(boxed_val, env, path.clone());
                     path.pop();
                     (atom, payload_term).encode(env)
@@ -933,20 +945,20 @@ fn convert_complex_result(
         TypeDefKind::Variant(variant_type) => {
             let case_name = if result_term.is_atom() {
                 result_term.atom_to_string().map_err(|_e| {
-                    path.push("variant".to_string());
+                    path.push("Variant".to_string());
                     let error = ("Expected a variant atom".to_string(), path.clone());
                     path.pop();
                     error
                 })?
             } else if result_term.is_tuple() {
                 let decoded_tuple = tuple::get_tuple(result_term).map_err(|_| {
-                    path.push("variant".to_string());
+                    path.push("Variant".to_string());
                     let error = ("Expected a variant tuple".to_string(), path.clone());
                     path.pop();
                     error
                 })?;
                 let first_term = decoded_tuple.first().ok_or({
-                    path.push("variant".to_string());
+                    path.push("Variant".to_string());
                     let error = (
                         "Variant-tuple expected to have at least one element".to_string(),
                         path.clone(),
@@ -955,7 +967,7 @@ fn convert_complex_result(
                     error
                 })?;
                 first_term.atom_to_string().map_err(|_| {
-                    path.push("variant".to_string());
+                    path.push("Variant".to_string());
                     let error = (
                         "Variant-tuple expected to have an atom as first element".to_string(),
                         path.clone(),
@@ -964,7 +976,7 @@ fn convert_complex_result(
                     error
                 })?
             } else {
-                path.push("variant".to_string());
+                path.push("Variant".to_string());
                 let error = Err(("Variant-tuple or atom expected".to_string(), path.clone()));
                 path.pop();
                 return error;
@@ -974,13 +986,13 @@ fn convert_complex_result(
             if let Some(variant_val) = variant_val {
                 if let Some(payload_type) = variant_val.ty {
                     let decoded_tuple = tuple::get_tuple(result_term).map_err(|_| {
-                        path.push("variant".to_string());
+                        path.push(format!("Variant(:{case_name})"));
                         let error = ("Variant-tuple expected".to_string(), path.clone());
                         path.pop();
                         error
                     })?;
                     let variant_inner_result_term = decoded_tuple.get(1).ok_or_else(|| {
-                        path.push("variant".to_string());
+                        path.push(format!("Variant(:{case_name})"));
                         let error = (
                             "Variant-tuple expected to have a second element".to_string(),
                             path.clone(),
@@ -988,7 +1000,7 @@ fn convert_complex_result(
                         path.pop();
                         error
                     })?;
-                    path.push(format!("variant('{}')", variant_val.name));
+                    path.push(format!("Variant('{case_name}')"));
                     let result = Ok(Val::Variant(
                         variant_val.name.clone(),
                         Some(Box::new(convert_result_term(
@@ -1004,8 +1016,8 @@ fn convert_complex_result(
                     Ok(Val::Variant(variant_val.name.clone(), None))
                 }
             } else {
-                path.push("variant".to_string());
-                let error = Err(("Variant value not found".to_string(), path.clone()));
+                path.push("Variant".to_string());
+                let error = Err((format!("Variant value '{case_name}' not found"), path.clone()));
                 path.pop();
                 error
             }
@@ -1020,5 +1032,4 @@ fn convert_complex_result(
             error
         }
     }
-    // Type::String
 }
