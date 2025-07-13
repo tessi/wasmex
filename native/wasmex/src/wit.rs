@@ -6,10 +6,10 @@ pub fn exported_functions(env: rustler::Env, path: String, wit: String) -> NifRe
     let mut resolve = Resolve::new();
     let id = resolve
         .push_str(path, &wit)
-        .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to parse WIT: {}", e))))?;
+        .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to parse WIT: {e}"))))?;
     let world_id = resolve
         .select_world(id, None)
-        .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to select world: {}", e))))?;
+        .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to select world: {e}"))))?;
     let exports = &resolve.worlds[world_id].exports;
     let exported_functions = exports
         .iter()

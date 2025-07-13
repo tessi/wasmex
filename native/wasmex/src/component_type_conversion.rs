@@ -32,8 +32,7 @@ pub fn term_to_val(
             match char::from_u32(integer) {
                 Some(ch) => Ok(Val::Char(ch)),
                 None => Err(Error::Term(Box::new(format!(
-                    "Invalid character code point: {}",
-                    integer
+                    "Invalid character code point: {integer}"
                 )))),
             }
         }
@@ -66,8 +65,7 @@ pub fn term_to_val(
                 match char::from_u32(char_code) {
                     Some(ch) => Ok(Val::Char(ch)),
                     None => Err(Error::Term(Box::new(format!(
-                        "Invalid character code point: {}",
-                        char_code
+                        "Invalid character code point: {char_code}"
                     )))),
                 }
             }
@@ -79,7 +77,7 @@ pub fn term_to_val(
             let decoded_list = param_term.decode::<Vec<Term>>()?;
             let mut list_values = Vec::with_capacity(decoded_list.len());
             for (index, term) in decoded_list.iter().enumerate() {
-                path.push(format!("list[{}]", index));
+                path.push(format!("list[{index}]"));
                 let val = term_to_val(term, &list.ty(), path.clone())?;
                 path.pop();
                 list_values.push(val);
@@ -91,7 +89,7 @@ pub fn term_to_val(
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
             for (index, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
-                path.push(format!("tuple[{}]", index));
+                path.push(format!("tuple[{index}]"));
                 let component_val = term_to_val(&tuple_term, &tuple_type, path.clone())?;
                 path.pop();
                 tuple_vals.push(component_val);
@@ -155,8 +153,7 @@ pub fn term_to_val(
                 Ok(Val::Option(None))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Invalid atom: {}, expected ':none' or '{{:some, term}}' tuple",
-                    none_atom
+                    "Invalid atom: {none_atom}, expected ':none' or '{{:some, term}}' tuple"
                 ))))
             }
         }
@@ -177,8 +174,7 @@ pub fn term_to_val(
                 Ok(Val::Option(Some(Box::new(inner_val))))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Invalid atom: {}, expected ':some'",
-                    some_atom
+                    "Invalid atom: {some_atom}, expected ':some'"
                 ))))
             }
         }
@@ -189,8 +185,7 @@ pub fn term_to_val(
                 Ok(Val::Enum(enum_val.to_string()))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Enum value not found: {}",
-                    case_name
+                    "Enum value not found: {case_name}"
                 ))))
             }
         }
@@ -201,8 +196,7 @@ pub fn term_to_val(
                 Ok(Val::Enum(enum_val.to_string()))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Enum value not found: {}",
-                    case_name
+                    "Enum value not found: {case_name}"
                 ))))
             }
         }
@@ -227,8 +221,7 @@ pub fn term_to_val(
                 }
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Invalid atom: {}, expected ':ok' or ':error' as result",
-                    result_kind
+                    "Invalid atom: {result_kind}, expected ':ok' or ':error' as result"
                 ))))
             }
         }
@@ -266,8 +259,7 @@ pub fn term_to_val(
                 }
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Invalid atom: {}, expected ':ok' or ':error' as first element in result-tuple",
-                    result_kind
+                    "Invalid atom: {result_kind}, expected ':ok' or ':error' as first element in result-tuple"
                 ))))
             }
         }
@@ -278,8 +270,7 @@ pub fn term_to_val(
                 Ok(Val::Variant(case_name, None))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Variant case not found: {}",
-                    case_name
+                    "Variant case not found: {case_name}"
                 ))))
             }
         }
@@ -313,8 +304,7 @@ pub fn term_to_val(
                 }
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Variant case not found: {}",
-                    case_name
+                    "Variant case not found: {case_name}"
                 ))))
             }
         }
@@ -334,8 +324,7 @@ pub fn term_to_val(
                     }
                 } else {
                     return Err(Error::Term(Box::new(format!(
-                        "Flag not found: {}",
-                        flag_name
+                        "Flag not found: {flag_name}"
                     ))));
                 }
             }
@@ -345,8 +334,7 @@ pub fn term_to_val(
         (term_type, val_type) => {
             if path.is_empty() {
                 Err(Error::Term(Box::new(format!(
-                    "Could not convert {:?} to {:?}",
-                    term_type, val_type
+                    "Could not convert {term_type:?} to {val_type:?}"
                 ))))
             } else {
                 Err(Error::Term(Box::new(format!(
@@ -383,7 +371,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             .iter()
             .enumerate()
             .map(|(index, val)| {
-                path.push(format!("list[{}]", index));
+                path.push(format!("list[{index}]"));
                 let term = val_to_term(val, env, path.clone());
                 path.pop();
                 term
@@ -410,7 +398,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
                 .iter()
                 .enumerate()
                 .map(|(index, val)| {
-                    path.push(format!("tuple[{}]", index));
+                    path.push(format!("tuple[{index}]"));
                     let term = val_to_term(val, env, path.clone());
                     path.pop();
                     term
@@ -663,7 +651,7 @@ fn convert_complex_result(
                 .iter()
                 .enumerate()
                 .map(|(index, term)| {
-                    path.push(format!("list[{}]", index));
+                    path.push(format!("list[{index}]"));
                     let val = convert_result_term(*term, list_type, wit_resolver, path.clone())?;
                     path.pop();
                     Ok(val)
@@ -700,7 +688,7 @@ fn convert_complex_result(
             for (index, (tuple_type, tuple_term)) in
                 tuple_types.iter().zip(decoded_tuple).enumerate()
             {
-                path.push(format!("tuple[{}]", index));
+                path.push(format!("tuple[{index}]"));
                 let component_val =
                     convert_result_term(tuple_term, tuple_type, wit_resolver, path.clone())?;
                 path.pop();
@@ -746,8 +734,7 @@ fn convert_complex_result(
                     path.push("result".to_string());
                     let error = Err((
                         format!(
-                            "Invalid atom: {}, expected ':ok' or ':error' as result",
-                            result_kind
+                            "Invalid atom: {result_kind}, expected ':ok' or ':error' as result"
                         ),
                         path.clone(),
                     ));
@@ -829,8 +816,7 @@ fn convert_complex_result(
                     path.push("option".to_string());
                     let error = Err((
                         format!(
-                            "Invalid atom: {}, expected ':none' or '{{:some, term}}' tuple",
-                            none_atom
+                            "Invalid atom: {none_atom}, expected ':none' or '{{:some, term}}' tuple"
                         ),
                         path.clone(),
                     ));
@@ -856,10 +842,7 @@ fn convert_complex_result(
                 let some_atom = first_term.atom_to_string().map_err(|e| {
                     path.push("option".to_string());
                     let error = (
-                        format!(
-                            "Option-tuple expected to have :some as first element - {:?}",
-                            e
-                        ),
+                        format!("Option-tuple expected to have :some as first element - {e:?}"),
                         path.clone(),
                     );
                     path.pop();
@@ -869,8 +852,7 @@ fn convert_complex_result(
                     path.push("option".to_string());
                     let error = Err((
                         format!(
-                            "Invalid atom: {}, expected ':some' as first element in option-tuple",
-                            some_atom
+                            "Invalid atom: {some_atom}, expected ':some' as first element in option-tuple"
                         ),
                         path.clone(),
                     ));
@@ -940,7 +922,7 @@ fn convert_complex_result(
                     }
                 } else {
                     path.push("flags".to_string());
-                    let error = Err((format!("Flag not found: {}", flag_name), path.clone()));
+                    let error = Err((format!("Flag not found: {flag_name}"), path.clone()));
                     path.pop();
                     return error;
                 }
