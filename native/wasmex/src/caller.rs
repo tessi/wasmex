@@ -14,7 +14,7 @@ pub(crate) fn get_caller(token: &i32) -> Option<&Caller<'_, StoreData>> {
     })
 }
 
-pub(crate) fn get_caller_mut(token: &i32) -> Option<&mut Caller<'_, StoreData>> {
+pub(crate) fn get_caller_mut(token: &mut i32) -> Option<&mut Caller<'_, StoreData>> {
     let map = &mut *(GLOBAL_DATA.lock().unwrap());
     map.get_mut(token).map(|caller| unsafe {
         std::mem::transmute::<&mut Caller<'_, StoreData>, &mut Caller<'_, StoreData>>(caller)
