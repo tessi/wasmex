@@ -3,11 +3,18 @@ defmodule Wasmex.ComponentExportedInterfaceTest do
 
   describe "component type conversions" do
     defmodule Point, do: defstruct([:x, :y])
+    defmodule Tag, do: defstruct([:id])
 
     def start_component() do
       component_bytes = File.read!(TestHelper.component_exported_interface_file_path())
 
-      start_supervised!({Wasmex.Components, bytes: component_bytes})
+      start_supervised!(
+        {Wasmex.Components,
+         bytes: component_bytes,
+         imports: %{
+           "wasmex:simple/get@0.1.0" => %{"get" => {:fn, fn -> %Tag{id: "hello!"} end}}
+         }}
+      )
     end
 
     test "call function by path using a string tuple" do
@@ -106,6 +113,17 @@ defmodule Wasmex.ComponentExportedInterfaceTest do
                )
 
       assert "exported function `non_existent_function` not found." == message
+    end
+
+    test "call function which in turn calls into an imported module" do
+      component_pid = start_component()
+
+      assert {:ok, 6} =
+               Wasmex.Components.call_function(
+                 component_pid,
+                 {"wasmex:simple/add@0.1.0", "call-into-imported-module-func"},
+                 []
+               )
     end
   end
 end

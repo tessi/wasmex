@@ -1,9 +1,21 @@
 package wasmex:simple@0.1.0;
 
 interface add {
+    record tag {
+        id: string
+    }
+
     add: func(x: u32, y: u32) -> u32;
+    call-into-imported-module-func: func() -> u32;
+}
+
+interface get {
+    use add.{tag};
+
+    get: func() -> tag;
 }
 
 world adder {
     export add;
+    import get;
 }
