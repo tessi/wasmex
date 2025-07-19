@@ -36,6 +36,14 @@ jobs:
           - { target: aarch64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
           - { target: aarch64-apple-darwin, os: macos-15 }
           - { target: x86_64-apple-darwin, os: macos-15 }
+          - { target: aarch64-apple-ios-sim, os: macos-15 }
+          - { target: aarch64-apple-visionos-sim, os: macos-15 }
+          - { target: aarch64-apple-visionos, os: macos-15 }
+          - { target: x86_64-apple-ios, os: macos-15 }
+          - { target: aarch64-apple-ios, os: macos-15 }
+          - { target: aarch64-apple-tvos-sim, os: macos-15 }
+          - { target: x86_64-apple-tvos, os: macos-15 }
+          - { target: aarch64-apple-tvos, os: macos-15 }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
           - { target: x86_64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
           - { target: riscv64gc-unknown-linux-gnu, os: ubuntu-22.04, use-cross: true, cargo-args: "--no-default-features"}
