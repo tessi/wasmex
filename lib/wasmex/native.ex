@@ -13,16 +13,11 @@ defmodule Wasmex.Native do
       aarch64-apple-darwin
       aarch64-apple-ios
       aarch64-apple-ios-sim
-      aarch64-apple-tvos
-      aarch64-apple-tvos-sim
-      aarch64-apple-visionos
-      aarch64-apple-visionos-sim
       aarch64-unknown-linux-gnu
       aarch64-unknown-linux-musl
       riscv64gc-unknown-linux-gnu
       x86_64-apple-darwin
       x86_64-apple-ios
-      x86_64-apple-tvos
       x86_64-pc-windows-gnu
       x86_64-pc-windows-msvc
       x86_64-unknown-freebsd
