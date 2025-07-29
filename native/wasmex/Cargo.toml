@@ -1,6 +1,6 @@
 [package]
 name = "wasmex"
-version = "0.11.2"
+version = "0.12.0"
 authors = ["Philipp Tessenow <philipp@tessenow.org>"]
 description = "Elixir extension to run WebAssembly binaries through wasmtime"
 readme = "README.md"
@@ -18,10 +18,10 @@ crate-type = ["dylib"]
 rustler = { version = "0.36.2", features = ["big_integer", "serde"] }
 once_cell = "1.21.3"
 rand = "0.9.1"
-wasmtime = "34.0.1"
-wasmtime-wasi = "34.0.1"
-wasmtime-wasi-http = "34.0.1"
-wasi-common = "34.0.1"
-wiggle = "34.0.1"
+wasmtime = "35.0.0"
+wasmtime-wasi = "35.0.0"
+wasmtime-wasi-http = "35.0.0"
+wasi-common = "35.0.0"
+wiggle = "35.0.0"
 wat = "1.235.0"
-wit-parser = "0.235.0"
+wit-parser = "0.236.0"
