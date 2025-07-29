@@ -14,16 +14,17 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## [0.12.0 - unreleased]
+## [0.12.0 - 2025-07-29]
 
 ### Added
 
 - Added support for calling Wasm Components functions by path. This allows e.g. exported interface functions to be called by using the fully qualified path `{"wasmex:simple/add@0.1.0", "add"}`.
 - Wasm Components: Variants can now be addressed using binaries (before it was only atoms)
+- Added precompilation support for apples iOS target
 
 ### Changed
 
-- Updated dependencies, including wasmtime to 34.0.1
+- Updated dependencies, including wasmtime to 35.0.0
 - Changed error messages when converting between Wasm types and Elixir types to include the field name and path where the error occurred.
 - Fixed edge case for converting results from a call into an imported function from a wasm component when the type conversion needs to de-reference a wasmtime type. See: https://github.com/tessi/wasmex/issues/810 - thanks @Lucky1313
 
