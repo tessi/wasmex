@@ -94,7 +94,7 @@ defmodule Wasmex.Components.ComponentServer do
   """
 
   defmacro __using__(opts) do
-    macro_imports = Keyword.get(opts, :imports, %{})
+    macro_imports = Keyword.get(opts, :imports, Macro.escape(%{}))
 
     genserver_setup =
       quote do
