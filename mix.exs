@@ -30,7 +30,8 @@ defmodule Wasmex.MixProject do
       {:rustler_precompiled, "~> 0.8"},
       {:rustler, "~> 0.36.2"},
       {:ex_doc, "~> 0.38.2", only: [:dev, :test]},
-      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
+      {:benchee, "~> 1.3", only: [:dev, :test]}
     ]
   end
 

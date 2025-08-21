@@ -4,9 +4,8 @@ use std::sync::{Condvar, Mutex};
 use rustler::env::SavedTerm;
 use wit_parser::{Function, Resolve, WorldItem};
 
-use std::thread;
-
 use crate::atoms;
+use crate::engine::TOKIO_RUNTIME;
 use crate::component::ComponentResource;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
@@ -27,7 +26,7 @@ use wasmtime_wasi;
 use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
-    convert_params, convert_result_term, encode_result, vals_to_terms,
+    convert_params, convert_result_term, encode_result_async, vals_to_terms,
 };
 
 pub struct ComponentCallbackToken {
@@ -192,55 +191,59 @@ pub fn call_exported_function(
     given_params: Term,
     from: Term,
 ) -> rustler::Atom {
-    let pid = env.pid();
+    let _ = env; // Required by rustler macro, but we use OwnedEnv instead
     // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
     // copy over params into the thread environment
     let function_params = thread_env.save(given_params);
     let from = thread_env.save(from);
 
-    thread::spawn(move || {
-        thread_env.send_and_clear(&pid, |thread_env| {
-            component_execute_function(
-                thread_env,
-                component_store_resource,
-                instance_resource,
-                function_name_path,
-                function_params,
-                from,
-            )
-        })
+    TOKIO_RUNTIME.spawn(async move {
+        // Execute function and get the result
+        let result = component_execute_function_async(
+            &mut thread_env,
+            component_store_resource,
+            instance_resource,
+            function_name_path,
+            function_params,
+        );
+        
+        // Send result directly to the caller
+        thread_env.run(|env| {
+            let from_tuple = from.load(env).decode::<Term>().unwrap();
+            let result_term = result.load(env).decode::<Term>().unwrap_or(atoms::error().encode(env));
+            
+            // GenServer.call from tuple is {pid, ref}
+            // LocalPid in Rustler can handle both local and remote PIDs (despite the name)
+            let (caller_pid, ref_term) = from_tuple.decode::<(LocalPid, Term)>()
+                .expect("from must be a GenServer {pid, ref} tuple");
+            
+            // Send GenServer reply format directly to caller: {ref, result}
+            let _ = env.send(&caller_pid, make_tuple(env, &[ref_term, result_term]));
+        });
     });
 
     atoms::ok()
 }
 
-fn component_execute_function(
-    thread_env: rustler::Env,
+fn component_execute_function_async(
+    thread_env: &mut OwnedEnv,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     function_name_path: Vec<String>,
     function_params: SavedTerm,
-    from: SavedTerm,
-) -> Term {
-    let component_store: &mut Store<ComponentStoreData> =
-        &mut (component_store_resource.inner.lock().unwrap());
-    let instance = &mut instance_resource.inner.lock().unwrap();
+) -> SavedTerm {
+    let result = thread_env.run(|env| {
+        let component_store: &mut Store<ComponentStoreData> =
+            &mut (component_store_resource.inner.lock().unwrap());
+        let instance = &mut instance_resource.inner.lock().unwrap();
 
-    let from = from
-        .load(thread_env)
-        .decode::<Term>()
-        .unwrap_or_else(|_| "could not load 'from' param".encode(thread_env));
-    let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
-        Ok(vec) => vec,
-        Err(err) => {
-            return make_error_tuple(
-                &thread_env,
-                format!("could not load 'function params': {err:?}"),
-                from,
-            )
-        }
-    };
+        let given_params = match function_params.load(env).decode::<Vec<Term>>() {
+            Ok(vec) => vec,
+            Err(err) => {
+                return env.error_tuple(&format!("could not load 'function params': {err:?}")).encode(env)
+            }
+        };
 
     // reduce function_name_path to a lookup index by iterating over function_name_path and calling instance.get_export
     let mut lookup_index = None;
@@ -257,25 +260,17 @@ fn component_execute_function(
 
         if lookup_index.is_none() {
             if function_name_path.len() == 1 {
-                return make_error_tuple(
-                    &thread_env,
-                    format!(
+                return env.error_tuple(&format!(
                         "exported function `{}` not found.",
                         function_name_path.join(", ")
-                    ),
-                    from,
-                );
+                    )).encode(env);
             } else {
-                return make_error_tuple(
-                    &thread_env,
-                    format!(
+                return env.error_tuple(&format!(
                         "exported function `[{}]` not found. Could not find `{}` at position {}",
                         function_name_path.join(", "),
                         name,
                         index
-                    ),
-                    from,
-                );
+                    )).encode(env);
             }
         }
     }
@@ -283,14 +278,10 @@ fn component_execute_function(
     let lookup_index = match lookup_index {
         Some(index) => index,
         None => {
-            return make_error_tuple(
-                &thread_env,
-                format!(
+            return env.error_tuple(&format!(
                     "exported function `{}` not found.",
                     function_name_path.join(", ")
-                ),
-                from,
-            );
+                )).encode(env);
         }
     };
 
@@ -298,14 +289,10 @@ fn component_execute_function(
     let function = match function_result {
         Some(func) => func,
         None => {
-            return make_error_tuple(
-                &thread_env,
-                format!(
+            return env.error_tuple(&format!(
                     "exported function `{}` not found",
                     function_name_path.join(", ")
-                ),
-                from,
-            )
+                )).encode(env)
         }
     };
 
@@ -319,11 +306,11 @@ fn component_execute_function(
     let converted_params = match convert_params(param_types.as_ref(), given_params) {
         Ok(params) => params,
         Err(Error::Term(e)) => {
-            return make_error_tuple(&thread_env, e.encode(thread_env), from);
+            return env.error_tuple(e.encode(env)).encode(env);
         }
         Err(e) => {
             let reason = format!("Error converting param: {e:?}");
-            return make_error_tuple(&thread_env, &reason, from);
+            return env.error_tuple(&reason).encode(env);
         }
     };
     let results_count = function.results(&*component_store).len();
@@ -336,48 +323,33 @@ fn component_execute_function(
     ) {
         Ok(_) => {
             let _ = function.post_return(&mut *component_store);
-            encode_result(&thread_env, result, from)
+            encode_result_async(env, result)
         }
         Err(err) => {
             let reason = format!("{err}");
             if let Ok(trap) = err.downcast::<Trap>() {
-                make_raise_tuple(
-                    &thread_env,
-                    format!("Error during function excecution ({trap}): {reason}"),
-                    from,
-                )
+                make_tuple(
+                    env,
+                    &[
+                        atoms::raise().encode(env),
+                        format!("Error during function excecution ({trap}): {reason}").encode(env),
+                    ],
+                ).encode(env)
             } else {
-                make_raise_tuple(
-                    &thread_env,
-                    format!("Error during function excecution: {reason}"),
-                    from,
-                )
+                make_tuple(
+                    env,
+                    &[
+                        atoms::raise().encode(env),
+                        format!("Error during function excecution: {reason}").encode(env),
+                    ],
+                ).encode(env)
             }
         }
-    }
+    }.encode(env)
+    });
+    thread_env.save(result)
 }
 
-fn make_error_tuple<'a>(env: &rustler::Env<'a>, reason: impl Encoder, from: Term<'a>) -> Term<'a> {
-    make_tuple(
-        *env,
-        &[
-            atoms::returned_function_call().encode(*env),
-            env.error_tuple(reason),
-            from,
-        ],
-    )
-}
-
-fn make_raise_tuple<'a>(env: &rustler::Env<'a>, reason: impl Encoder, from: Term<'a>) -> Term<'a> {
-    make_tuple(
-        *env,
-        &[
-            atoms::returned_function_call().encode(*env),
-            make_tuple(*env, &[atoms::raise().encode(*env), reason.encode(*env)]),
-            from,
-        ],
-    )
-}
 
 #[rustler::nif(name = "component_receive_callback_result")]
 pub fn receive_callback_result(

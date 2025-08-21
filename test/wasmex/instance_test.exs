@@ -94,17 +94,22 @@ defmodule Wasmex.InstanceTest do
     test "calling a function sends an async message back to self" do
       %{store: store, instance: instance} = build_wasm_instance()
 
+      # Create a proper GenServer from tuple {pid, ref}
+      ref = make_ref()
+      from = {self(), ref}
+
       assert :ok ==
                Wasmex.Instance.call_exported_function(
                  store,
                  instance,
                  "arity_0",
                  [],
-                 :fake_from
+                 from
                )
 
+      # Expect GenServer reply format: {ref, result}
       receive do
-        {:returned_function_call, {:ok, [42]}, :fake_from} -> nil
+        {^ref, {:ok, [42]}} -> nil
       after
         2000 ->
           raise "message_expected"
@@ -114,18 +119,22 @@ defmodule Wasmex.InstanceTest do
     test "calling a function with error sends an error message back to self" do
       %{store: store, instance: instance} = build_wasm_instance()
 
+      # Create a proper GenServer from tuple {pid, ref}
+      ref = make_ref()
+      from = {self(), ref}
+
       assert :ok ==
                Wasmex.Instance.call_exported_function(
                  store,
                  instance,
                  "arity_0",
                  [1],
-                 :fake_from
+                 from
                )
 
+      # Expect GenServer reply format: {ref, result}
       receive do
-        {:returned_function_call, {:error, "number of params does not match. expected 0, got 1"},
-         :fake_from} ->
+        {^ref, {:error, "number of params does not match. expected 0, got 1"}} ->
           nil
       after
         2000 ->

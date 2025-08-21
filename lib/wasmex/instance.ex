@@ -120,13 +120,12 @@ defmodule Wasmex.Instance do
   Calls a function the given `name` exported by the Wasm `instance` with the given `params`.
 
   The Wasm function will be invoked asynchronously in a new OS thread.
-  The calling Process/GenServer will receive a `{:returned_function_call, result, from}`
-  message once execution finishes.
-  The result either is an `{:error, reason}` or `:ok`.
+  The NIF will send the result directly to the calling process using the standard 
+  GenServer reply format: `{ref, result}` where ref comes from the `from` tuple.
+  The result either is an `{:error, reason}` or `{:ok, return_values}`.
 
   `call_exported_function/5` assumes to be called within a GenServer context, it expects a `from` argument
-  as given by `c:GenServer.handle_call/3`. `from` is returned unchanged to allow
-  the wrapping GenServer to reply to their caller.
+  as given by `c:GenServer.handle_call/3`. The NIF will reply directly to the caller using this `from` tuple.
 
   A BadArg exception may be thrown when given unexpected input data.
 
@@ -142,10 +141,12 @@ defmodule Wasmex.Instance do
 
       iex> %{store: store, module: module} = TestHelper.wasm_module()
       iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
-      iex> Wasmex.Instance.call_exported_function(store, instance, "sum", [1, 2], :from)
+      iex> ref = make_ref()
+      iex> from = {self(), ref}
+      iex> Wasmex.Instance.call_exported_function(store, instance, "sum", [1, 2], from)
       :ok
       iex> receive do
-      ...>   {:returned_function_call, {:ok, [3]}, :from} -> :ok
+      ...>   {^ref, {:ok, [3]}} -> :ok
       ...> after
       ...>  1000 -> raise "message_expected"
       ...> end

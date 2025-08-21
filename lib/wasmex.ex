@@ -516,15 +516,22 @@ defmodule Wasmex do
         from,
         %{store: store, instance: instance} = state
       ) do
+    # Direct reply optimization: Pass 'from' directly to NIF
+    # The NIF will send the response directly to the caller,
+    # bypassing the GenServer message queue for better parallelism and performance.
+    # This works with both local and remote (distributed) callers.
     :ok = Wasmex.Instance.call_exported_function(store, instance, name, params, from)
     {:noreply, state}
   end
 
   @impl true
-  def handle_info({:returned_function_call, result, from}, state) do
+  def handle_info({{__MODULE__, _ref, from}, result}, state) do
+    # Handle async response with our internal tag format
+    # Reply to the original GenServer.call
     GenServer.reply(from, result)
     {:noreply, state}
   end
+  
 
   @impl true
   def handle_info(

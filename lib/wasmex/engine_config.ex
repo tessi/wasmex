@@ -10,6 +10,8 @@ defmodule Wasmex.EngineConfig do
     * `:debug_info` - Configures whether DWARF debug information will be emitted during compilation. This defaults to `false`.
     * `:memory64` - Whether or not to use 64-bit memory. This defaults to `false`.
     * `:wasm_component_model` - Whether or not to use the WebAssembly component model. This defaults to `true`.
+    * `:epoch_interruption` - Whether or not to enable epoch-based interruption. This defaults to `false`.
+    * `:epoch_interval_ms` - The interval in milliseconds at which the epoch counter is incremented. This defaults to `10`.
 
   ## Example
 
@@ -17,6 +19,11 @@ defmodule Wasmex.EngineConfig do
       ...>           |> Wasmex.EngineConfig.consume_fuel(true)
       ...>           |> Wasmex.EngineConfig.cranelift_opt_level(:speed)
       ...>           |> Wasmex.EngineConfig.wasm_backtrace_details(false)
+      
+      # With epoch interruption
+      iex> _config = %Wasmex.EngineConfig{}
+      ...>           |> Wasmex.EngineConfig.epoch_interruption(true)
+      ...>           |> Wasmex.EngineConfig.epoch_interval_ms(10)
   """
 
   defstruct consume_fuel: false,
@@ -24,7 +31,9 @@ defmodule Wasmex.EngineConfig do
             wasm_backtrace_details: false,
             memory64: false,
             wasm_component_model: true,
-            debug_info: false
+            debug_info: false,
+            epoch_interruption: false,
+            epoch_interval_ms: 10
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),
@@ -32,7 +41,9 @@ defmodule Wasmex.EngineConfig do
           wasm_backtrace_details: boolean(),
           memory64: boolean(),
           wasm_component_model: boolean(),
-          debug_info: boolean()
+          debug_info: boolean(),
+          epoch_interruption: boolean(),
+          epoch_interval_ms: non_neg_integer()
         }
 
   @doc ~S"""
@@ -108,5 +119,44 @@ defmodule Wasmex.EngineConfig do
   @spec wasm_backtrace_details(t(), boolean()) :: t()
   def wasm_backtrace_details(%__MODULE__{} = config, wasm_backtrace_details) do
     %__MODULE__{config | wasm_backtrace_details: wasm_backtrace_details}
+  end
+
+  @doc ~S"""
+  Configures whether epoch-based interruption is enabled.
+
+  When enabled, the engine will periodically increment an epoch counter,
+  and WebAssembly execution can be interrupted when a store's epoch deadline
+  is exceeded. This provides an efficient mechanism for preemptive interruption
+  without the overhead of fuel metering.
+
+  ## Example
+
+      iex> config = %Wasmex.EngineConfig{}
+      ...>          |> Wasmex.EngineConfig.epoch_interruption(true)
+      iex> config.epoch_interruption
+      true
+  """
+  @spec epoch_interruption(t(), boolean()) :: t()
+  def epoch_interruption(%__MODULE__{} = config, epoch_interruption) do
+    %__MODULE__{config | epoch_interruption: epoch_interruption}
+  end
+
+  @doc ~S"""
+  Configures the interval in milliseconds at which the epoch counter is incremented.
+
+  This setting only takes effect when `epoch_interruption` is enabled.
+  The default value is 10 milliseconds.
+
+  ## Example
+
+      iex> config = %Wasmex.EngineConfig{}
+      ...>          |> Wasmex.EngineConfig.epoch_interruption(true)
+      ...>          |> Wasmex.EngineConfig.epoch_interval_ms(20)
+      iex> config.epoch_interval_ms
+      20
+  """
+  @spec epoch_interval_ms(t(), non_neg_integer()) :: t()
+  def epoch_interval_ms(%__MODULE__{} = config, epoch_interval_ms) when is_integer(epoch_interval_ms) and epoch_interval_ms > 0 do
+    %__MODULE__{config | epoch_interval_ms: epoch_interval_ms}
   end
 end

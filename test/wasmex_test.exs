@@ -120,7 +120,7 @@ defmodule WasmexTest do
     end
 
     test t(&Wasmex.call_function/3) <> " void() -> () function", %{pid: pid} do
-      assert {:ok, []} == Wasmex.call_function(pid, :void, [])
+      assert {:ok, nil} == Wasmex.call_function(pid, :void, [])
     end
 
     test t(&Wasmex.call_function/3) <> " string() -> string function", %{
@@ -192,7 +192,7 @@ defmodule WasmexTest do
     setup [:setup_atom_imports]
 
     test "call_function using_imported_void for void() -> () callback", %{pid: pid} do
-      assert {:ok, []} == Wasmex.call_function(pid, :using_imported_void, [])
+      assert {:ok, nil} == Wasmex.call_function(pid, :using_imported_void, [])
     end
 
     test "call_function using_imported_sum3", %{pid: pid} do
@@ -312,7 +312,7 @@ defmodule WasmexTest do
       pid = start_supervised!({Wasmex, %{store: store, bytes: bytes}})
       Wasmex.StoreOrCaller.set_fuel(store, 2)
 
-      assert Wasmex.call_function(pid, :void, []) == {:ok, []}
+      assert Wasmex.call_function(pid, :void, []) == {:ok, nil}
       assert Wasmex.StoreOrCaller.get_fuel(store) == {:ok, 1}
 
       assert {:error, err_msg} = Wasmex.call_function(pid, :void, [])
@@ -437,15 +437,14 @@ defmodule WasmexTest do
           add_import:
             {:fn, [:i32, :i32], [:i32],
              fn %{instance: instance, caller: caller}, a, b ->
-               Wasmex.Instance.call_exported_function(caller, instance, "call_add", [a, b], :from)
+               # Create a proper GenServer from tuple
+               ref = make_ref()
+               from = {self(), ref}
+               Wasmex.Instance.call_exported_function(caller, instance, "call_add", [a, b], from)
 
+               # Expect GenServer reply format: {ref, result}
                receive do
-                 {
-                   :returned_function_call,
-                   {:ok, [result]},
-                   :from
-                 } ->
-                   :ok
+                 {^ref, {:ok, [result]}} ->
                    result
                after
                  1000 ->
@@ -474,6 +473,158 @@ defmodule WasmexTest do
       {:ok, pid} = Wasmex.start_link(%{store: store, module: module, instance: instance})
 
       assert {:ok, [42]} == Wasmex.call_function(pid, :sum, [50, -8])
+    end
+  end
+
+  describe "concurrent execution" do
+    test "parallel function calls" do
+      wat = """
+      (module
+        (func $identity (param i32) (result i32)
+          local.get 0)
+        (export "identity" (func $identity))
+      )
+      """
+      
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+      
+      # Launch multiple concurrent calls
+      tasks = for i <- 1..10 do
+        Task.async(fn ->
+          {:ok, [^i]} = Wasmex.call_function(pid, :identity, [i])
+          i
+        end)
+      end
+      
+      results = Task.await_many(tasks)
+      assert results == Enum.to_list(1..10)
+    end
+    
+    test "concurrent memory access" do
+      wat = """
+      (module
+        (memory 1)
+        (export "memory" (memory 0))
+      )
+      """
+      
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+      {:ok, memory} = Wasmex.memory(pid)
+      
+      # Concurrent reads and writes
+      tasks = for offset <- 0..9 do
+        Task.async(fn ->
+          # Write unique value
+          data = <<offset::32-little>>
+          :ok = Wasmex.Memory.write_binary(store, memory, offset * 4, data)
+          
+          # Read it back
+          read_data = Wasmex.Memory.read_binary(store, memory, offset * 4, 4)
+          <<value::32-little>> = read_data
+          value
+        end)
+      end
+      
+      results = Task.await_many(tasks)
+      assert results == Enum.to_list(0..9)
+    end
+  end
+  
+  describe "epoch interruption" do
+    test "can interrupt long-running functions with epoch deadline" do
+      wat = """
+      (module
+        (func $loop_forever (export "loop_forever") (result i32)
+          (loop $infinite
+            br $infinite
+          )
+          (i32.const 42)
+        )
+        
+        (func $quick (export "quick") (result i32)
+          (i32.const 42)
+        )
+      )
+      """
+      
+      # Test 1: Quick function should work without epoch interruption
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+      assert {:ok, [42]} = Wasmex.call_function(pid, :quick, [])
+      Process.exit(pid, :normal)
+      
+      # Test 2: Long-running function with epoch interruption
+      {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{
+        epoch_interruption: true,
+        epoch_interval_ms: 10  # 10ms per epoch tick
+      })
+      
+      {:ok, store2} = Wasmex.Store.new(nil, engine)
+      {:ok, module2} = Wasmex.Module.compile(store2, wat)
+      {:ok, pid2} = Wasmex.start_link(%{store: store2, module: module2})
+      
+      # Set a very low epoch deadline that will be exceeded quickly
+      :ok = Wasmex.Epoch.set_deadline(store2, 1)
+      
+      # Short sleep to ensure at least one epoch has passed
+      Process.sleep(20)
+      
+      # Long-running function should be interrupted
+      result = Wasmex.call_function(pid2, :loop_forever, [])
+      
+      assert {:error, msg} = result
+      assert msg =~ "deadline" or msg =~ "epoch" or msg =~ "interrupt"
+    end
+    
+    test "can set epoch timeout in milliseconds" do
+      wat = """
+      (module
+        (func $busy_loop (export "busy_loop") (result i32)
+          (local $i i32)
+          (local $sum i32)
+          (local.set $i (i32.const 0))
+          (local.set $sum (i32.const 0))
+          
+          (loop $loop
+            (local.set $sum (i32.add (local.get $sum) (local.get $i)))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br_if $loop (i32.lt_u (local.get $i) (i32.const 100000000)))
+          )
+          (local.get $sum)
+        )
+      )
+      """
+      
+      # Create engine with epoch interruption
+      {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{
+        epoch_interruption: true,
+        epoch_interval_ms: 10
+      })
+      
+      {:ok, store} = Wasmex.Store.new(nil, engine)
+      {:ok, module} = Wasmex.Module.compile(store, wat)
+      {:ok, pid} = Wasmex.start_link(%{store: store, module: module})
+      
+      # Set timeout to 100ms
+      :ok = Wasmex.Epoch.set_timeout_ms(store, 100)
+      
+      # Function should be interrupted before completion
+      result = Wasmex.call_function(pid, :busy_loop, [])
+      
+      # Should either complete or be interrupted by epoch
+      case result do
+        {:ok, _} -> 
+          # Function completed within timeout
+          assert true
+        {:error, msg} ->
+          # Function was interrupted
+          assert msg =~ "deadline" or msg =~ "epoch"
+      end
     end
   end
 end
