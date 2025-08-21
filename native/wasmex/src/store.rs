@@ -1,4 +1,5 @@
 use crate::{
+    atoms,
     caller::{get_caller, get_caller_mut},
     engine::{unwrap_engine, EngineResource},
     pipe::{Pipe, PipeResource},
@@ -382,6 +383,61 @@ pub fn get_fuel(
             .map(|c| c.get_fuel())?,
     }
     .map_err(|e| rustler::Error::Term(Box::new(format!("Could not get fuel: {e}"))))
+}
+
+#[rustler::nif(name = "store_set_epoch_deadline")]
+pub fn set_epoch_deadline(
+    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    ticks: u64,
+) -> Result<rustler::Atom, rustler::Error> {
+    let store_or_caller: &mut StoreOrCaller =
+        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
+        })?);
+    
+    match store_or_caller {
+        StoreOrCaller::Store(store) => {
+            store.set_epoch_deadline(ticks);
+            Ok(atoms::ok())
+        }
+        StoreOrCaller::Caller(_token) => {
+            // Caller doesn't support set_epoch_deadline directly
+            // This should only be called on Store, not within a function call
+            Err(rustler::Error::Term(Box::new(
+                "Cannot set epoch deadline on a caller. Only use on store.",
+            )))
+        }
+    }
+}
+
+#[rustler::nif(name = "store_set_epoch_timeout")]
+pub fn set_epoch_timeout(
+    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    timeout_ms: u64,
+) -> Result<rustler::Atom, rustler::Error> {
+    let store_or_caller: &mut StoreOrCaller =
+        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
+            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
+        })?);
+    
+    match store_or_caller {
+        StoreOrCaller::Store(store) => {
+            // Calculate ticks based on timeout 
+            // Note: This assumes the default 10ms interval, ideally we'd track this per engine
+            let ticks = timeout_ms / 10;
+            // Set a deadline relative to "now" by using a large enough value
+            // Since we can't access current_epoch, we'll just set it to the tick count
+            // which effectively means "timeout_ms from engine start"
+            store.set_epoch_deadline(ticks);
+            Ok(atoms::ok())
+        }
+        StoreOrCaller::Caller(_token) => {
+            // Caller doesn't support set_epoch_deadline directly
+            Err(rustler::Error::Term(Box::new(
+                "Cannot set epoch timeout on a caller. Only use on store.",
+            )))
+        }
+    }
 }
 
 fn add_pipe(

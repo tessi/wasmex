@@ -81,6 +81,9 @@ defmodule Wasmex.Native do
   def pipe_read_binary(_pipe_resource), do: error()
   def pipe_write_binary(_pipe_resource, _binary), do: error()
 
+  # MVP async functions
+  def store_new(), do: error()
+  
   def store_new(_store_limits, _engine_resource), do: error()
   def store_new_wasi(_wasi_options, _store_limits, _engine_resource), do: error()
 
@@ -90,17 +93,21 @@ defmodule Wasmex.Native do
   def store_or_caller_get_fuel(_store_or_caller_resource), do: error()
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
 
-  def component_new(_store, _component_bytes), do: error()
-
-  def component_instance_new(_store, _component, _imports), do: error()
-
+  def component_new(_store_resource, _bytes), do: error()
+  def component_instance_new(_store_resource, _component_resource, _imports), do: error()
   def component_call_function(_store, _instance, _function_name_path, _params, _from), do: error()
-
-  def component_receive_callback_result(_component, _2, _3, _4), do: error()
+  def component_receive_callback_result(_component_resource, _token, _success, _result), do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
 
   def wat_to_wasm(_wat), do: error()
+
+  # Epoch-based interruption
+  def store_set_epoch_deadline(_store_resource, _ticks), do: error()
+  def store_set_epoch_timeout(_store_resource, _timeout_ms), do: error()
+
+  # Test function for async sleep
+  def test_async_sleep(_ms, _tag), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.

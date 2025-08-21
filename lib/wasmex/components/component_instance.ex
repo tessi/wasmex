@@ -39,24 +39,36 @@ defmodule Wasmex.Components.Instance do
         args,
         from
       ) do
-    path =
-      cond do
-        is_list(function_or_path) ->
-          Enum.map(function_or_path, &Wasmex.Utils.stringify/1)
+    function_path = parse_function_path(function_or_path)
 
-        is_atom(function_or_path) ->
-          [Wasmex.Utils.stringify(function_or_path)]
+    Wasmex.Native.component_call_function(
+      store_resource,
+      instance_resource,
+      function_path,
+      args,
+      from
+    )
+  end
 
-        is_binary(function_or_path) ->
-          [function_or_path]
+  defp parse_function_path(path) when is_binary(path), do: [path]
+  defp parse_function_path(path) when is_atom(path), do: [Atom.to_string(path)]
+  defp parse_function_path(path) when is_list(path) do
+    Enum.map(path, fn
+      p when is_binary(p) -> p
+      p when is_atom(p) -> Atom.to_string(p)
+    end)
+  end
+  defp parse_function_path(path) when is_tuple(path) do
+    path
+    |> Tuple.to_list()
+    |> parse_function_path()
+  end
+end
 
-        is_tuple(function_or_path) ->
-          function_or_path |> Tuple.to_list() |> Enum.map(&Wasmex.Utils.stringify/1)
+defimpl Inspect, for: Wasmex.Components.Instance do
+  import Inspect.Algebra
 
-        true ->
-          raise "Invalid function or path - needs to be a list, binary, or tuple"
-      end
-
-    Wasmex.Native.component_call_function(store_resource, instance_resource, path, args, from)
+  def inspect(dict, opts) do
+    concat(["#Wasmex.Components.Instance<", to_doc(dict.reference, opts), ">"])
   end
 end

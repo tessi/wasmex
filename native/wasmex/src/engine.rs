@@ -1,9 +1,43 @@
+use lazy_static::lazy_static;
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
+use tokio::runtime::Runtime;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
+
+// Global Tokio runtime for async operations
+// This creates a multi-threaded runtime that uses lightweight tasks (green threads)
+// NOT OS threads per task - many tasks are multiplexed onto a small thread pool
+lazy_static! {
+    pub static ref TOKIO_RUNTIME: Arc<Runtime> = {
+        // Use all available CPU cores for optimal performance
+        // This allows Tokio to efficiently schedule async tasks across all cores
+        let num_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(8);  // Fallback to 8 if detection fails
+
+        Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(num_threads)
+                .thread_name("wasmex-async")
+                .enable_all()
+                .build()
+                .expect("Failed to create Tokio runtime")
+        )
+    };
+    
+    // Track engines with epoch interruption enabled
+    pub static ref EPOCH_ENGINES: RwLock<Vec<EpochEngine>> = RwLock::new(Vec::new());
+}
+
+// Structure to track engines with epoch interruption
+pub struct EpochEngine {
+    pub engine: Engine,
+    pub interval_ms: u64,
+}
 
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
@@ -14,6 +48,8 @@ pub struct ExEngineConfig {
     memory64: bool,
     wasm_component_model: bool,
     debug_info: bool,
+    epoch_interruption: bool,
+    epoch_interval_ms: u64,
 }
 
 #[rustler::resource_impl()]
@@ -24,9 +60,32 @@ pub struct EngineResource {
 }
 
 #[rustler::nif(name = "engine_new")]
-pub fn new(config: ExEngineConfig) -> Result<ResourceArc<EngineResource>, rustler::Error> {
-    let config = engine_config(config);
+pub fn new(engine_config_ex: ExEngineConfig) -> Result<ResourceArc<EngineResource>, rustler::Error> {
+    let epoch_interruption = engine_config_ex.epoch_interruption;
+    let epoch_interval_ms = engine_config_ex.epoch_interval_ms;
+    let config = engine_config(engine_config_ex);
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    
+    // If epoch interruption is enabled, start the epoch ticker
+    if epoch_interruption {
+        let engine_clone = engine.clone();
+        
+        // Add to global epoch engines list
+        EPOCH_ENGINES.write().unwrap().push(EpochEngine {
+            engine: engine.clone(),
+            interval_ms: epoch_interval_ms,
+        });
+        
+        // Start the epoch ticker in the Tokio runtime
+        TOKIO_RUNTIME.spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(epoch_interval_ms));
+            loop {
+                interval.tick().await;
+                engine_clone.increment_epoch();
+            }
+        });
+    }
+    
     let resource = ResourceArc::new(EngineResource {
         inner: Mutex::new(engine),
     });
@@ -72,6 +131,12 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_memory64(engine_config.memory64);
     config.wasm_component_model(engine_config.wasm_component_model);
     config.debug_info(engine_config.debug_info);
+    
+    // Configure epoch-based interruption
+    if engine_config.epoch_interruption {
+        config.epoch_interruption(true);
+    }
+    
     config
 }
 

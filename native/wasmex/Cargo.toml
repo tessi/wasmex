@@ -12,16 +12,19 @@ edition = "2021"
 [lib]
 name = "wasmex"
 path = "src/lib.rs"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 rustler = { version = "0.36.2", features = ["big_integer", "serde"] }
+lazy_static = "1.5"
 once_cell = "1.21.3"
 rand = "0.9.1"
-wasmtime = "35.0.0"
+tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "sync"] }
+wasmtime = { version = "35.0.0", features = ["async"] }
 wasmtime-wasi = "35.0.0"
 wasmtime-wasi-http = "35.0.0"
 wasi-common = "35.0.0"
 wiggle = "35.0.0"
 wat = "1.235.0"
 wit-parser = "0.236.0"
+async-trait = "0.1"
