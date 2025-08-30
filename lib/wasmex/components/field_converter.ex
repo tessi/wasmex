@@ -1,4 +1,19 @@
 defmodule Wasmex.Components.FieldConverter do
+  @moduledoc """
+  Converts field names between Elixir's snake_case and WIT's kebab-case conventions.
+
+  This module provides bidirectional conversion for field names in maps and nested
+  data structures, allowing seamless interaction between Elixir code and WebAssembly
+  components that use different naming conventions.
+  """
+
+  def maybe_convert_args(args, true), do: to_wit(args)
+  def maybe_convert_args(args, false), do: args
+
+  def maybe_convert_result({:ok, result}, true), do: {:ok, to_elixir(result)}
+  def maybe_convert_result({:ok, result}, false), do: {:ok, result}
+  def maybe_convert_result({:error, error}, _), do: {:error, error}
+
   def to_wit(list) when is_list(list) do
     list |> Enum.map(&to_wit/1)
   end

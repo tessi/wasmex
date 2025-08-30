@@ -124,24 +124,20 @@ defmodule Wasmex.Components.ComponentServer do
 
           quote do
             def unquote(function_atom)(pid, unquote_splicing(arglist)) do
+              args = [unquote_splicing(arglist)]
+
               converted_args =
-                if unquote(convert_field_names?) do
-                  [unquote_splicing(arglist)] |> Wasmex.Components.FieldConverter.to_wit()
-                else
-                  [unquote_splicing(arglist)]
-                end
+                Wasmex.Components.FieldConverter.maybe_convert_args(
+                  args,
+                  unquote(convert_field_names?)
+                )
 
-              case Wasmex.Components.call_function(pid, unquote(function), converted_args) do
-                {:ok, result} ->
-                  if unquote(convert_field_names?) do
-                    {:ok, Wasmex.Components.FieldConverter.to_elixir(result)}
-                  else
-                    {:ok, result}
-                  end
+              result = Wasmex.Components.call_function(pid, unquote(function), converted_args)
 
-                {:error, error} ->
-                  {:error, error}
-              end
+              Wasmex.Components.FieldConverter.maybe_convert_result(
+                result,
+                unquote(convert_field_names?)
+              )
             end
           end
         end
