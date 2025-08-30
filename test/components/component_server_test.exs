@@ -80,4 +80,30 @@ defmodule Wasmex.Components.GenServerTest do
     assert {:ok, "Echo"} =
              Wasmex.Components.call_function(ComponentTypes, "export-id-string", ["Echo"])
   end
+
+  test "field name conversion is enabled by default" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    component_pid =
+      start_supervised!(
+        {HelloWorld, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
+      )
+
+    # With default conversion enabled, kebab_field should work
+    assert {:ok, %{kebab_field: "test"}} =
+             HelloWorld.echo_kebab(component_pid, %{kebab_field: "test"})
+  end
+
+  test "field name conversion can be disabled" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    component_pid =
+      start_supervised!(
+        {HelloWorldNoConversion, bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}}
+      )
+
+    # With conversion disabled, need to use kebab-field format
+    assert {:ok, %{"kebab-field" => "test"}} =
+             HelloWorldNoConversion.echo_kebab(component_pid, %{"kebab-field" => "test"})
+  end
 end

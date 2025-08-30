@@ -98,6 +98,7 @@ defmodule Wasmex.Components.ComponentServer do
 
   defmacro __using__(opts) do
     macro_imports = Keyword.get(opts, :imports, Macro.escape(%{}))
+    convert_field_names? = Keyword.get(opts, :convert_field_names, true)
 
     genserver_setup =
       quote do
@@ -123,11 +124,19 @@ defmodule Wasmex.Components.ComponentServer do
 
           quote do
             def unquote(function_atom)(pid, unquote_splicing(arglist)) do
-              converted_args = [unquote_splicing(arglist)] |> Wasmex.Components.FieldConverter.to_wit()
+              converted_args = if unquote(convert_field_names?) do
+                [unquote_splicing(arglist)] |> Wasmex.Components.FieldConverter.to_wit()
+              else
+                [unquote_splicing(arglist)]
+              end
 
               case Wasmex.Components.call_function(pid, unquote(function), converted_args) do
                 {:ok, result} ->
-                  {:ok, Wasmex.Components.FieldConverter.to_elixir(result)}
+                  if unquote(convert_field_names?) do
+                    {:ok, Wasmex.Components.FieldConverter.to_elixir(result)}
+                  else
+                    {:ok, result}
+                  end
 
                 {:error, error} ->
                   {:error, error}
