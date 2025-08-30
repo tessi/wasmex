@@ -341,7 +341,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
         int: 123,
         float: 123.456,
         boolean: true,
-        list_u8: [1, 2, 3],
+        "list-u8": [1, 2, 3],
         "list-point": [%{x: 1, y: 2}, %{x: 3, y: 4}],
         "option-u8": {:some, 123},
         "option-string": {:some, "hello"},

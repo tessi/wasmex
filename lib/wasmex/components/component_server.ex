@@ -89,6 +89,9 @@ defmodule Wasmex.Components.ComponentServer do
   ## Options
 
   * `:wit` - Path to the WIT file defining the component's interface
+  * `:convert_field_names` - All function calls will for all arugments
+  recursively convert any map field names from under_score case to kebab-case
+  and vice versa for return values.
   * `:imports` - A map of import function implementations that the component requires, where each key
     is the function name as defined in the WIT file and the value is the implementing function
   """
@@ -120,7 +123,15 @@ defmodule Wasmex.Components.ComponentServer do
 
           quote do
             def unquote(function_atom)(pid, unquote_splicing(arglist)) do
-              Wasmex.Components.call_function(pid, unquote(function), [unquote_splicing(arglist)])
+              converted_args = [unquote_splicing(arglist)] |> Wasmex.Components.FieldConverter.to_wit()
+
+              case Wasmex.Components.call_function(pid, unquote(function), converted_args) do
+                {:ok, result} ->
+                  {:ok, Wasmex.Components.FieldConverter.to_elixir(result)}
+
+                {:error, error} ->
+                  {:error, error}
+              end
             end
           end
         end

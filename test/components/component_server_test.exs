@@ -59,6 +59,9 @@ defmodule Wasmex.Components.GenServerTest do
     assert {:ok, [greeting1, greeting2]} =
              HelloWorld.multi_greet(component_pid, "Elixir", 2)
 
+    assert {:ok, %{kebab_field: "foo"}} =
+             HelloWorld.echo_kebab(component_pid, %{kebab_field: "foo"})
+
     assert greeting1 =~ "Hello"
     assert greeting2 =~ "Hello"
   end
