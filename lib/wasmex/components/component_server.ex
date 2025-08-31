@@ -89,12 +89,16 @@ defmodule Wasmex.Components.ComponentServer do
   ## Options
 
   * `:wit` - Path to the WIT file defining the component's interface
+  * `:convert_field_names` - All function calls will for all arugments
+  recursively convert any map field names from under_score case to kebab-case
+  and vice versa for return values. Defaults to true.
   * `:imports` - A map of import function implementations that the component requires, where each key
     is the function name as defined in the WIT file and the value is the implementing function
   """
 
   defmacro __using__(opts) do
-    macro_imports = Keyword.get(opts, :imports, %{})
+    macro_imports = Keyword.get(opts, :imports, Macro.escape(%{}))
+    convert_field_names? = Keyword.get(opts, :convert_field_names, true)
 
     genserver_setup =
       quote do
@@ -120,7 +124,20 @@ defmodule Wasmex.Components.ComponentServer do
 
           quote do
             def unquote(function_atom)(pid, unquote_splicing(arglist)) do
-              Wasmex.Components.call_function(pid, unquote(function), [unquote_splicing(arglist)])
+              args = [unquote_splicing(arglist)]
+
+              converted_args =
+                Wasmex.Components.FieldConverter.maybe_convert_args(
+                  args,
+                  unquote(convert_field_names?)
+                )
+
+              result = Wasmex.Components.call_function(pid, unquote(function), converted_args)
+
+              Wasmex.Components.FieldConverter.maybe_convert_result(
+                result,
+                unquote(convert_field_names?)
+              )
             end
           end
         end
