@@ -91,7 +91,7 @@ defmodule Wasmex.Components.ComponentServer do
   * `:wit` - Path to the WIT file defining the component's interface
   * `:convert_field_names` - All function calls will for all arugments
   recursively convert any map field names from under_score case to kebab-case
-  and vice versa for return values.
+  and vice versa for return values. Defaults to true.
   * `:imports` - A map of import function implementations that the component requires, where each key
     is the function name as defined in the WIT file and the value is the implementing function
   """
