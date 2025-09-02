@@ -1,0 +1,20 @@
+[package]
+name = "filesystem-component"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "wasi"))'.dependencies]
+wit-bindgen = "0.35.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.wasi-release]
+inherits = "release"
+lto = "thin"
+opt-level = "z"
+codegen-units = 1
+strip = true
+panic = "abort"

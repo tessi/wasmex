@@ -1,0 +1,15 @@
+[target.wasm32-wasip2]
+rustflags = [
+    "-C", "link-arg=-zstack-size=1048576",
+    "-C", "target-feature=+bulk-memory",
+    "-C", "target-feature=+mutable-globals",
+    "-C", "target-feature=+sign-ext",
+]
+
+[profile.wasi-release]
+inherits = "release"
+lto = "thin"
+opt-level = "z"
+codegen-units = 1
+strip = true
+panic = "abort"

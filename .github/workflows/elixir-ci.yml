@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - '**'  # Run on all branches
 
 env:
   ELIXIR_VERSION: 1.17.3
@@ -120,9 +121,14 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasip1
+          rustup target add wasm32-wasip2
 
       - name: "Install cargo-component"
         run: cargo install --locked cargo-component
+        shell: bash
+
+      - name: "Install wasm-tools"
+        run: cargo install --locked wasm-tools
         shell: bash
 
       - uses: actions/cache@v4

@@ -37,13 +37,65 @@ defmodule TestHelper do
   def wasi_test_file_path,
     do: "#{@wasi_test_source_dir}/target/wasm32-wasip1/debug/main.wasm"
 
-  def precompile_wasm_files do
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_link_import_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasi_test_source_dir)
+  def get_wasmtime_version do
+    # Read wasmtime version from Cargo.toml
+    cargo_toml = File.read!("native/wasmex/Cargo.toml")
 
-    {"", 0} =
+    case Regex.run(~r/wasmtime\s*=\s*"([^"]+)"/, cargo_toml) do
+      [_, version] -> version
+      _ -> raise "Could not find wasmtime version in Cargo.toml"
+    end
+  end
+
+  def ensure_wasi_adapter do
+    # Download WASI adapter from wasmtime release if it doesn't exist
+    adapter_path = "test/component_fixtures/wasi_snapshot_preview1.reactor.wasm"
+
+    unless File.exists?(adapter_path) do
+      version = get_wasmtime_version()
+      IO.puts("Downloading WASI adapter from wasmtime v#{version}...")
+
+      url =
+        "https://github.com/bytecodealliance/wasmtime/releases/download/v#{version}/wasi_snapshot_preview1.reactor.wasm"
+
+      {output, exit_code} =
+        System.cmd("curl", ["-L", "-o", adapter_path, url], stderr_to_stdout: true)
+
+      if exit_code != 0 do
+        IO.puts("Failed to download WASI adapter: #{output}")
+        raise "Failed to download WASI adapter. Please ensure curl is installed."
+      end
+
+      IO.puts("WASI adapter downloaded successfully.")
+    end
+  end
+
+  def precompile_wasm_files do
+    # Ensure WASI adapter is available
+    ensure_wasi_adapter()
+
+    # Suppress cargo output by collecting into a list (discarded)
+    {_output, 0} =
+      System.cmd("cargo", ["build"], cd: @wasm_test_source_dir, stderr_to_stdout: true, into: [])
+
+    {_output, 0} =
+      System.cmd("cargo", ["build"],
+        cd: @wasm_import_test_source_dir,
+        stderr_to_stdout: true,
+        into: []
+      )
+
+    {_output, 0} =
+      System.cmd("cargo", ["build"],
+        cd: @wasm_link_import_test_source_dir,
+        stderr_to_stdout: true,
+        into: []
+      )
+
+    {_output, 0} =
+      System.cmd("cargo", ["build"], cd: @wasi_test_source_dir, stderr_to_stdout: true, into: [])
+
+    {_output, 0} =
       System.cmd(
         "cargo",
         [
@@ -53,10 +105,12 @@ defmodule TestHelper do
           "--extern",
           "utils=#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
         ],
-        cd: @wasm_link_test_source_dir
+        cd: @wasm_link_test_source_dir,
+        stderr_to_stdout: true,
+        into: []
       )
 
-    {"", 0} =
+    {_output, 0} =
       System.cmd(
         "cargo",
         [
@@ -66,14 +120,51 @@ defmodule TestHelper do
           "--extern",
           "calculator=#{@wasm_link_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
         ],
-        cd: @wasm_link_dep_test_source_dir
+        cd: @wasm_link_dep_test_source_dir,
+        stderr_to_stdout: true,
+        into: []
       )
 
-    {"", 0} =
-      System.cmd("cargo", ["component", "build"], cd: @component_type_conversions_source_dir)
+    {_output, 0} =
+      System.cmd("cargo", ["component", "build"],
+        cd: @component_type_conversions_source_dir,
+        stderr_to_stdout: true,
+        into: []
+      )
 
-    {"", 0} =
-      System.cmd("cargo", ["component", "build"], cd: @component_exported_interface_source_dir)
+    {_output, 0} =
+      System.cmd("cargo", ["component", "build"],
+        cd: @component_exported_interface_source_dir,
+        stderr_to_stdout: true,
+        into: []
+      )
+
+    # Build new component fixtures
+    component_fixtures_dir = "#{Path.dirname(__ENV__.file)}/component_fixtures"
+
+    # Build counter-component
+    counter_dir = "#{component_fixtures_dir}/counter-component"
+
+    if File.exists?(counter_dir) do
+      {_output, _code} =
+        System.cmd("sh", ["build.sh"], cd: counter_dir, stderr_to_stdout: true, into: [])
+    end
+
+    # Build filesystem-component
+    filesystem_dir = "#{component_fixtures_dir}/filesystem-component"
+
+    if File.exists?(filesystem_dir) do
+      {_output, _code} =
+        System.cmd("sh", ["build.sh"], cd: filesystem_dir, stderr_to_stdout: true, into: [])
+    end
+
+    # Build wasi-test-component
+    wasi_test_dir = "#{component_fixtures_dir}/wasi-test-component"
+
+    if File.exists?(wasi_test_dir) do
+      {_output, _code} =
+        System.cmd("sh", ["build.sh"], cd: wasi_test_dir, stderr_to_stdout: true, into: [])
+    end
   end
 
   def wasm_module do
@@ -156,6 +247,9 @@ defmodule TestHelper do
     end
   end
 end
+
+# Configure Logger for tests to suppress debug output
+Logger.configure(level: :warning)
 
 TestHelper.precompile_wasm_files()
 ExUnit.start()

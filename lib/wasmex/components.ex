@@ -131,12 +131,139 @@ defmodule Wasmex.Components do
       {:error, 404}  # error case
       ```
 
-  ### Currently Unsupported Types
+    - `resource` (stateful objects with methods)
+      ```wit
+      resource counter {
+        constructor(initial: u32);
+        increment: func() -> u32;
+        get-value: func() -> u32;
+      }
+      ```
+      Resources are created using constructors and map to Elixir references.
+      See the "Working with Resources" section below for details.
 
-  The following WIT type is not yet supported:
-  - Resources
+  ## Working with Resources
 
-  Support for the Component Model should be considered beta quality.
+  Resources are stateful objects in the Component Model with constructors and methods.
+  They provide an object-oriented interface for WebAssembly components.
+
+  ### Creating Resources (Constructors)
+
+  The idiomatic way to create resources is using their constructors:
+
+  ```elixir
+  # Setup
+  {:ok, store} = Wasmex.Components.Store.new()
+  {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
+  {:ok, instance} = Wasmex.Components.Instance.new(store, component, %{})
+
+  # Create a resource using its constructor
+  {:ok, counter} = Wasmex.Components.Instance.new_resource(
+    instance,
+    ["component:counter/types", "counter"],
+    [42]  # constructor arguments
+  )
+  ```
+
+  ### Calling Resource Methods
+
+  Once you have a resource, you can call its methods:
+
+  ```elixir
+  # Clean and simple API
+  {:ok, new_value} = Wasmex.Components.Instance.call(instance, counter, "increment")
+  IO.puts("Counter incremented to: " <> Integer.to_string(new_value))
+
+  # Get the current value
+  {:ok, value} = Wasmex.Components.Instance.call(instance, counter, "get-value")
+
+  # Reset with a parameter
+  :ok = Wasmex.Components.Instance.call(instance, counter, "reset", [100])
+
+  # With explicit interface
+  {:ok, result} = Wasmex.Components.Instance.call(
+    instance,
+    resource,
+    "process",
+    [42, "hello"],
+    interface: ["my:interface"]
+  )
+  ```
+
+  ### Resource Lifecycle
+
+  - Resources are tied to the store that created them
+  - Resources cannot be used across different stores
+  - Resources are automatically cleaned up when the store is dropped
+  - Resources can be passed as arguments to functions and returned from functions
+
+  Support for the Component Model, including resources, should be considered beta quality.
+
+  ## WASI Filesystem Resources
+
+  Wasmex supports real WASI filesystem operations through preopened directories.
+  This allows WebAssembly components to perform actual file I/O operations on the host filesystem
+  in a controlled and secure manner.
+
+  ### Setup Requirements
+
+  1. Create a store with preopened directories:
+     ```elixir
+     {:ok, store} = Wasmex.Components.Store.new_wasi(%WasiP2Options{
+       preopen_dirs: [
+         "/host/path/input",   # Component can access this as a preopened directory
+         "/host/path/output"   # Component can write files here
+       ]
+     })
+     ```
+
+  2. WASM component can only access preopened paths
+  3. All paths in WASM are relative to preopens
+
+  ### Security Model
+
+  - Components CANNOT access arbitrary filesystem paths
+  - Only explicitly preopened directories are accessible
+  - Path traversal (../) is blocked by WASI runtime
+  - Consider using temporary directories for isolation
+
+  ### Example
+
+  ```elixir
+  # Create a sandboxed directory for testing
+  sandbox_dir = Path.join(System.tmp_dir!(), "wasmex_#{:rand.uniform(10000)}")
+  File.mkdir_p!(sandbox_dir)
+
+  # Create subdirectories
+  File.mkdir_p!(Path.join(sandbox_dir, "input"))
+  File.mkdir_p!(Path.join(sandbox_dir, "output"))
+
+  # Setup WASI with filesystem access
+  {:ok, store} = Wasmex.Components.Store.new_wasi(%WasiP2Options{
+    preopen_dirs: [
+      Path.join(sandbox_dir, "input"),
+      Path.join(sandbox_dir, "output")
+    ],
+    inherit_stdout: true,
+    inherit_stderr: true
+  })
+
+  # Load component and create instance
+  component_bytes = File.read!("filesystem_component.wasm")
+  {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
+  {:ok, instance} = Wasmex.Components.Instance.new(store, component, %{})
+
+  # Component can now perform real file operations
+  {:ok, dir} = Instance.call_function(instance, ["types", "open-directory"], ["/output"])
+  {:ok, file} = Instance.call_function(instance, ["types", "[method]directory.create-file"], [dir, "test.txt"])
+  {:ok, _} = Instance.call_function(instance, ["types", "[method]file-handle.write"], [file, "Hello WASI!"])
+
+  # File now exists on host filesystem
+  File.read!(Path.join(sandbox_dir, "output/test.txt"))  # => "Hello WASI!"
+
+  # Clean up
+  File.rm_rf!(sandbox_dir)
+  ```
 
   ## Options
 

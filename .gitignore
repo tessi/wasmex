@@ -25,6 +25,8 @@ wasmex-*.tar
 # Cargo things in the Rust part of this package
 priv/native/libwasmex.so
 test/**/target/*
+test/wasm/
+test/component_fixtures/wasi_snapshot_preview1.reactor.wasm
 
 .mix_tasks
 **/.DS_Store

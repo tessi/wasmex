@@ -1,11 +1,12 @@
 use rustler::types::atom;
 use rustler::types::tuple::{self, make_tuple};
-use rustler::{Encoder, Error, Term, TermType};
+use rustler::{Encoder, Error, ResourceArc, Term, TermType};
 use std::collections::HashMap;
 use wasmtime::component::{Type, Val};
 use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 
 use crate::atoms;
+use crate::wasi_resource::{resource_wrapper_to_val, val_to_resource_wrapper, WasiResourceWrapper};
 
 /// Convert an Elixir term to a Wasm value.
 ///
@@ -342,6 +343,44 @@ pub fn term_to_val(
 
             Ok(Val::Flags(flags))
         }
+        (_term_type, Type::Own(_resource_type)) => {
+            // Try to decode the Elixir resource reference
+            match param_term.decode::<ResourceArc<WasiResourceWrapper>>() {
+                Ok(resource_wrapper) => {
+                    // Validate that this is an owned resource
+                    if !resource_wrapper.is_owned() {
+                        return Err(Error::Term(Box::new(
+                            "Expected an owned resource, got a borrowed resource".to_string(),
+                        )));
+                    }
+
+                    // Convert to Val::Resource
+                    resource_wrapper_to_val(&resource_wrapper).map_err(|e| {
+                        Error::Term(Box::new(format!("Failed to convert resource: {}", e)))
+                    })
+                }
+                Err(_) => Err(Error::Term(Box::new(
+                    "Expected a resource handle for owned resource type".to_string(),
+                ))),
+            }
+        }
+        (_term_type, Type::Borrow(_resource_type)) => {
+            // Try to decode the Elixir resource reference
+            match param_term.decode::<ResourceArc<WasiResourceWrapper>>() {
+                Ok(resource_wrapper) => {
+                    // Both owned and borrowed resources can be passed when a borrow is expected
+                    // Owned resources are automatically borrowed for the call
+
+                    // Convert to Val::Resource
+                    resource_wrapper_to_val(&resource_wrapper).map_err(|e| {
+                        Error::Term(Box::new(format!("Failed to convert resource: {}", e)))
+                    })
+                }
+                Err(_) => Err(Error::Term(Box::new(
+                    "Expected a resource handle for borrowed resource type".to_string(),
+                ))),
+            }
+        }
         (term_type, val_type) => {
             if path.is_empty() {
                 Err(Error::Term(Box::new(format!(
@@ -362,8 +401,13 @@ pub fn term_to_val(
 /// Convert a Wasm value to an Elixir term.
 ///
 /// Used to for Wasm function calls when passing Wasm params to an Elixir function call.
-/// The opposite of this is `term_to_val`, similar to `convert_result_term`.
-pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) -> Term<'a> {
+// Removed unused function val_to_term - use val_to_term_with_store directly if needed
+pub fn val_to_term_with_store<'a>(
+    val: &Val,
+    env: rustler::Env<'a>,
+    mut path: Vec<String>,
+    store_id: usize,
+) -> Term<'a> {
     match val {
         Val::String(string) => string.encode(env),
         Val::Bool(bool) => bool.encode(env),
@@ -383,7 +427,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             .enumerate()
             .map(|(index, val)| {
                 path.push(format!("list[{index}]"));
-                let term = val_to_term(val, env, path.clone());
+                let term = val_to_term_with_store(val, env, path.clone(), store_id);
                 path.pop();
                 term
             })
@@ -396,7 +440,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
                     path.push(format!("record('{key}')"));
                     let term = (
                         field_name_to_term(&env, key),
-                        val_to_term(val, env, path.clone()),
+                        val_to_term_with_store(val, env, path.clone(), store_id),
                     );
                     path.pop();
                     term
@@ -410,7 +454,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
                 .enumerate()
                 .map(|(index, val)| {
                     path.push(format!("tuple[{index}]"));
-                    let term = val_to_term(val, env, path.clone());
+                    let term = val_to_term_with_store(val, env, path.clone(), store_id);
                     path.pop();
                     term
                 })
@@ -420,7 +464,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
         Val::Option(option) => match option {
             Some(boxed_val) => {
                 path.push("option(some)".to_string());
-                let inner_term = val_to_term(boxed_val, env, path.clone());
+                let inner_term = val_to_term_with_store(boxed_val, env, path.clone(), store_id);
                 path.pop();
                 (atoms::some(), inner_term).encode(env)
             }
@@ -431,7 +475,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             Ok(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
                     path.push("result(ok)".to_string());
-                    let inner_term = val_to_term(inner_val, env, path.clone());
+                    let inner_term = val_to_term_with_store(inner_val, env, path.clone(), store_id);
                     path.pop();
                     (atom::ok(), inner_term).encode(env)
                 } else {
@@ -441,7 +485,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             Err(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
                     path.push("result(error)".to_string());
-                    let inner_term = val_to_term(inner_val, env, path.clone());
+                    let inner_term = val_to_term_with_store(inner_val, env, path.clone(), store_id);
                     path.pop();
                     (atom::error(), inner_term).encode(env)
                 } else {
@@ -455,7 +499,8 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             match payload {
                 Some(boxed_val) => {
                     path.push(format!("Variant('{case_name}')"));
-                    let payload_term = val_to_term(boxed_val, env, path.clone());
+                    let payload_term =
+                        val_to_term_with_store(boxed_val, env, path.clone(), store_id);
                     path.pop();
                     (atom, payload_term).encode(env)
                 }
@@ -475,19 +520,32 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
 
             map_term
         }
-        _ => {
-            if path.is_empty() {
-                String::from("Unsupported type").encode(env)
-            } else {
-                format!("Unsupported type at {:?}", path.join(".")).encode(env)
+        Val::Resource(resource_any) => {
+            // Convert ResourceAny to our wrapper
+            match val_to_resource_wrapper(Val::Resource(*resource_any), store_id) {
+                Ok(wrapper) => wrapper.encode(env),
+                Err(e) => {
+                    if path.is_empty() {
+                        format!("Resource conversion error: {}", e).encode(env)
+                    } else {
+                        format!("Resource conversion error at {:?}: {}", path.join("."), e)
+                            .encode(env)
+                    }
+                }
             }
         }
     }
 }
 
-pub fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
+// Removed unused function vals_to_terms - use vals_to_terms_with_store directly if needed
+
+pub fn vals_to_terms_with_store<'a>(
+    vals: &[Val],
+    env: rustler::Env<'a>,
+    store_id: usize,
+) -> Vec<Term<'a>> {
     vals.iter()
-        .map(|val| val_to_term(val, env, vec![]))
+        .map(|val| val_to_term_with_store(val, env, vec![], store_id))
         .collect::<Vec<Term<'a>>>()
 }
 
@@ -515,12 +573,19 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
     Ok(params)
 }
 
-pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
+// Removed unused function encode_result - use encode_result_with_store directly if needed
+
+pub fn encode_result_with_store<'a>(
+    env: &rustler::Env<'a>,
+    vals: Vec<Val>,
+    from: Term<'a>,
+    store_id: usize,
+) -> Term<'a> {
     let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), *env, vec![]),
+        1 => val_to_term_with_store(vals.first().unwrap(), *env, vec![], store_id),
         _ => vals
             .iter()
-            .map(|term| val_to_term(term, *env, vec![]))
+            .map(|term| val_to_term_with_store(term, *env, vec![], store_id))
             .collect::<Vec<Term>>()
             .encode(*env),
     };

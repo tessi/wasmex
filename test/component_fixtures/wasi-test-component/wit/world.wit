@@ -1,0 +1,30 @@
+package test:wasi-component;
+
+interface wasi-tests {
+    // Test filesystem operations
+    test-filesystem-write: func(path: string, content: string) -> result<u32, string>;
+    test-filesystem-read: func(path: string) -> result<string, string>;
+    test-filesystem-delete: func(path: string) -> result<_, string>;
+    test-filesystem-exists: func(path: string) -> bool;
+    test-filesystem-list-dir: func(path: string) -> result<list<string>, string>;
+    
+    // Test random operations
+    test-random-bytes: func(len: u32) -> list<u8>;
+    test-random-u64: func() -> u64;
+    
+    // Test clock operations
+    test-clock-now: func() -> u64;  // nanoseconds since epoch
+    test-clock-resolution: func() -> u64;  // clock resolution in nanoseconds
+    
+    // Test environment operations
+    test-get-env: func(key: string) -> option<string>;
+    test-get-args: func() -> list<string>;
+    
+    // Test stdio operations
+    test-print-stdout: func(message: string) -> result<_, string>;
+    test-print-stderr: func(message: string) -> result<_, string>;
+}
+
+world wasi-test {
+    export wasi-tests;
+}

@@ -6,12 +6,16 @@ mod component_type_conversion;
 pub mod engine;
 pub mod environment;
 pub mod functions;
+pub mod host_resource;
 pub mod instance;
 pub mod memory;
 pub mod module;
 pub mod pipe;
 pub mod printable_term_type;
+pub mod resource_methods;
+pub mod resource_registry;
 pub mod store;
+pub mod wasi_resource;
 pub mod wat;
 pub mod wit;
 

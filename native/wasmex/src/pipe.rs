@@ -22,7 +22,7 @@ impl Pipe {
     pub fn new() -> Self {
         Self::default()
     }
-    fn borrow(&self) -> std::sync::RwLockWriteGuard<Cursor<Vec<u8>>> {
+    fn borrow(&self) -> std::sync::RwLockWriteGuard<'_, Cursor<Vec<u8>>> {
         RwLock::write(&self.buffer).unwrap()
     }
 

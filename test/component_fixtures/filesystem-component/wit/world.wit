@@ -1,0 +1,25 @@
+package test:filesystem;
+
+interface types {
+    // Simplified, focused on what WASI can actually do
+    resource file-handle {
+        read: func(length: u32) -> result<list<u8>, string>;
+        write: func(data: list<u8>) -> result<u32, string>;
+        seek: func(offset: u64) -> result<u64, string>;
+        close: func();
+    }
+
+    resource directory {
+        open-file: func(path: string) -> result<file-handle, string>;
+        create-file: func(path: string) -> result<file-handle, string>;
+        list-entries: func() -> result<list<string>, string>;
+        delete-file: func(path: string) -> result<_, string>;
+    }
+
+    // Factory functions that work with preopened dirs
+    open-directory: func(path: string) -> result<directory, string>;
+}
+
+world filesystem-test {
+    export types;
+}
