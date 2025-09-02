@@ -515,23 +515,16 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
     Ok(params)
 }
 
-pub fn encode_result<'a>(env: &rustler::Env<'a>, vals: Vec<Val>, from: Term<'a>) -> Term<'a> {
+pub fn encode_result<'a>(env: rustler::Env<'a>, vals: Vec<Val>) -> Term<'a> {
     let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), *env, vec![]),
+        1 => val_to_term(vals.first().unwrap(), env, vec![]),
         _ => vals
             .iter()
-            .map(|term| val_to_term(term, *env, vec![]))
+            .map(|term| val_to_term(term, env, vec![]))
             .collect::<Vec<Term>>()
-            .encode(*env),
+            .encode(env),
     };
-    make_tuple(
-        *env,
-        &[
-            atoms::returned_function_call().encode(*env),
-            make_tuple(*env, &[atoms::ok().encode(*env), result_term]),
-            from,
-        ],
-    )
+    make_tuple(env, &[atoms::ok().encode(env), result_term])
 }
 
 /// Convert an Elixir function call result to a Wasm value.

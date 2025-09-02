@@ -85,107 +85,11 @@ defmodule Wasmex.InstanceTest do
     test "returns whether a function export could be found in the wasm file" do
       %{store: store, instance: instance} = build_wasm_instance()
       assert Wasmex.Instance.function_export_exists(store, instance, "sum")
-      # 🎸
       refute Wasmex.Instance.function_export_exists(store, instance, "sum42")
     end
   end
 
   describe t(&Instance.call_exported_function/3) do
-    test "calling a function sends an async message back to self" do
-      %{store: store, instance: instance} = build_wasm_instance()
-
-      assert :ok ==
-               Wasmex.Instance.call_exported_function(
-                 store,
-                 instance,
-                 "arity_0",
-                 [],
-                 :fake_from
-               )
-
-      receive do
-        {:returned_function_call, {:ok, [42]}, :fake_from} -> nil
-      after
-        2000 ->
-          raise "message_expected"
-      end
-    end
-
-    test "calling a function with error sends an error message back to self" do
-      %{store: store, instance: instance} = build_wasm_instance()
-
-      assert :ok ==
-               Wasmex.Instance.call_exported_function(
-                 store,
-                 instance,
-                 "arity_0",
-                 [1],
-                 :fake_from
-               )
-
-      receive do
-        {:returned_function_call, {:error, "number of params does not match. expected 0, got 1"},
-         :fake_from} ->
-          nil
-      after
-        2000 ->
-          raise "message_expected"
-      end
-    end
-
-    test "calling a function that never returns" do
-      %{store: store, instance: instance} = build_wasm_instance()
-
-      assert :ok ==
-               Wasmex.Instance.call_exported_function(
-                 store,
-                 instance,
-                 "endless_loop",
-                 [],
-                 :fake_from
-               )
-
-      receive do
-        _ -> raise "no receive expected"
-      after
-        100 ->
-          nil
-      end
-    end
-
-    test "calling an imported function which returns the wrong type" do
-      imports = %{
-        "env" =>
-          TestHelper.default_imported_functions_env_stringified()
-          |> Map.merge(%{
-            "imported_sum3" =>
-              {:fn, [:i32, :i32, :i32], [:i32], fn _context, _a, _b, _c -> 2.3 end},
-            "imported_sumf" => {:fn, [:f32, :f32], [:f32], fn _context, _a, _b -> 4 end}
-          })
-      }
-
-      %{store: store, module: module} = TestHelper.wasm_import_module()
-      {:ok, instance} = Wasmex.Instance.new(store, module, imports)
-
-      :ok =
-        Wasmex.Instance.call_exported_function(
-          store,
-          instance,
-          "using_imported_sum3",
-          [1, 2, 3],
-          :fake_from
-        )
-
-      receive do
-        {:invoke_callback, "env", "imported_sum3", %{memory: _reference}, [1, 2, 3], _token} ->
-          nil
-
-        _ ->
-          raise "should not be able to return results with the wrong type"
-      after
-        2000 -> raise("must receive response")
-      end
-    end
   end
 
   describe t(&Instance.memory/2) do

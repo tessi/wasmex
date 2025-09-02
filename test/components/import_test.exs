@@ -5,13 +5,21 @@ defmodule Wasmex.Components.ImportTest do
   test "import functions" do
     component_bytes = File.read!("test/component_fixtures/importer/importer.wasm")
 
+    # Use Agent to capture printed values
+    {:ok, print_agent} = Agent.start_link(fn -> [] end)
+
     imports = %{
       "get-secret-word" => {:fn, fn param1, param2 -> "#{param1} #{param2}" end},
       "get-number" => {:fn, fn -> 42 end},
       "get-list" => {:fn, fn -> ["hi", "there"] end},
       "get-point" => {:fn, fn -> %{x: 1, y: 2} end},
       "get-tuple" => {:fn, fn -> {1, "foo"} end},
-      "print" => {:fn, fn x -> IO.puts(x) end},
+      "print" =>
+        {:fn,
+         fn x ->
+           Agent.update(print_agent, fn prints -> [x | prints] end)
+           nil
+         end},
       "maybe-get-number" => {:fn, fn -> {:ok, 42} end}
     }
 

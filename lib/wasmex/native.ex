@@ -91,12 +91,11 @@ defmodule Wasmex.Native do
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
 
   def component_new(_store, _component_bytes), do: error()
-
   def component_instance_new(_store, _component, _imports), do: error()
-
   def component_call_function(_store, _instance, _function_name_path, _params, _from), do: error()
 
-  def component_receive_callback_result(_component, _2, _3, _4), do: error()
+  def component_receive_callback_result(_component_resource, _token, _success, _result),
+    do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
 

@@ -136,7 +136,7 @@ pub fn seek(
         .map(|_| atoms::ok())
 }
 
-#[rustler::nif(name = "pipe_read_binary")]
+#[rustler::nif(name = "pipe_read_binary", schedule = "DirtyCpu")]
 pub fn read_binary(pipe_resource: ResourceArc<PipeResource>) -> String {
     let mut pipe = pipe_resource.pipe.lock().unwrap();
     let mut buffer = String::new();
@@ -145,7 +145,7 @@ pub fn read_binary(pipe_resource: ResourceArc<PipeResource>) -> String {
     buffer
 }
 
-#[rustler::nif(name = "pipe_write_binary")]
+#[rustler::nif(name = "pipe_write_binary", schedule = "DirtyCpu")]
 pub fn write_binary(
     env: rustler::Env,
     pipe_resource: ResourceArc<PipeResource>,
