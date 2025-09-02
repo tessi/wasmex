@@ -282,7 +282,7 @@ fn memory_info<'a>(env: rustler::Env<'a>, memory_type: &MemoryType) -> Term<'a> 
     make_tuple(env, &terms)
 }
 
-#[rustler::nif(name = "module_serialize")]
+#[rustler::nif(name = "module_serialize", schedule = "DirtyCpu")]
 pub fn serialize(
     env: rustler::Env,
     module_resource: ResourceArc<ModuleResource>,
@@ -301,7 +301,7 @@ pub fn serialize(
     Ok(binary.release(env))
 }
 
-#[rustler::nif(name = "module_unsafe_deserialize")]
+#[rustler::nif(name = "module_unsafe_deserialize", schedule = "DirtyCpu")]
 pub fn unsafe_deserialize(
     binary: Binary,
     engine_resource: ResourceArc<EngineResource>,

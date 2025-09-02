@@ -24,7 +24,7 @@ pub struct ParsedComponent {
 #[rustler::resource_impl()]
 impl rustler::Resource for ComponentResource {}
 
-#[rustler::nif(name = "component_new")]
+#[rustler::nif(name = "component_new", schedule = "DirtyCpu")]
 pub fn new_component(
     store_or_caller_resource: ResourceArc<ComponentStoreResource>,
     component_binary: Binary,

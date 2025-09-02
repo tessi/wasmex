@@ -25,3 +25,5 @@ wasi-common = "35.0.0"
 wiggle = "35.0.0"
 wat = "1.235.0"
 wit-parser = "0.236.0"
+tokio = { version = "1.42", features = ["full"] }
+lazy_static = "1.5"

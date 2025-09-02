@@ -275,16 +275,6 @@ defmodule Wasmex.Components do
   end
 
   @impl true
-  def handle_info({:returned_function_call, result, from}, state) do
-    case result do
-      {:raise, reason} -> raise(reason)
-      valid_result -> GenServer.reply(from, valid_result)
-    end
-
-    {:noreply, state}
-  end
-
-  @impl true
   def handle_info(
         {:invoke_callback, namespace, name, token, params},
         %{imports: imports, instance: _instance, component: component} = state

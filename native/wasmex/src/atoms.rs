@@ -41,7 +41,6 @@ rustler::atoms! {
     __type__ = "type",
 
     // calls to erlang processes
-    returned_function_call,
     invoke_callback,
 
     // option

@@ -521,12 +521,6 @@ defmodule Wasmex do
   end
 
   @impl true
-  def handle_info({:returned_function_call, result, from}, state) do
-    GenServer.reply(from, result)
-    {:noreply, state}
-  end
-
-  @impl true
   def handle_info(
         {:invoke_callback, namespace_name, import_name, context, params, token},
         %{imports: imports, instance: instance} = state
