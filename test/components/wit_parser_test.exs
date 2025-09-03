@@ -1,4 +1,4 @@
-defmodule Components.WitParserTest do
+defmodule Wasmex.Components.WitParserTest do
   use ExUnit.Case
 
   describe "exports" do

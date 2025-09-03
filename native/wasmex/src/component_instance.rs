@@ -27,7 +27,7 @@ use wasmtime_wasi;
 use wasmtime_wasi_http;
 
 use crate::component_type_conversion::{
-    convert_params, convert_result_term, encode_result, vals_to_terms,
+    convert_params, convert_result_term, encode_result_with_store, vals_to_terms_with_store,
 };
 
 pub struct ComponentCallbackToken {
@@ -72,9 +72,23 @@ pub fn new_instance(
 
     let mut linker = Linker::new(store.engine());
     linker.allow_shadowing(true);
-    let _ = wasmtime_wasi::p2::add_to_linker_sync(&mut linker);
+
+    // Add core WASI P2 interfaces (includes filesystem, sockets, clocks, random, io, cli)
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Failed to add WASI P2 interfaces to linker: {}",
+            e
+        )))
+    })?;
+
+    // Add HTTP support if enabled
     if store.data().http.is_some() {
-        let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+        wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker).map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Failed to add WASI HTTP interfaces to linker: {}",
+                e
+            )))
+        })?;
     }
 
     // Instantiate the component
@@ -135,7 +149,8 @@ fn call_elixir_import(
     let callback_token = create_callback_token(name.clone(), namespace.clone());
 
     let _ = msg_env.send_and_clear(&pid, |env| {
-        let param_terms = vals_to_terms(params, env);
+        // TODO: Get store_id from context - using 0 for now
+        let param_terms = vals_to_terms_with_store(params, env, 0);
         (
             atoms::invoke_callback(),
             namespace,
@@ -336,7 +351,8 @@ fn component_execute_function(
     ) {
         Ok(_) => {
             let _ = function.post_return(&mut *component_store);
-            encode_result(&thread_env, result, from)
+            let store_id = component_store.data().store_id;
+            encode_result_with_store(&thread_env, result, from, store_id)
         }
         Err(err) => {
             let reason = format!("{err}");

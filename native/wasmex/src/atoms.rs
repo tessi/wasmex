@@ -51,4 +51,6 @@ rustler::atoms! {
     // engine config - cranelift_opt_level
     speed,
     speed_and_size,
+    
+    nil,
 }

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - '**'  # Run on all branches
 
 env:
   MIX_ENV: test

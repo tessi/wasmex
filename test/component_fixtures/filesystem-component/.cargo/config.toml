@@ -1,0 +1,13 @@
+[target.wasm32-wasip2]
+linker = "rust-lld"
+rustflags = [
+    "-C", "link-arg=-zstack-size=1048576",
+    "-C", "target-feature=+bulk-memory",
+    "-C", "target-feature=+mutable-globals",
+    "-C", "target-feature=+sign-ext",
+]
+
+[env]
+CC_wasm32_wasip2 = "clang"
+AR_wasm32_wasip2 = "llvm-ar"
+CFLAGS_wasm32_wasip2 = "-O3"

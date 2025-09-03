@@ -23,8 +23,11 @@ pub(crate) fn get_caller_mut(token: &mut i32) -> Option<&mut Caller<'_, StoreDat
 
 pub(crate) fn set_caller(caller: Caller<StoreData>) -> i32 {
     let mut map = GLOBAL_DATA.lock().unwrap();
-    // TODO: prevent duplicates by throwing the dice again when the id is already known
-    let token = rand::random();
+    // Generate a unique token, avoiding duplicates
+    let mut token = rand::random();
+    while map.contains_key(&token) {
+        token = rand::random();
+    }
     let caller =
         unsafe { std::mem::transmute::<Caller<'_, StoreData>, Caller<'static, StoreData>>(caller) };
     map.insert(token, caller);

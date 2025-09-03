@@ -2,8 +2,10 @@ use crate::{
     caller::{get_caller, get_caller_mut},
     engine::{unwrap_engine, EngineResource},
     pipe::{Pipe, PipeResource},
+    resource_registry::ResourceRegistry,
 };
 use rustler::{Error, NifStruct, ResourceArc};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::HashMap, sync::Mutex};
 use wasi_common::sync::WasiCtxBuilder;
 use wasmtime::{
@@ -13,6 +15,9 @@ use wasmtime::{
 use wasmtime_wasi::p2::{IoView, WasiCtx, WasiView};
 use wasmtime_wasi::ResourceTable;
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
+
+// Global store ID counter
+static STORE_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Debug, NifStruct)]
 #[module = "Wasmex.Wasi.PreopenOptions"]
@@ -47,6 +52,8 @@ pub struct ExWasiP2Options {
     inherit_stdout: bool,
     inherit_stderr: bool,
     allow_http: bool,
+    allow_filesystem: Option<bool>,
+    preopen_dirs: Option<Vec<String>>,
 }
 
 #[derive(NifStruct)]
@@ -107,6 +114,8 @@ pub struct ComponentStoreData {
     pub(crate) http: Option<WasiHttpCtx>,
     pub(crate) limits: StoreLimits,
     pub(crate) table: ResourceTable,
+    pub(crate) resource_registry: ResourceRegistry,
+    pub(crate) store_id: usize,
 }
 
 impl IoView for ComponentStoreData {
@@ -142,6 +151,24 @@ pub struct ComponentStoreResource {
 
 #[rustler::resource_impl()]
 impl rustler::Resource for ComponentStoreResource {}
+
+impl Drop for ComponentStoreResource {
+    fn drop(&mut self) {
+        if let Ok(store) = self.inner.lock() {
+            let store_id = store.data().store_id;
+            let resource_count = store.data().resource_registry.count_active_resources();
+
+            if resource_count > 0 {
+                eprintln!(
+                    "Store {} being dropped with {} active resources, clearing registry",
+                    store_id, resource_count
+                );
+            }
+
+            store.data().resource_registry.clear();
+        }
+    }
+}
 
 #[rustler::resource_impl()]
 impl rustler::Resource for StoreOrCallerResource {}
@@ -212,6 +239,7 @@ pub fn component_store_new(
     } else {
         StoreLimits::default()
     };
+    let store_id = STORE_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
     let mut store = Store::new(
         &engine,
         ComponentStoreData {
@@ -219,6 +247,8 @@ pub fn component_store_new(
             ctx: None,
             limits,
             table: wasmtime_wasi::ResourceTable::new(),
+            resource_registry: ResourceRegistry::new(store_id),
+            store_id,
         },
     );
     store.limiter(|state| &mut state.limits);
@@ -254,6 +284,37 @@ pub fn component_store_new_wasi(
         wasi_ctx_builder.inherit_stderr();
     }
 
+    // Enable filesystem access if requested (defaults to true for backward compatibility)
+    if options.allow_filesystem.unwrap_or(true) {
+        // Add preopen directories if specified
+        if let Some(preopen_dirs) = &options.preopen_dirs {
+            for dir in preopen_dirs {
+                // Extract the last component of the path to use as the guest path
+                // e.g., "/tmp/sandbox/input" -> "input"
+                // This allows multiple directories to be preopened with distinct names
+                let guest_path = std::path::Path::new(dir)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(".");
+
+                wasi_ctx_builder
+                    .preopened_dir(
+                        dir,
+                        guest_path,
+                        wasmtime_wasi::DirPerms::all(),
+                        wasmtime_wasi::FilePerms::all(),
+                    )
+                    .map_err(|e| {
+                        rustler::Error::Term(Box::new(format!(
+                            "Failed to preopen directory {} as {}: {}",
+                            dir, guest_path, e
+                        )))
+                    })?;
+            }
+        }
+    }
+
+    // Enable network access for HTTP
     if options.allow_http {
         wasi_ctx_builder
             .inherit_network()
@@ -273,6 +334,7 @@ pub fn component_store_new_wasi(
         None
     };
 
+    let store_id = STORE_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
     let mut store = Store::new(
         &engine,
         ComponentStoreData {
@@ -280,6 +342,8 @@ pub fn component_store_new_wasi(
             limits,
             http: http_option,
             table: wasmtime_wasi::ResourceTable::new(),
+            resource_registry: ResourceRegistry::new(store_id),
+            store_id,
         },
     );
     store.limiter(|state| &mut state.limits);
