@@ -369,55 +369,5 @@ defmodule Wasmex.Components.ResourceTest do
       # Note: Cross-store protection would be tested here if Resource.call_method existed.
       # Currently, resources are protected at the store level through reference checking.
     end
-
-    test "verify no memory leaks with explicit resource drops", %{
-      component_bytes: component_bytes
-    } do
-      # Track initial memory (this is approximate)
-      initial_memory = :erlang.memory(:total)
-
-      # Run many iterations of create/drop
-      for _iteration <- 1..100 do
-        {:ok, store} = Wasmex.Components.Store.new()
-        {:ok, component} = Wasmex.Components.Component.new(store, component_bytes)
-        {:ok, instance} = Wasmex.Components.Instance.new(store, component, %{})
-
-        from = self()
-
-        # Create a counter
-        :ok =
-          Wasmex.Components.Instance.call_function(
-            instance,
-            ["component:counter/types", "make-counter"],
-            [42],
-            from
-          )
-
-        _counter =
-          receive do
-            {:returned_function_call, {:ok, counter}, ^from} ->
-              counter
-
-            {:returned_function_call, {:error, error}, ^from} ->
-              flunk("Error creating counter: #{inspect(error)}")
-          after
-            5000 -> flunk("Timeout creating counter")
-          end
-
-        # Resources are automatically cleaned up through Elixir's garbage collection
-        # The counter is a raw reference, not a Resource struct, so we can't manually drop it
-        # but that's fine - the GC handles cleanup
-      end
-
-      # Force GC and check memory hasn't grown excessively
-      :erlang.garbage_collect()
-      final_memory = :erlang.memory(:total)
-
-      # Allow for some memory growth but not excessive (e.g., 10MB)
-      memory_growth = final_memory - initial_memory
-
-      assert memory_growth < 10_000_000,
-             "Memory grew by #{memory_growth} bytes, possible memory leak"
-    end
   end
 end

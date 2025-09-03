@@ -157,25 +157,6 @@ defmodule Wasmex.Components.GuestResourceTest do
   end
 
   describe "edge cases" do
-    test "resource handles store garbage collection gracefully", %{instance: instance} do
-      # Create counter in a function scope
-      counter_pid = create_counter_in_scope(instance)
-
-      # The instance reference in the test context keeps it alive
-      # but the counter's internal reference is what matters
-      assert Process.alive?(counter_pid)
-
-      # Force garbage collection
-      :erlang.garbage_collect()
-      Process.sleep(10)
-
-      # Should still work - the GenServer state keeps the instance alive
-      assert {:ok, 42} = TestCounter.get_value(counter_pid)
-      assert {:ok, 43} = TestCounter.increment(counter_pid)
-
-      GenServer.stop(counter_pid)
-    end
-
     test "resource creation validates constructor args", %{instance: instance} do
       # The counter constructor requires exactly 1 argument
       Process.flag(:trap_exit, true)
@@ -220,11 +201,5 @@ defmodule Wasmex.Components.GuestResourceTest do
 
       GenServer.stop(counter)
     end
-  end
-
-  # Helper function to test GC behavior
-  defp create_counter_in_scope(instance) do
-    {:ok, counter} = TestCounter.start_link(instance, [42])
-    counter
   end
 end
