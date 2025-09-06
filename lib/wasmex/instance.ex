@@ -119,14 +119,14 @@ defmodule Wasmex.Instance do
   @doc ~S"""
   Calls a function the given `name` exported by the Wasm `instance` with the given `params`.
 
-  The Wasm function will be invoked asynchronously in a new OS thread.
-  The calling Process/GenServer will receive a `{:returned_function_call, result, from}`
-  message once execution finishes.
-  The result either is an `{:error, reason}` or `:ok`.
+  The Wasm function will be invoked asynchronously in a Tokio task.
+  The Rust NIF will directly send a GenServer reply to the caller once execution finishes,
+  so the calling GenServer does not need to handle any response messages.
+  The result is either `{:ok, results}` or `{:error, reason}`.
 
   `call_exported_function/5` assumes to be called within a GenServer context, it expects a `from` argument
-  as given by `c:GenServer.handle_call/3`. `from` is returned unchanged to allow
-  the wrapping GenServer to reply to their caller.
+  as given by `c:GenServer.handle_call/3`. The NIF uses this `from` tuple to send the reply
+  directly to the original caller.
 
   A BadArg exception may be thrown when given unexpected input data.
 
@@ -138,17 +138,6 @@ defmodule Wasmex.Instance do
   You can pass arbitrary data to WebAssembly by writing that data into an instances `Wasmex.Memory`.
   The `memory/2` function returns the instances memory.
 
-  ## Example
-
-      iex> %{store: store, module: module} = TestHelper.wasm_module()
-      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
-      iex> Wasmex.Instance.call_exported_function(store, instance, "sum", [1, 2], :from)
-      :ok
-      iex> receive do
-      ...>   {:returned_function_call, {:ok, [3]}, :from} -> :ok
-      ...> after
-      ...>  1000 -> raise "message_expected"
-      ...> end
   """
   @spec call_exported_function(
           Wasmex.StoreOrCaller.t(),
