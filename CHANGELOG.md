@@ -14,6 +14,16 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.13.0 - 2025-09-06]
+
+### Changed
+
+* map-keys/records for wasm components now automatically convert beween Wasms default dash-case and elixirs snake_case. With an option to disable it - fixes #852 (thanks @superchris)
+
+### Fixed
+
+* using the Wasm compontent macro is now possible with an empty imports list - fixes #760 (thanks @superchris)
+
 ## [0.12.0 - 2025-07-29]
 
 ### Added
