@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::{LazyLock, Mutex}};
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
 use wasmtime::Caller;
 
 use crate::store::StoreData;
@@ -8,9 +11,8 @@ use crate::store::StoreData;
 // That token can then be used to retrieve references to the `Caller` instance later.
 // This is needed to pass down the `Caller` to host functions that are invoked from Wasm but Rust
 // didn't let us do that directly.
-static CALLER_MAP: LazyLock<Mutex<HashMap<i32, Caller<StoreData>>>> = LazyLock::new(|| {
-    Mutex::new(HashMap::new())
-});
+static CALLER_MAP: LazyLock<Mutex<HashMap<i32, Caller<StoreData>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) fn get_caller(token: &i32) -> Option<&Caller<'_, StoreData>> {
     let map = &*(CALLER_MAP.lock().unwrap());

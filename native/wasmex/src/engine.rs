@@ -1,6 +1,6 @@
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::{Mutex, LazyLock};
+use std::sync::{LazyLock, Mutex};
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
