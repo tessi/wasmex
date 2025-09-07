@@ -14,7 +14,7 @@ pub struct MemoryResource {
 #[rustler::resource_impl()]
 impl rustler::Resource for MemoryResource {}
 
-#[rustler::nif(name = "memory_from_instance", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_from_instance")]
 pub fn from_instance(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<instance::InstanceResource>,
@@ -36,7 +36,7 @@ pub fn from_instance(
     Ok(resource)
 }
 
-#[rustler::nif(name = "memory_size", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_size")]
 pub fn size(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
@@ -52,7 +52,7 @@ pub fn size(
     Ok(length)
 }
 
-#[rustler::nif(name = "memory_grow", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_grow")]
 pub fn grow(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
@@ -88,7 +88,7 @@ fn grow_by_pages<T>(
         .map_err(|err| Error::Term(Box::new(format!("Failed to grow the memory: {err}."))))
 }
 
-#[rustler::nif(name = "memory_get_byte", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_get_byte")]
 pub fn get_byte(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
@@ -109,7 +109,7 @@ pub fn get_byte(
     Ok(buffer[0])
 }
 
-#[rustler::nif(name = "memory_set_byte", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_set_byte")]
 pub fn set_byte(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,

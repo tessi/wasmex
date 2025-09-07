@@ -184,15 +184,13 @@ fn link_import(
 
 #[rustler::nif(name = "component_call_function")]
 pub fn call_exported_function(
-    env: rustler::Env,
     component_store_resource: ResourceArc<ComponentStoreResource>,
     instance_resource: ResourceArc<ComponentInstanceResource>,
     function_name_path: Vec<String>,
     given_params: Term,
     from: Term,
 ) -> rustler::Atom {
-    let _ = env; // Required by rustler macro, but we use OwnedEnv instead
-                 // create erlang environment for the thread
+    // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
     // copy over params into the thread environment
     let function_params = thread_env.save(given_params);

@@ -208,15 +208,13 @@ pub fn function_export_exists(
 
 #[rustler::nif(name = "instance_call_exported_function")]
 pub fn call_exported_function(
-    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
     params: Term,
     from: Term,
 ) -> rustler::Atom {
-    let _ = env; // Required by rustler macro, but we use OwnedEnv instead
-                 // create erlang environment for the thread
+    // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
     // copy over params into the thread environment
     let function_params = thread_env.save(params);
@@ -339,15 +337,7 @@ fn execute_function(
             })
         }
 
-        // Return nil for void functions (no return values), otherwise return the list
-        let result_term = if return_values.is_empty() {
-            atoms::__nil__().encode(env)
-        } else {
-            return_values.encode(env)
-        };
-
-        // Return success tuple
-        make_tuple(env, &[atoms::ok().encode(env), result_term]).encode(env)
+        make_tuple(env, &[atoms::ok().encode(env), return_values.encode(env)]).encode(env)
     });
     thread_env.save(result)
 }

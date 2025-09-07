@@ -1,33 +1,23 @@
-use lazy_static::lazy_static;
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
+use std::sync::{Mutex, LazyLock};
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
 
-// Global Tokio runtime for async operations
-// This creates a multi-threaded runtime that uses lightweight tasks (green threads)
-// NOT OS threads per task - many tasks are multiplexed onto a small thread pool
-lazy_static! {
-    pub static ref TOKIO_RUNTIME: Arc<Runtime> = {
-        // Use all available CPU cores for optimal performance
-        // This allows Tokio to efficiently schedule async tasks across all cores
-        let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(8);  // Fallback to 8 if detection fails
+pub static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    // Spawn <number of CPU cores> OS threads, fall back to `8` if detection fails
+    let num_threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(8);
 
-        Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(num_threads)
-                .thread_name("wasmex-async")
-                .enable_all()
-                .build()
-                .expect("Failed to create Tokio runtime")
-        )
-    };
-}
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .thread_name("wasmex-async")
+        .enable_all()
+        .build()
+        .expect("Failed to create Tokio runtime")
+});
 
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
@@ -53,10 +43,10 @@ pub fn new(
 ) -> Result<ResourceArc<EngineResource>, rustler::Error> {
     let config = engine_config(engine_config_ex);
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
-
     let resource = ResourceArc::new(EngineResource {
         inner: Mutex::new(engine),
     });
+
     Ok(resource)
 }
 

@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [unreleased]
+
+### Changed
+
+* Switch the concurrency model of the underlying Wasm calls to async rust via tokio. This essentially means that instead of spawning a new OS (native operating system) thread for every Wasm call, we have a pool of worker OS threads where each Wasm function call spawns a green thread to be handled by our worker pool eventually. This is much more friendly on system resources and speeds up wasmex considerably. For details see #837. Thanks @patrickdet
+
 ## [0.13.0 - 2025-09-06]
 
 ### Changed
