@@ -3,10 +3,8 @@ name: Elixir CI
 on:
   pull_request:
   push:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
 
 env:
   ELIXIR_VERSION: 1.17.3

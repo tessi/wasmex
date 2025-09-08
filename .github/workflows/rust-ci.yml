@@ -5,12 +5,10 @@ on:
     paths:
       - "native/wasmex/**"
   push:
+    branches:
+      - main
     paths:
       - "native/wasmex/**"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 defaults:
   run:
