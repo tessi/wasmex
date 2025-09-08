@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   MIX_ENV: test
   WASMEX_BUILD: true
