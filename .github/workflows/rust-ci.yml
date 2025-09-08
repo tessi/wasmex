@@ -5,8 +5,8 @@ on:
     paths:
       - "native/wasmex/**"
   push:
-    branches:
-      - main
+    paths:
+      - "native/wasmex/**"
 
 defaults:
   run:
