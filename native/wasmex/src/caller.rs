@@ -30,12 +30,21 @@ pub(crate) fn get_caller_mut(token: &mut i32) -> Option<&mut Caller<'_, StoreDat
 
 pub(crate) fn set_caller(caller: Caller<StoreData>) -> i32 {
     let mut map = CALLER_MAP.lock().unwrap();
-    // TODO: prevent duplicates by throwing the dice again when the id is already known
-    let token = rand::random();
+    let token = generate_unique_random_token(&map);
+
     let caller =
         unsafe { std::mem::transmute::<Caller<'_, StoreData>, Caller<'static, StoreData>>(caller) };
     map.insert(token, caller);
     token
+}
+
+fn generate_unique_random_token(map: &HashMap<i32, Caller<'_, StoreData>>) -> i32 {
+    loop {
+        let token: i32 = rand::random();
+        if !map.contains_key(&token) {
+            break token;
+        }
+    }
 }
 
 pub(crate) fn remove_caller(token: i32) {
