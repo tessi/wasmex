@@ -38,12 +38,30 @@ defmodule TestHelper do
     do: "#{@wasi_test_source_dir}/target/wasm32-wasip1/debug/main.wasm"
 
   def precompile_wasm_files do
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_import_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasm_link_import_test_source_dir)
-    {"", 0} = System.cmd("cargo", ["build"], cd: @wasi_test_source_dir)
+    [
+      @wasm_test_source_dir,
+      @wasm_import_test_source_dir,
+      @wasm_link_import_test_source_dir,
+      @wasi_test_source_dir
+    ]
+    |> Enum.each(fn dir ->
+      {_, 0} = System.cmd("cargo", ["build"], cd: dir, stderr_to_stdout: true, parallelism: true)
+    end)
 
-    {"", 0} =
+    [
+      @component_type_conversions_source_dir,
+      @component_exported_interface_source_dir
+    ]
+    |> Enum.each(fn dir ->
+      {_, 0} =
+        System.cmd("cargo", ["component", "build"],
+          cd: dir,
+          stderr_to_stdout: true,
+          parallelism: true
+        )
+    end)
+
+    {_, 0} =
       System.cmd(
         "cargo",
         [
@@ -53,10 +71,11 @@ defmodule TestHelper do
           "--extern",
           "utils=#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
         ],
-        cd: @wasm_link_test_source_dir
+        cd: @wasm_link_test_source_dir,
+        stderr_to_stdout: true
       )
 
-    {"", 0} =
+    {_, 0} =
       System.cmd(
         "cargo",
         [
@@ -66,14 +85,9 @@ defmodule TestHelper do
           "--extern",
           "calculator=#{@wasm_link_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_link_test.wasm"
         ],
-        cd: @wasm_link_dep_test_source_dir
+        cd: @wasm_link_dep_test_source_dir,
+        stderr_to_stdout: true
       )
-
-    {"", 0} =
-      System.cmd("cargo", ["component", "build"], cd: @component_type_conversions_source_dir)
-
-    {"", 0} =
-      System.cmd("cargo", ["component", "build"], cd: @component_exported_interface_source_dir)
   end
 
   def wasm_module do

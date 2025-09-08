@@ -119,16 +119,20 @@ defmodule Wasmex.Instance do
   @doc ~S"""
   Calls a function the given `name` exported by the Wasm `instance` with the given `params`.
 
-  The Wasm function will be invoked asynchronously in a new OS thread.
-  The calling Process/GenServer will receive a `{:returned_function_call, result, from}`
-  message once execution finishes.
-  The result either is an `{:error, reason}` or `:ok`.
+  The Wasm function will be invoked asynchronously. An `:ok` response to this function call indicates
+  that execution of an async Wasm function call was scheduled. Once that Wasm function call was executed
+  and finished, a reply message will be send to the process indicated by the `from` argument.
 
-  `call_exported_function/5` assumes to be called within a GenServer context, it expects a `from` argument
-  as given by `c:GenServer.handle_call/3`. `from` is returned unchanged to allow
-  the wrapping GenServer to reply to their caller.
-
+  The result is either `{:ok, results}` or `{:error, reason}`.
   A BadArg exception may be thrown when given unexpected input data.
+
+  ## Implementation Details
+
+  Behind the scenes the wasmex NIF will spawn a Tokio task (green thread) to execute the Wasm function.
+  The Tokio runtime is instantiated with `number of CPU cores` native OS worker threads.
+
+  The `from` argument is expected to be as given by `c:GenServer.handle_call/3`.
+  The NIF uses this `from` tuple to send a message with the result of this Wasm function call.
 
   ## Function parameters
 
@@ -137,18 +141,6 @@ defmodule Wasmex.Instance do
 
   You can pass arbitrary data to WebAssembly by writing that data into an instances `Wasmex.Memory`.
   The `memory/2` function returns the instances memory.
-
-  ## Example
-
-      iex> %{store: store, module: module} = TestHelper.wasm_module()
-      iex> {:ok, instance} = Wasmex.Instance.new(store, module, %{})
-      iex> Wasmex.Instance.call_exported_function(store, instance, "sum", [1, 2], :from)
-      :ok
-      iex> receive do
-      ...>   {:returned_function_call, {:ok, [3]}, :from} -> :ok
-      ...> after
-      ...>  1000 -> raise "message_expected"
-      ...> end
   """
   @spec call_exported_function(
           Wasmex.StoreOrCaller.t(),

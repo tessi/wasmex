@@ -4,6 +4,7 @@
 
 use crate::{
     atoms,
+    engine::TOKIO_RUNTIME,
     environment::{link_imports, link_modules, CallbackTokenResource},
     functions,
     module::ModuleResource,
@@ -12,13 +13,11 @@ use crate::{
 };
 use rustler::{
     env::SavedTerm,
-    types::{tuple::make_tuple, ListIterator},
-    Encoder, Env as RustlerEnv, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term,
-    TermType,
+    types::{tuple::make_tuple, ListIterator, LocalPid},
+    Encoder, Env, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term, TermType,
 };
 use std::ops::Deref;
 use std::sync::Mutex;
-use std::thread;
 use wasmtime::{Instance, Linker, Module, Trap, Val, ValType};
 
 #[derive(NifMap)]
@@ -88,7 +87,7 @@ fn link_and_create_instance(
         .map_err(|err| Error::Term(Box::new(err.to_string())))
 }
 
-#[rustler::nif(name = "instance_get_global_value", schedule = "DirtyCpu")]
+#[rustler::nif(name = "instance_get_global_value")]
 pub fn get_global_value(
     env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
@@ -135,7 +134,7 @@ pub fn get_global_value(
     }
 }
 
-#[rustler::nif(name = "instance_set_global_value", schedule = "DirtyCpu")]
+#[rustler::nif(name = "instance_set_global_value")]
 pub fn set_global_value(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
@@ -207,137 +206,140 @@ pub fn function_export_exists(
     Ok(result)
 }
 
-#[rustler::nif(name = "instance_call_exported_function", schedule = "DirtyCpu")]
+#[rustler::nif(name = "instance_call_exported_function")]
 pub fn call_exported_function(
-    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
     params: Term,
     from: Term,
 ) -> rustler::Atom {
-    let pid = env.pid();
     // create erlang environment for the thread
     let mut thread_env = OwnedEnv::new();
     // copy over params into the thread environment
     let function_params = thread_env.save(params);
     let from = thread_env.save(from);
 
-    thread::spawn(move || {
-        thread_env.send_and_clear(&pid, |thread_env| {
-            execute_function(
-                thread_env,
-                store_or_caller_resource,
-                instance_resource,
-                function_name,
-                function_params,
-                from,
-            )
-        })
+    TOKIO_RUNTIME.spawn(async move {
+        // Execute function and get the result
+        let result = execute_function(
+            &mut thread_env,
+            store_or_caller_resource,
+            instance_resource,
+            function_name,
+            function_params,
+        );
+
+        // Send GenServer reply directly to the caller
+        thread_env.run(|env| {
+            let from_tuple = from.load(env).decode::<Term>().unwrap();
+            let result_term = result
+                .load(env)
+                .decode::<Term>()
+                .unwrap_or(atoms::error().encode(env));
+
+            // GenServer.call from tuple is {pid, ref}
+            let (caller_pid, ref_term) = from_tuple
+                .decode::<(LocalPid, Term)>()
+                .expect("from must be a GenServer {pid, ref} tuple");
+
+            // Send GenServer reply format directly to caller: {ref, result}
+            let _ = env.send(&caller_pid, make_tuple(env, &[ref_term, result_term]));
+        });
     });
 
     atoms::ok()
 }
 
 fn execute_function(
-    thread_env: RustlerEnv,
+    thread_env: &mut OwnedEnv,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
     function_params: SavedTerm,
-    from: SavedTerm,
-) -> Term {
-    let from = from
-        .load(thread_env)
-        .decode::<Term>()
-        .unwrap_or_else(|_| "could not load 'from' param".encode(thread_env));
-    let given_params = match function_params.load(thread_env).decode::<Vec<Term>>() {
-        Ok(vec) => vec,
-        Err(_) => return make_error_tuple(&thread_env, "could not load 'function params'", from),
-    };
-    let instance: Instance = *(instance_resource.deref().inner.lock().unwrap());
-    let mut store_or_caller = store_or_caller_resource.deref().inner.lock().unwrap();
-    let function_result = functions::find(&instance, &mut store_or_caller, &function_name);
-    let function = match function_result {
-        Some(func) => func,
-        None => {
-            return make_error_tuple(
-                &thread_env,
-                &format!("exported function `{function_name}` not found"),
-                from,
-            )
+) -> SavedTerm {
+    let result = thread_env.run(|env: Env| {
+        let given_params = match function_params.load(env).decode::<Vec<Term>>() {
+            Ok(vec) => vec,
+            Err(_) => {
+                return env
+                    .error_tuple("could not load 'function params'")
+                    .encode(env)
+            }
+        };
+        let instance: Instance = *(instance_resource.deref().inner.lock().unwrap());
+        let mut store_or_caller = store_or_caller_resource.deref().inner.lock().unwrap();
+        let function_result = functions::find(&instance, &mut store_or_caller, &function_name);
+        let function = match function_result {
+            Some(func) => func,
+            None => {
+                return env
+                    .error_tuple(&format!("exported function `{function_name}` not found"))
+                    .encode(env)
+            }
+        };
+        let function_params_result = decode_function_param_terms(
+            &function
+                .ty(&*store_or_caller)
+                .params()
+                .collect::<Vec<ValType>>(),
+            given_params,
+        );
+        let function_params = match function_params_result {
+            Ok(vec) => map_wasm_values_to_vals(&vec),
+            Err(reason) => return env.error_tuple(&reason).encode(env),
+        };
+        let results_count = function.ty(&*store_or_caller).results().len();
+        let mut results = vec![Val::null_extern_ref(); results_count];
+        let call_result = function.call(
+            &mut *store_or_caller,
+            function_params.as_slice(),
+            &mut results,
+        );
+        match call_result {
+            Ok(_) => (),
+            Err(err) => {
+                let reason = format!("{err}");
+                if let Ok(trap) = err.downcast::<Trap>() {
+                    return env
+                        .error_tuple(format!(
+                            "Error during function excecution ({trap}): {reason}"
+                        ))
+                        .encode(env);
+                } else {
+                    return env
+                        .error_tuple(format!("Error during function excecution: {reason}"))
+                        .encode(env);
+                }
+            }
+        };
+        let mut return_values: Vec<Term> = Vec::with_capacity(results_count);
+        for value in results.iter().cloned() {
+            return_values.push(match value {
+                Val::I32(i) => i.encode(env),
+                Val::I64(i) => i.encode(env),
+                Val::F32(i) => f32::from_bits(i).encode(env),
+                Val::F64(i) => f64::from_bits(i).encode(env),
+                Val::V128(i) => rustler::BigInt::from(i.as_u128()).encode(env),
+                Val::FuncRef(_) => {
+                    return env
+                        .error_tuple("unable_to_return_func_ref_type")
+                        .encode(env)
+                }
+                Val::ExternRef(_) => {
+                    return env
+                        .error_tuple("unable_to_return_extern_ref_type")
+                        .encode(env)
+                }
+                Val::AnyRef(_) => {
+                    return env.error_tuple("unable_to_return_any_ref_type").encode(env)
+                }
+            })
         }
-    };
-    let function_params_result = decode_function_param_terms(
-        &function
-            .ty(&*store_or_caller)
-            .params()
-            .collect::<Vec<ValType>>(),
-        given_params,
-    );
-    let function_params = match function_params_result {
-        Ok(vec) => map_wasm_values_to_vals(&vec),
-        Err(reason) => return make_error_tuple(&thread_env, &reason, from),
-    };
-    let results_count = function.ty(&*store_or_caller).results().len();
-    let mut results = vec![Val::null_extern_ref(); results_count];
-    let call_result = function.call(
-        &mut *store_or_caller,
-        function_params.as_slice(),
-        &mut results,
-    );
-    match call_result {
-        Ok(_) => (),
-        Err(err) => {
-            let reason = format!("{err}");
-            if let Ok(trap) = err.downcast::<Trap>() {
-                return make_error_tuple(
-                    &thread_env,
-                    &format!("Error during function excecution ({trap}): {reason}"),
-                    from,
-                );
-            } else {
-                return make_error_tuple(
-                    &thread_env,
-                    &format!("Error during function excecution: {reason}"),
-                    from,
-                );
-            }
-        }
-    };
-    let mut return_values: Vec<Term> = Vec::with_capacity(results_count);
-    for value in results.iter().cloned() {
-        return_values.push(match value {
-            Val::I32(i) => i.encode(thread_env),
-            Val::I64(i) => i.encode(thread_env),
-            Val::F32(i) => f32::from_bits(i).encode(thread_env),
-            Val::F64(i) => f64::from_bits(i).encode(thread_env),
-            Val::V128(i) => rustler::BigInt::from(i.as_u128()).encode(thread_env),
-            Val::FuncRef(_) => {
-                return make_error_tuple(&thread_env, "unable_to_return_func_ref_type", from)
-            }
-            Val::ExternRef(_) => {
-                return make_error_tuple(&thread_env, "unable_to_return_extern_ref_type", from)
-            }
-            Val::AnyRef(_) => {
-                return make_error_tuple(&thread_env, "unable_to_return_any_ref_type", from)
-            }
-        })
-    }
-    make_tuple(
-        thread_env,
-        &[
-            atoms::returned_function_call().encode(thread_env),
-            make_tuple(
-                thread_env,
-                &[
-                    atoms::ok().encode(thread_env),
-                    return_values.encode(thread_env),
-                ],
-            ),
-            from,
-        ],
-    )
+
+        make_tuple(env, &[atoms::ok().encode(env), return_values.encode(env)]).encode(env)
+    });
+    thread_env.save(result)
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -459,17 +461,6 @@ pub fn map_wasm_values_to_vals(values: &[WasmValue]) -> Vec<Val> {
             WasmValue::V128(value) => (*value).into(),
         })
         .collect()
-}
-
-fn make_error_tuple<'a>(env: &RustlerEnv<'a>, reason: &str, from: Term<'a>) -> Term<'a> {
-    make_tuple(
-        *env,
-        &[
-            atoms::returned_function_call().encode(*env),
-            env.error_tuple(reason),
-            from,
-        ],
-    )
 }
 
 // called from elixir, params

@@ -42,7 +42,7 @@ pub fn size(
     memory_resource: ResourceArc<MemoryResource>,
 ) -> NifResult<usize> {
     let store_or_caller: &StoreOrCaller =
-        &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
+        &*(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
         })?);
     let memory = memory_resource.inner.lock().map_err(|e| {
@@ -59,7 +59,7 @@ pub fn grow(
     pages: u64,
 ) -> NifResult<u64> {
     let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
                 "Could not unlock store_or_caller resource: {e}"
             )))
@@ -94,7 +94,7 @@ pub fn get_byte(
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
 ) -> NifResult<u8> {
-    let store_or_caller = &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
+    let store_or_caller = &*(store_or_caller_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
     })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
@@ -116,7 +116,7 @@ pub fn set_byte(
     index: usize,
     value: Term,
 ) -> NifResult<Atom> {
-    let store_or_caller = &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
+    let store_or_caller = &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
     })?);
     let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
@@ -140,7 +140,7 @@ pub fn memory_from_instance(
         .ok_or_else(|| Error::Term(Box::new("The WebAssembly module has no exported memory.")))
 }
 
-#[rustler::nif(name = "memory_read_binary")]
+#[rustler::nif(name = "memory_read_binary", schedule = "DirtyCpu")]
 pub fn read_binary(
     env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
@@ -149,7 +149,7 @@ pub fn read_binary(
     len: usize,
 ) -> NifResult<Binary> {
     let store_or_caller: &StoreOrCaller =
-        &*(store_or_caller_resource.inner.try_lock().map_err(|e| {
+        &*(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
                 "Could not unlock store_or_caller resource: {e}"
             )))
@@ -169,7 +169,7 @@ pub fn read_binary(
     Ok(binary.into())
 }
 
-#[rustler::nif(name = "memory_write_binary")]
+#[rustler::nif(name = "memory_write_binary", schedule = "DirtyCpu")]
 pub fn write_binary(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
@@ -177,7 +177,7 @@ pub fn write_binary(
     binary: Binary,
 ) -> NifResult<Atom> {
     let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
+        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
             rustler::Error::Term(Box::new(format!(
                 "Could not unlock store_or_caller resource: {e}"
             )))

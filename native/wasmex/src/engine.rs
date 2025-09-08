@@ -1,9 +1,23 @@
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
+
+pub static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    // Spawn <number of CPU cores> OS threads, fall back to `8` if detection fails
+    let num_threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(8);
+
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .thread_name("wasmex-async")
+        .enable_all()
+        .build()
+        .expect("Failed to create Tokio runtime")
+});
 
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
@@ -24,16 +38,19 @@ pub struct EngineResource {
 }
 
 #[rustler::nif(name = "engine_new")]
-pub fn new(config: ExEngineConfig) -> Result<ResourceArc<EngineResource>, rustler::Error> {
-    let config = engine_config(config);
+pub fn new(
+    engine_config_ex: ExEngineConfig,
+) -> Result<ResourceArc<EngineResource>, rustler::Error> {
+    let config = engine_config(engine_config_ex);
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
     let resource = ResourceArc::new(EngineResource {
         inner: Mutex::new(engine),
     });
+
     Ok(resource)
 }
 
-#[rustler::nif(name = "engine_precompile_module")]
+#[rustler::nif(name = "engine_precompile_module", schedule = "DirtyCpu")]
 pub fn precompile_module<'a>(
     env: rustler::Env<'a>,
     engine_resource: ResourceArc<EngineResource>,
@@ -72,6 +89,7 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_memory64(engine_config.memory64);
     config.wasm_component_model(engine_config.wasm_component_model);
     config.debug_info(engine_config.debug_info);
+
     config
 }
 
