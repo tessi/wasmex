@@ -25,9 +25,9 @@ defmodule Wasmex.StoreOrCallerTest do
             imported_sum3:
               {:fn, [:i32, :i32, :i32], [:i32],
                fn context, _a, _b, _c ->
-                 # calling using_imported_sum3 spends 10 fuel, we add that and 42 fuel
+                 # calling using_imported_sum3 spends 6 fuel, we add that and 42 fuel
                  # more to assert that number later
-                 :ok = StoreOrCaller.set_fuel(context.caller, 10 + 42)
+                 :ok = StoreOrCaller.set_fuel(context.caller, 6 + 42)
                  0
                end}
           })
@@ -37,9 +37,9 @@ defmodule Wasmex.StoreOrCallerTest do
       pid = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
       assert {:ok, [0]} = Wasmex.call_function(pid, "using_imported_sum3", [1, 2, 3])
 
-      # 10 fuel is spent in the function_call, 42 fuel is added synthetically on top
+      # 6 fuel is spent in the function_call, 42 fuel is added synthetically on top
       # within the `imported_sum3` function.
-      # We started with 10_000 fuel, but set a different value (10 + 42) in the function - which
+      # We started with 10_000 fuel, but set a different value (6 + 42) in the function - which
       # should leave us with 42 fuel remaining.
       assert StoreOrCaller.get_fuel(store) == {:ok, 42}
     end
@@ -89,7 +89,7 @@ defmodule Wasmex.StoreOrCallerTest do
       pid = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
       assert {:ok, [fuel]} = Wasmex.call_function(pid, "using_imported_sum3", [1, 2, 3])
 
-      assert fuel == 9_976
+      assert fuel == 9_980
     end
 
     test "with a store that has fuel_consumption disabled" do
