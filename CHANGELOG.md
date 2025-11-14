@@ -19,6 +19,8 @@ Types of changes
 ### Changed
 
 * Switch the concurrency model of the underlying Wasm calls to async rust via tokio. This essentially means that instead of spawning a new OS (native operating system) thread for every Wasm call, we have a pool of worker OS threads where each Wasm function call spawns a green thread to be handled by our worker pool eventually. This is much more friendly on system resources and speeds up wasmex considerably. For details see #837. Thanks @patrickdet
+* Updated dependencies - most importantly wasmtime from 35 to 38
+* Fixed outdated Wasm Component documentation about option-types to be up-to-date with the change introduced in 0.11.0
 
 ## [0.13.0 - 2025-09-06]
 
