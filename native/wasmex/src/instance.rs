@@ -131,6 +131,12 @@ pub fn get_global_value(
         Val::AnyRef(_) => Err(rustler::Error::Term(Box::new(
             "unable_to_return_any_ref_type",
         ))),
+        Val::ExnRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_exn_ref_type",
+        ))),
+        Val::ContRef(_) => Err(rustler::Error::Term(Box::new(
+            "unable_to_return_cont_ref_type",
+        ))),
     }
 }
 
@@ -333,6 +339,14 @@ fn execute_function(
                 }
                 Val::AnyRef(_) => {
                     return env.error_tuple("unable_to_return_any_ref_type").encode(env)
+                }
+                Val::ExnRef(_) => {
+                    return env.error_tuple("unable_to_return_exn_ref_type").encode(env)
+                }
+                Val::ContRef(_) => {
+                    return env
+                        .error_tuple("unable_to_return_cont_ref_type")
+                        .encode(env)
                 }
             })
         }

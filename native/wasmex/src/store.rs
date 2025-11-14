@@ -10,8 +10,9 @@ use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
 };
-use wasmtime_wasi::p2::{IoView, WasiCtx, WasiView};
 use wasmtime_wasi::ResourceTable;
+use wasmtime_wasi::WasiCtx;
+use wasmtime_wasi::WasiView;
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
 
 #[derive(Debug, NifStruct)]
@@ -109,21 +110,23 @@ pub struct ComponentStoreData {
     pub(crate) table: ResourceTable,
 }
 
-impl IoView for ComponentStoreData {
+impl WasiHttpView for ComponentStoreData {
+    fn ctx(&mut self) -> &mut WasiHttpCtx {
+        self.http.as_mut().expect("WasiHttpCtx is not set")
+    }
+
     fn table(&mut self) -> &mut ResourceTable {
         &mut self.table
     }
 }
 
-impl WasiHttpView for ComponentStoreData {
-    fn ctx(&mut self) -> &mut WasiHttpCtx {
-        self.http.as_mut().expect("WasiHttpCtx is not set")
-    }
-}
-
 impl WasiView for ComponentStoreData {
-    fn ctx(&mut self) -> &mut WasiCtx {
-        self.ctx.as_mut().expect("WasiCtx is not set")
+    fn ctx(&mut self) -> wasmtime_wasi::WasiCtxView<'_> {
+        let ctx = self.ctx.as_mut().expect("WasiCtx is not set");
+        wasmtime_wasi::WasiCtxView {
+            ctx,
+            table: &mut self.table,
+        }
     }
 }
 
@@ -239,7 +242,7 @@ pub fn component_store_new_wasi(
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect::<Vec<_>>();
-    let mut wasi_ctx_builder = wasmtime_wasi::p2::WasiCtxBuilder::new();
+    let mut wasi_ctx_builder = wasmtime_wasi::WasiCtxBuilder::new();
     wasi_ctx_builder.args(&options.args).envs(wasi_env);
 
     if options.inherit_stdin {

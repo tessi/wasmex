@@ -180,6 +180,12 @@ fn link_imported_function(
                             Val::AnyRef(_) => {
                                 (atoms::error(), "unable_to_convert_any_ref_type").encode(env)
                             }
+                            Val::ExnRef(_) => {
+                                (atoms::error(), "unable_to_convert_exn_ref_type").encode(env)
+                            }
+                            Val::ContRef(_) => {
+                                (atoms::error(), "unable_to_convert_cont_ref_type").encode(env)
+                            }
                         })
                     }
                     // Callback context will contain memory (plus maybe globals, tables etc later).
