@@ -85,13 +85,13 @@ defmodule Wasmex.Components do
       {1, "two"}
       ```
 
-    - `option<T>` (maps to `nil` or the value)
+    - `option<T>` (maps to `:none` or `{:some, value}`)
       ```wit
       option<u32>
       ```
       ```elixir
-      nil  # or
-      42
+      :none  # or
+      {:some, 42}
       ```
 
     - `enum` (maps to Elixir atoms)
