@@ -20,7 +20,7 @@ rustler = { version = "0.37.0", features = ["big_integer", "serde"] }
 tokio = { version = "1.48", features = ["full"] }
 wasi-common = "38.0.4"
 wasmtime = "38.0.4"
-wasmtime-wasi = "38.0.4"
+wasmtime-wasi = "39.0.1"
 wasmtime-wasi-http = "38.0.4"
 wat = "1.240.0"
 wiggle = "38.0.4"
