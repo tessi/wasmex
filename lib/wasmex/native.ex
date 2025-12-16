@@ -98,8 +98,22 @@ defmodule Wasmex.Native do
     do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
+  def wit_exported_resources(_path, _wit), do: error()
 
   def wat_to_wasm(_wat), do: error()
+
+  def resource_call_function(
+        _store,
+        _instance,
+        _resource,
+        _interface_path,
+        _method_name,
+        _params,
+        _from
+      ),
+      do: error()
+
+  def resource_new(_store, _instance, _resource_type_path, _params, _from), do: error()
 
   # When the NIF is loaded, it will override functions in this module.
   # Calling error is handles the case when the nif could not be loaded.

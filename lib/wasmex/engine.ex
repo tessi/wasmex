@@ -74,16 +74,16 @@ defmodule Wasmex.Engine do
   * A [binary-encoded][binary] WebAssembly module
   * A [text-encoded][text] instance of the WebAssembly text format
 
-  This method may be used to compile a module for use with a
-  different target host. The output of this method may be used with
+  This function may be used to compile a module for use with a
+  different target host. The output of this function may be used with
   `Wasmex.Module.unsafe_deserialize/2` on hosts compatible with the
   `Wasmex.EngineConfig` associated with this `Wasmex.Engine`.
 
-  The output of this method is safe to send to another host machine
+  The output of this function is safe to send to another host machine
   for later execution. As the output is already a compiled module,
   translation and code generation will be skipped and this will
   improve the performance of constructing a `Wasmex.Module` from
-  the output of this method.
+  the output of this function.
 
   [binary]: https://webassembly.github.io/spec/core/binary/index.html
   [text]: https://webassembly.github.io/spec/core/text/index.html

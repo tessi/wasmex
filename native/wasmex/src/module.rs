@@ -310,7 +310,7 @@ pub fn unsafe_deserialize(
     // Safety: This function is inherently unsafe as the provided bytes:
     // 1. Are going to be deserialized directly into Rust objects.
     // 2. Contains the function assembly bodies and, if intercepted, a malicious actor could inject code into executable memory.
-    // And as such, the deserialize method is unsafe.
+    // And as such, the deserialize function is unsafe.
     // However, there isn't much we can do about it here, we will warn users in elixir-land about this, though.
     let module = unsafe {
         Module::deserialize(&engine, binary.as_slice()).map_err(|e| {

@@ -25,7 +25,7 @@ use wasmtime::Store;
 use wasmtime_wasi;
 use wasmtime_wasi_http;
 
-use crate::component_type_conversion::{
+use crate::component::type_conversion::{
     convert_params, convert_result_term, encode_result, vals_to_terms,
 };
 
@@ -71,9 +71,21 @@ pub fn new_instance(
 
     let mut linker = Linker::new(store.engine());
     linker.allow_shadowing(true);
-    let _ = wasmtime_wasi::p2::add_to_linker_sync(&mut linker);
+
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|e| {
+        rustler::Error::Term(Box::new(format!(
+            "Failed to add WASI P2 interfaces to linker: {}",
+            e
+        )))
+    })?;
+
     if store.data().http.is_some() {
-        let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+        wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker).map_err(|e| {
+            rustler::Error::Term(Box::new(format!(
+                "Failed to add WASI HTTP interfaces to linker: {}",
+                e
+            )))
+        })?;
     }
 
     // Instantiate the component

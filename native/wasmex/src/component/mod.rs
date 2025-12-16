@@ -1,3 +1,7 @@
+mod instance;
+mod resource;
+mod type_conversion;
+
 use crate::store::{ComponentStoreData, ComponentStoreResource};
 use rustler::Binary;
 use rustler::Error;

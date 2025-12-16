@@ -42,6 +42,7 @@ rustler::atoms! {
 
     // calls to erlang processes
     invoke_callback,
+    returned_function_call,
 
     // option
     some,
