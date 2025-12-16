@@ -1,0 +1,18 @@
+package component:counter;
+
+interface types {
+    resource counter {
+        constructor(initial: u32);
+        increment: func() -> u32;
+        get-value: func() -> u32;
+        reset: func(value: u32);
+        is-in-range: func(a: u32, b: u32) -> bool;
+    }
+    
+    make-counter: func(initial: u32) -> counter;
+    use-counter: func(c: borrow<counter>) -> u32;
+}
+
+world example {
+    export types;
+}

@@ -87,7 +87,9 @@ To set up a development environment install [the latest stable rust](https://www
 rustup component add rustfmt
 rustup component add clippy
 rustup target add wasm32-unknown-unknown # to compile our example Wasm files for testing
-rustup target add wasm32-wasip1 # to compile our example Wasm/WASI files for testing
+# to compile our example Wasm/WASI files for testing
+rustup target add wasm32-wasip1
+rustup target add wasm32-wasip2
 cargo install --locked cargo-component # for Wasm component model files
 ```
 

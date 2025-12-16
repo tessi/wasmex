@@ -22,8 +22,8 @@ defmodule Wasmex.Components.FieldConverter do
     map |> Enum.map(&to_wit/1) |> Enum.into(%{})
   end
 
-  def to_wit({key, value}) when is_atom(key) do
-    {key |> Atom.to_string() |> String.replace("_", "-"), value}
+  def to_wit({key, value}) do
+    {identifier_elixir_to_wit(key), value}
   end
 
   def to_wit(other), do: other
@@ -36,13 +36,56 @@ defmodule Wasmex.Components.FieldConverter do
     map |> Enum.map(&to_elixir/1) |> Enum.into(%{})
   end
 
-  def to_elixir({key, value}) when is_atom(key) do
-    {key |> Atom.to_string() |> String.replace("-", "_") |> String.to_atom(), value}
-  end
-
-  def to_elixir({key, value}) when is_binary(key) do
-    {key |> String.replace("-", "_") |> String.to_atom(), value}
+  def to_elixir({key, value}) do
+    {identifier_wit_to_elixir(key), value}
   end
 
   def to_elixir(other), do: other
+
+  @doc """
+  Converts a WIT identifier (string or atom) to an Elixir atom by replacing
+  hyphens with underscores.
+
+  Examples:
+
+      iex> Wasmex.Components.FieldConverter.identifier_wit_to_elixir("get-value")
+      :get_value
+
+      iex> Wasmex.Components.FieldConverter.identifier_wit_to_elixir(:is-in-range)
+      :is_in_range
+  """
+  def identifier_wit_to_elixir(identifier) when is_binary(identifier) do
+    identifier
+    |> String.replace("-", "_")
+    |> String.to_atom()
+  end
+
+  def identifier_wit_to_elixir(identifier) when is_atom(identifier) do
+    identifier
+    |> Atom.to_string()
+    |> String.replace("-", "_")
+    |> String.to_atom()
+  end
+
+  @doc """
+  Converts an Elixir identifier (string or atom) to a WIT-compatible string by replacing
+  underscores with hyphens.
+
+  Examples:
+
+      iex> Wasmex.Components.FieldConverter.identifier_elixir_to_wit(:get_value)
+      "get-value"
+
+      iex> Wasmex.Components.FieldConverter.identifier_elixir_to_wit("is_in_range")
+      "is-in-range"
+  """
+  def identifier_elixir_to_wit(identifier) when is_atom(identifier) do
+    identifier
+    |> Atom.to_string()
+    |> String.replace("_", "-")
+  end
+
+  def identifier_elixir_to_wit(identifier) when is_binary(identifier) do
+    String.replace(identifier, "_", "-")
+  end
 end
