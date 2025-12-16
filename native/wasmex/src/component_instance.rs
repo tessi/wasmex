@@ -170,15 +170,18 @@ fn link_import(
     let name_for_closure = name.clone();
 
     linker_instance
-        .func_new(&name, move |_store, params, result_values| {
-            call_elixir_import(
-                name_for_closure.clone(),
-                namespace.clone(),
-                params,
-                result_values,
-                pid,
-            )
-        })
+        .func_new(
+            &name,
+            move |_store, _function_type, params, result_values| {
+                call_elixir_import(
+                    name_for_closure.clone(),
+                    namespace.clone(),
+                    params,
+                    result_values,
+                    pid,
+                )
+            },
+        )
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
 }
 
@@ -308,12 +311,9 @@ fn component_execute_function(
             }
         };
 
-        let param_types = function.params(&mut *component_store);
-        let param_types = param_types
-            .as_ref()
-            .iter()
-            .map(|x| x.1.clone())
-            .collect::<Vec<Type>>();
+        let function_type = function.ty(&component_store);
+        let param_types = function_type.params();
+        let param_types = param_types.map(|x| x.1.clone()).collect::<Vec<Type>>();
 
         let converted_params = match convert_params(param_types.as_ref(), given_params) {
             Ok(params) => params,
@@ -325,7 +325,7 @@ fn component_execute_function(
                 return env.error_tuple(&reason).encode(env);
             }
         };
-        let results_count = function.results(&*component_store).len();
+        let results_count = function_type.results().len();
 
         let mut result = vec![Val::Bool(false); results_count];
         match function.call(
