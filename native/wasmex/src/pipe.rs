@@ -5,10 +5,8 @@ use rustler::{Encoder, ResourceArc, Term};
 use std::any::Any;
 use std::io::{self, Cursor, Read, Seek, Write};
 use std::sync::{Arc, Mutex, RwLock};
-use wasi_common::{
-    file::{FdFlags, FileType},
-    Error, WasiFile,
-};
+use wasi_common::{file::FileType, Error, WasiFile};
+use wasmtime_wasi::async_trait;
 
 use crate::atoms;
 
@@ -66,18 +64,14 @@ impl Seek for Pipe {
     }
 }
 
-#[wiggle::async_trait]
+#[async_trait]
 impl WasiFile for Pipe {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     async fn get_filetype(&self) -> Result<FileType, Error> {
-        Ok(FileType::Unknown)
-    }
-
-    async fn get_fdflags(&self) -> Result<FdFlags, Error> {
-        Ok(FdFlags::APPEND)
+        Ok(FileType::Pipe)
     }
 
     async fn write_vectored<'a>(&self, bufs: &[io::IoSlice<'a>]) -> Result<u64, Error> {
