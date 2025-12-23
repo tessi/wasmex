@@ -21,7 +21,7 @@ tokio = { version = "1.48", features = ["full"] }
 wasi-common = "39.0.1"
 wasmtime = "39.0.1"
 wasmtime-wasi = "39.0.1"
-wasmtime-wasi-http = "39.0.1"
+wasmtime-wasi-http = "40.0.0"
 wat = "1.243.0"
 wiggle = "39.0.1"
 wit-parser = "0.243.0"
