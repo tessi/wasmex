@@ -39,4 +39,12 @@ defmodule Wasmex.EngineConfigTest do
       assert %{memory64: true} = EngineConfig.memory64(config, true)
     end
   end
+
+  describe t(&EngineConfig.wasm_exceptions/1) do
+    test "sets the wasm_exceptions option" do
+      config = %EngineConfig{}
+      assert %{wasm_exceptions: false} = EngineConfig.wasm_exceptions(config, false)
+      assert %{wasm_exceptions: true} = EngineConfig.wasm_exceptions(config, true)
+    end
+  end
 end

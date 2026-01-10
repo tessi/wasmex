@@ -25,6 +25,7 @@ defmodule Wasmex.EngineTest do
                |> EngineConfig.consume_fuel(true)
                |> EngineConfig.cranelift_opt_level(:speed)
                |> EngineConfig.memory64(true)
+               |> EngineConfig.wasm_exceptions(true)
                |> Engine.new()
     end
   end

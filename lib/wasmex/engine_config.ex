@@ -10,6 +10,7 @@ defmodule Wasmex.EngineConfig do
     * `:debug_info` - Configures whether DWARF debug information will be emitted during compilation. This defaults to `false`.
     * `:memory64` - Whether or not to use 64-bit memory. This defaults to `false`.
     * `:wasm_component_model` - Whether or not to use the WebAssembly component model. This defaults to `true`.
+    * `:wasm_exceptions` - Whether or not to enable the WebAssembly exception handling proposal. This defaults to `false`.
 
   ## Example
 
@@ -24,7 +25,8 @@ defmodule Wasmex.EngineConfig do
             wasm_backtrace_details: false,
             memory64: false,
             wasm_component_model: true,
-            debug_info: false
+            debug_info: false,
+            wasm_exceptions: false
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),
@@ -32,7 +34,8 @@ defmodule Wasmex.EngineConfig do
           wasm_backtrace_details: boolean(),
           memory64: boolean(),
           wasm_component_model: boolean(),
-          debug_info: boolean()
+          debug_info: boolean(),
+          wasm_exceptions: boolean()
         }
 
   @doc ~S"""
@@ -108,5 +111,24 @@ defmodule Wasmex.EngineConfig do
   @spec wasm_backtrace_details(t(), boolean()) :: t()
   def wasm_backtrace_details(%__MODULE__{} = config, wasm_backtrace_details) do
     %__MODULE__{config | wasm_backtrace_details: wasm_backtrace_details}
+  end
+
+  @doc ~S"""
+  Configures whether the WebAssembly exception handling proposal is enabled.
+
+  This enables support for the WebAssembly exception handling proposal,
+  which allows Wasm modules to use try/catch/throw instructions.
+  Required for running WASM modules that use setjmp/longjmp emulation.
+
+  ## Example
+
+      iex> config = %Wasmex.EngineConfig{}
+      ...>          |> Wasmex.EngineConfig.wasm_exceptions(true)
+      iex> config.wasm_exceptions
+      true
+  """
+  @spec wasm_exceptions(t(), boolean()) :: t()
+  def wasm_exceptions(%__MODULE__{} = config, wasm_exceptions) do
+    %__MODULE__{config | wasm_exceptions: wasm_exceptions}
   end
 end

@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [Unreleased]
+
+### Added
+
+* Added an option to enable the [WebAssembly exception handling proposal](https://github.com/WebAssembly/exception-handling/blob/main/proposals/exception-handling/Exceptions.md) via `Wasmex.EngineConfig.wasm_exceptions/2`. This supports WASM modules that use `setjmp`/`longjmp` emulation (e.g., modules built with [Emscripten](https://emscripten.org/) using `-s SUPPORT_LONGJMP=wasm -s WASM_LEGACY_EXCEPTIONS=0`).
+
 ## [0.14.0 - 2025-12-16]
 
 ### Changed

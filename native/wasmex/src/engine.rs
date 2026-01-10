@@ -28,6 +28,7 @@ pub struct ExEngineConfig {
     memory64: bool,
     wasm_component_model: bool,
     debug_info: bool,
+    wasm_exceptions: bool,
 }
 
 #[rustler::resource_impl()]
@@ -89,6 +90,7 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_memory64(engine_config.memory64);
     config.wasm_component_model(engine_config.wasm_component_model);
     config.debug_info(engine_config.debug_info);
+    config.wasm_exceptions(engine_config.wasm_exceptions);
 
     config
 }
