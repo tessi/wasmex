@@ -15,8 +15,7 @@ use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
 use wasmtime::component::{Instance, Linker, LinkerInstance, Type, Val};
-use wasmtime::Trap;
-use wiggle::anyhow::{self};
+use wasmtime::{Error as WasmtimeError, Trap};
 
 use rustler::Term;
 
@@ -129,7 +128,7 @@ fn call_elixir_import(
     params: &[Val],
     result_values: &mut [Val],
     pid: LocalPid,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), WasmtimeError> {
     let mut msg_env = OwnedEnv::new();
     let callback_token = create_callback_token(name.clone(), namespace.clone());
 
@@ -151,7 +150,7 @@ fn call_elixir_import(
 
     let (success, returned_values) = result.take().unwrap();
     if !success {
-        return Err(anyhow::anyhow!("Callback failed"));
+        return Err(WasmtimeError::msg("Callback failed"));
     }
 
     if !returned_values.is_empty() {
@@ -333,10 +332,7 @@ fn component_execute_function(
             converted_params.as_slice(),
             &mut result,
         ) {
-            Ok(_) => {
-                let _ = function.post_return(&mut *component_store);
-                encode_result(env, result)
-            }
+            Ok(_) => encode_result(env, result),
             Err(err) => {
                 let reason = format!("{err}");
                 if let Ok(trap) = err.downcast::<Trap>() {
