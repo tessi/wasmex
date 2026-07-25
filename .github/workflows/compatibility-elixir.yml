@@ -35,7 +35,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
       - name: Add targets
         run: |
@@ -43,7 +43,7 @@ jobs:
           rustup target add wasm32-wasip1
 
       - name: "Install cargo-component"
-        run: cargo install --locked cargo-component
+        run: cargo install --locked cargo-component --version 0.21.1
         shell: bash
 
       - run: mix do deps.get, deps.compile
