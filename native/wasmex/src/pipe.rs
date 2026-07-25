@@ -2,11 +2,12 @@
 //! It can, for example, be used to replace stdin/stdout/stderr of a WASI module.
 
 use rustler::{Encoder, ResourceArc, Term};
-use std::any::Any;
 use std::io::{self, Cursor, Read, Seek, Write};
+use std::pin::Pin;
 use std::sync::{Arc, Mutex, RwLock};
-use wasi_common::{file::FileType, Error, WasiFile};
-use wasmtime_wasi::async_trait;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use wasmtime_wasi::cli::{IsTerminal, StdinStream, StdoutStream};
 
 use crate::atoms;
 
@@ -64,34 +65,51 @@ impl Seek for Pipe {
     }
 }
 
-#[async_trait]
-impl WasiFile for Pipe {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl AsyncRead for Pipe {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let read = Read::read(&mut *self, buf.initialize_unfilled())?;
+        buf.advance(read);
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncWrite for Pipe {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(Write::write(&mut *self, buf))
     }
 
-    async fn get_filetype(&self) -> Result<FileType, Error> {
-        Ok(FileType::Pipe)
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Write::flush(&mut *self))
     }
 
-    async fn write_vectored<'a>(&self, bufs: &[io::IoSlice<'a>]) -> Result<u64, Error> {
-        let buffer = &mut *(self.borrow());
-        buffer
-            .write_vectored(bufs)
-            .map(|written| written as u64)
-            .map_err(wasi_common::Error::from)
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
+}
 
-    async fn read_vectored<'a>(&self, bufs: &mut [io::IoSliceMut<'a>]) -> Result<u64, Error> {
-        let buffer = &mut *(self.borrow());
-        buffer
-            .read_vectored(bufs)
-            .map(|read| read as u64)
-            .map_err(wasi_common::Error::from)
-    }
-
-    fn isatty(&self) -> bool {
+impl IsTerminal for Pipe {
+    fn is_terminal(&self) -> bool {
         false
+    }
+}
+
+impl StdinStream for Pipe {
+    fn async_stream(&self) -> Box<dyn AsyncRead + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
+impl StdoutStream for Pipe {
+    fn async_stream(&self) -> Box<dyn AsyncWrite + Send + Sync> {
+        Box::new(self.clone())
     }
 }
 

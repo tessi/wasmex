@@ -198,7 +198,7 @@ pub fn call_exported_function(
     let function_params = thread_env.save(given_params);
     let from = thread_env.save(from);
 
-    TOKIO_RUNTIME.spawn(async move {
+    TOKIO_RUNTIME.spawn_blocking(move || {
         // Execute function and get the result
         let result = component_execute_function(
             &mut thread_env,
