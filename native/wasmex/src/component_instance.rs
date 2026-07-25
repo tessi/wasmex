@@ -70,9 +70,11 @@ pub fn new_instance(
 
     let mut linker = Linker::new(store.engine());
     linker.allow_shadowing(true);
-    let _ = wasmtime_wasi::p2::add_to_linker_sync(&mut linker);
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)
+        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
     if store.data().http.is_some() {
-        let _ = wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker);
+        wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker)
+            .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
     }
 
     // Instantiate the component
