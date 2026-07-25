@@ -433,11 +433,7 @@ pub fn decode_function_param_terms(
     }
 
     let mut function_params = Vec::<WasmValue>::with_capacity(params.len());
-    for (nth, (param, given_param)) in params
-        .iter()
-        .zip(function_param_terms.into_iter())
-        .enumerate()
-    {
+    for (nth, (param, given_param)) in params.iter().zip(function_param_terms).enumerate() {
         let value = match (
             decode_term_as_wasm_value(param.clone(), given_param),
             given_param.get_type(),
