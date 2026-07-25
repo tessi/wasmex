@@ -13,7 +13,10 @@ use wasmtime::{
 use wasmtime_wasi::ResourceTable;
 use wasmtime_wasi::WasiCtx;
 use wasmtime_wasi::WasiView;
-use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
+use wasmtime_wasi_http::{
+    p2::{WasiHttpCtxView, WasiHttpView},
+    WasiHttpCtx,
+};
 
 #[derive(Debug, NifStruct)]
 #[module = "Wasmex.Wasi.PreopenOptions"]
@@ -111,12 +114,12 @@ pub struct ComponentStoreData {
 }
 
 impl WasiHttpView for ComponentStoreData {
-    fn ctx(&mut self) -> &mut WasiHttpCtx {
-        self.http.as_mut().expect("WasiHttpCtx is not set")
-    }
-
-    fn table(&mut self) -> &mut ResourceTable {
-        &mut self.table
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: self.http.as_mut().expect("WasiHttpCtx is not set"),
+            table: &mut self.table,
+            hooks: Default::default(),
+        }
     }
 }
 

@@ -72,7 +72,7 @@ pub fn new_instance(
     linker.allow_shadowing(true);
     let _ = wasmtime_wasi::p2::add_to_linker_sync(&mut linker);
     if store.data().http.is_some() {
-        let _ = wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker);
+        let _ = wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker);
     }
 
     // Instantiate the component
