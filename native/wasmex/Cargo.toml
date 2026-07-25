@@ -18,10 +18,10 @@ crate-type = ["dylib"]
 rand = "0.9.1"
 rustler = { version = "0.37.2", features = ["big_integer", "serde"] }
 tokio = { version = "1.48", features = ["full"] }
-wasi-common = "40.0.4"
-wasmtime = "40.0.4"
-wasmtime-wasi = "40.0.4"
-wasmtime-wasi-http = "40.0.4"
+wasi-common = "41.0.4"
+wasmtime = "41.0.4"
+wasmtime-wasi = "41.0.4"
+wasmtime-wasi-http = "41.0.4"
 wat = "1.243.0"
-wiggle = "40.0.4"
+wiggle = "41.0.4"
 wit-parser = "0.243.0"
