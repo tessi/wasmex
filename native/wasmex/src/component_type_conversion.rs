@@ -426,7 +426,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             }
             None => atoms::none().encode(env),
         },
-        Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(&env, enum_val).unwrap(),
+        Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(env, enum_val),
         Val::Result(result) => match result {
             Ok(maybe_val) => {
                 if let Some(inner_val) = maybe_val {
@@ -450,7 +450,7 @@ pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, mut path: Vec<String>) 
             }
         },
         Val::Variant(case_name, payload) => {
-            let atom = rustler::serde::atoms::str_to_term(&env, case_name).unwrap();
+            let atom = rustler::serde::atoms::str_to_term(env, case_name);
 
             match payload {
                 Some(boxed_val) => {
@@ -502,7 +502,7 @@ pub fn term_to_field_name(key_term: &Term) -> String {
 }
 
 pub fn field_name_to_term<'a>(env: &rustler::Env<'a>, field_name: &str) -> Term<'a> {
-    rustler::serde::atoms::str_to_term(env, field_name).unwrap()
+    rustler::serde::atoms::str_to_term(*env, field_name)
 }
 
 pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Vec<Val>, Error> {
