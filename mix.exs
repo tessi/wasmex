@@ -7,7 +7,7 @@ defmodule Wasmex.MixProject do
     [
       app: :wasmex,
       version: @version,
-      elixir: "~> 1.12",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       name: "wasmex",
