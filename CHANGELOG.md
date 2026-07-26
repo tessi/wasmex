@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [Unreleased]
+
+### Fixed
+
+- Corrected public typespecs to accept registered GenServer names and to reflect the full range of WebAssembly component parameter and return values. Thanks @Sorixelle (#971)
+
 ## [0.14.0 - 2025-12-16]
 
 ### Changed
