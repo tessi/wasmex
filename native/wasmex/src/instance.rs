@@ -3,13 +3,14 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 
 use crate::{
-    async_reply::{send_saved_term, submit_error, AsyncReply},
+    async_reply::{submit_error, AsyncReply},
     atoms,
     environment::{link_imports, link_modules, CallbackTokenResource},
     functions,
     module::ModuleResource,
     printable_term_type::PrintableTermType,
     store::{StoreData, StoreOrCallerResource, StoreTarget},
+    store_executor::with_deadline,
 };
 use rustler::{
     env::SavedTerm,
@@ -17,7 +18,6 @@ use rustler::{
     Encoder, Env, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term, TermType,
 };
 use std::ops::Deref;
-use std::sync::Mutex;
 use wasmtime::{Instance, Linker, Module, Trap, Val, ValType};
 
 #[derive(NifMap)]
@@ -32,7 +32,7 @@ pub struct OwnedLinkedModule {
 }
 
 pub struct InstanceResource {
-    pub inner: Mutex<Instance>,
+    pub inner: Instance,
 }
 
 #[rustler::resource_impl()]
@@ -85,11 +85,11 @@ pub fn new(
     let callback_pid = imports.get_env().pid();
     let term_env = OwnedEnv::new();
     let imports = term_env.save(imports);
-    let reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match instantiate(
                     &mut store,
@@ -118,10 +118,8 @@ pub fn new(
                 imports,
                 reply,
             };
-            if let Err(crate::caller::CallerCommand::NewInstance { reply, .. }) =
-                session.submit(command)
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -150,11 +148,7 @@ pub(crate) async fn instantiate(
     linker
         .instantiate_async(&mut store, &module)
         .await
-        .map(|instance| {
-            ResourceArc::new(InstanceResource {
-                inner: Mutex::new(instance),
-            })
-        })
+        .map(|instance| ResourceArc::new(InstanceResource { inner: instance }))
         .map_err(|error| error.to_string())
 }
 
@@ -184,16 +178,12 @@ pub fn get_global_value(
     global_name: String,
     from: Term,
 ) -> NifResult<rustler::Atom> {
-    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource as the mutex was poisoned: {e}"
-        )))
-    })?);
-    let reply = AsyncReply::new(from);
+    let instance = instance_resource.inner;
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match instance
                     .get_global(&mut store, &global_name)
@@ -214,10 +204,8 @@ pub fn get_global_value(
                 name: global_name,
                 reply,
             };
-            if let Err(crate::caller::CallerCommand::GetGlobal { reply, .. }) =
-                session.submit(command)
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -232,18 +220,14 @@ pub fn set_global_value(
     new_value: Term,
     from: Term,
 ) -> NifResult<rustler::Atom> {
-    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource as the mutex was poisoned: {e}"
-        )))
-    })?);
+    let instance = instance_resource.inner;
     let term_env = OwnedEnv::new();
     let new_value = term_env.save(new_value);
-    let reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 let result = term_env.run(|env| {
                     let term = new_value.load(env);
@@ -281,10 +265,8 @@ pub fn set_global_value(
                 value: new_value,
                 reply,
             };
-            if let Err(crate::caller::CallerCommand::SetGlobal { reply, .. }) =
-                session.submit(command)
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -298,15 +280,11 @@ pub fn function_export_exists(
     function_name: String,
     from: Term,
 ) -> NifResult<rustler::Atom> {
-    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource as the mutex was poisoned: {e}"
-        )))
-    })?);
-    let reply = AsyncReply::new(from);
+    let instance = instance_resource.inner;
+    let reply = AsyncReply::new(from)?;
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 reply.send(functions::exists(&instance, &mut store, &function_name));
                 store
@@ -320,10 +298,8 @@ pub fn function_export_exists(
                 name: function_name,
                 reply,
             };
-            if let Err(crate::caller::CallerCommand::FunctionExists { reply, .. }) =
-                session.submit(command)
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -353,31 +329,24 @@ pub fn call_exported_function(
     params: Term,
     from: Term,
     timeout_ms: Option<u64>,
-) -> rustler::Atom {
-    let target = match store_or_caller_resource.target() {
-        Ok(target) => target,
-        Err(error) => {
-            AsyncReply::new(from).send_error(format!("{error:?}"));
-            return atoms::ok();
-        }
-    };
+) -> NifResult<rustler::Atom> {
+    let reply = AsyncReply::new(from)?;
+    let target = store_or_caller_resource.target()?;
 
     if let StoreTarget::Caller(session) = target {
         let env = OwnedEnv::new();
         let params = env.save(params);
-        let saved_from = env.save(from);
-        let submit_reply = AsyncReply::new(from);
         let command = crate::caller::CallerCommand::CallExported {
-            instance: *instance_resource.inner.lock().unwrap(),
+            instance: instance_resource.inner,
             function_name,
             env,
             params,
-            from: saved_from,
+            reply,
         };
-        if session.submit(command).is_err() {
-            submit_reply.send_error("Caller is no longer valid");
+        if let Err(error) = session.submit(command) {
+            error.reject();
         }
-        return atoms::ok();
+        return Ok(atoms::ok());
     }
     let StoreTarget::Executor(executor) = target else {
         unreachable!()
@@ -388,10 +357,10 @@ pub fn call_exported_function(
 
     let mut thread_env = OwnedEnv::new();
     let function_params = thread_env.save(params);
-    let saved_from = thread_env.save(from);
-    let submit_reply = AsyncReply::new(from);
+    let submit_reply = AsyncReply::new(from)?;
 
     if let Err(error) = executor.submit(move |mut store| async move {
+        let interrupt_requested = store.data().interrupt_requested.clone();
         let result = execute_function(
             &mut thread_env,
             &mut store,
@@ -399,19 +368,16 @@ pub fn call_exported_function(
             function_name,
             function_params,
         );
-        let result = match deadline {
-            Some(deadline) => tokio::time::timeout_at(deadline, result).await.ok(),
-            None => Some(result.await),
-        };
+        let result = with_deadline(interrupt_requested, deadline, result).await;
         if let Some(result) = result {
-            send_saved_term(thread_env, saved_from, result);
+            reply.send_saved(thread_env, result);
         }
         store
     }) {
         submit_error(submit_reply, error);
     }
 
-    atoms::ok()
+    Ok(atoms::ok())
 }
 
 async fn execute_function(
@@ -426,7 +392,7 @@ async fn execute_function(
             .load(env)
             .decode::<Vec<Term>>()
             .map_err(|_| "could not load 'function params'".to_string())?;
-        let instance: Instance = *(instance_resource.deref().inner.lock().unwrap());
+        let instance = instance_resource.deref().inner;
         let function = functions::find(&instance, &mut *store, &function_name)
             .ok_or_else(|| format!("exported function `{function_name}` not found"))?;
         let function_params = decode_function_param_terms(
@@ -639,16 +605,24 @@ pub fn receive_callback_result(
         let return_types = token_resource.token.return_types.clone();
         match decode_function_param_terms(&return_types, result_list.collect()) {
             Ok(v) => v,
-            Err(reason) => {
-                return Err(Error::Term(Box::new(format!(
-                    "could not convert callback result param to expected return signature: {reason}"
-                ))));
+            Err(_) => {
+                send_callback_result(&token_resource, false, vec![])?;
+                return Ok(atoms::ok());
             }
         }
     } else {
         vec![]
     };
 
+    send_callback_result(&token_resource, success, results)?;
+    Ok(atoms::ok())
+}
+
+fn send_callback_result(
+    token_resource: &CallbackTokenResource,
+    success: bool,
+    results: Vec<WasmValue>,
+) -> NifResult<()> {
     let sender = token_resource
         .token
         .return_sender
@@ -660,9 +634,6 @@ pub fn receive_callback_result(
         })?
         .take()
         .ok_or_else(|| Error::Term(Box::new("Callback result was already sent")))?;
-    sender
-        .send((success, results))
-        .map_err(|_| Error::Term(Box::new("Callback is no longer waiting for a result")))?;
-
-    Ok(atoms::ok())
+    let _ = sender.send((success, results));
+    Ok(())
 }

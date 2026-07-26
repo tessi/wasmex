@@ -8,26 +8,17 @@ use crate::{
     store::{StoreOrCallerResource, StoreTarget},
 };
 use rustler::{Atom, Binary, ResourceArc, Term};
-use std::sync::Mutex;
 use wasmtime::{Instance, Memory};
 
 pub struct MemoryResource {
-    pub inner: Mutex<Memory>,
+    pub inner: Memory,
 }
 
 #[rustler::resource_impl()]
 impl rustler::Resource for MemoryResource {}
 
-fn clone_memory(resource: &MemoryResource) -> Result<Memory, rustler::Error> {
-    resource
-        .inner
-        .lock()
-        .map(|memory| *memory)
-        .map_err(|error| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock memory resource: {error}"
-            )))
-        })
+fn clone_memory(resource: &MemoryResource) -> Memory {
+    resource.inner
 }
 
 #[rustler::nif(name = "memory_from_instance")]
@@ -36,21 +27,15 @@ pub fn from_instance(
     instance_resource: ResourceArc<instance::InstanceResource>,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let instance: Instance = *instance_resource.inner.lock().map_err(|error| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock instance resource: {error}"
-        )))
-    })?;
-    let reply = AsyncReply::new(from);
+    let instance = instance_resource.inner;
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match memory_from_instance(&instance, &mut store) {
-                    Ok(memory) => reply.send(ResourceArc::new(MemoryResource {
-                        inner: Mutex::new(memory),
-                    })),
+                    Ok(memory) => reply.send(ResourceArc::new(MemoryResource { inner: memory })),
                     Err(error) => reply.send_error(error),
                 }
                 store
@@ -60,8 +45,8 @@ pub fn from_instance(
         }
         StoreTarget::Caller(session) => {
             let command = CallerCommand::MemoryFromInstance { instance, reply };
-            if let Err(CallerCommand::MemoryFromInstance { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -74,12 +59,12 @@ pub fn size(
     memory_resource: ResourceArc<MemoryResource>,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
-    let reply = AsyncReply::new(from);
+    let memory = clone_memory(&memory_resource);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |store| async move {
                 reply.send(memory.data_size(&store));
                 store
@@ -89,8 +74,8 @@ pub fn size(
         }
         StoreTarget::Caller(session) => {
             let command = CallerCommand::MemorySize { memory, reply };
-            if let Err(CallerCommand::MemorySize { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -104,12 +89,12 @@ pub fn grow(
     pages: u64,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
-    let reply = AsyncReply::new(from);
+    let memory = clone_memory(&memory_resource);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match memory.grow(&mut store, pages) {
                     Ok(old_pages) => reply.send(old_pages),
@@ -132,12 +117,12 @@ pub fn get_byte(
     index: usize,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
-    let reply = AsyncReply::new(from);
+    let memory = clone_memory(&memory_resource);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |store| async move {
                 let mut buffer = [0];
                 match memory.read(&store, index, &mut buffer) {
@@ -155,8 +140,8 @@ pub fn get_byte(
                 index,
                 reply,
             };
-            if let Err(CallerCommand::MemoryGetByte { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -171,12 +156,12 @@ pub fn set_byte(
     value: u8,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
-    let reply = AsyncReply::new(from);
+    let memory = clone_memory(&memory_resource);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match memory.write(&mut store, index, &[value]) {
                     Ok(()) => reply.send(atoms::ok()),
@@ -194,8 +179,8 @@ pub fn set_byte(
                 value,
                 reply,
             };
-            if let Err(CallerCommand::MemorySetByte { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -220,12 +205,12 @@ pub fn read_binary(
     len: usize,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
-    let reply = AsyncReply::new(from);
+    let memory = clone_memory(&memory_resource);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |store| async move {
                 let mut buffer = vec![0u8; len];
                 match memory.read(&store, index, &mut buffer) {
@@ -244,8 +229,8 @@ pub fn read_binary(
                 len,
                 reply,
             };
-            if let Err(CallerCommand::MemoryRead { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }
@@ -260,13 +245,13 @@ pub fn write_binary(
     binary: Binary,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let memory = clone_memory(&memory_resource)?;
+    let memory = clone_memory(&memory_resource);
     let bytes = binary.as_slice().to_vec();
-    let reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
 
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match memory.write(&mut store, index, &bytes) {
                     Ok(()) => reply.send(atoms::ok()),
@@ -284,8 +269,8 @@ pub fn write_binary(
                 bytes,
                 reply,
             };
-            if let Err(CallerCommand::MemoryWrite { reply, .. }) = session.submit(command) {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(command) {
+                error.reject();
             }
         }
     }

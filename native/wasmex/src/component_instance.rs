@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use rustler::env::SavedTerm;
 use wit_parser::{Function, Resolve, WorldItem};
 
-use crate::async_reply::{send_saved_term, submit_error, AsyncReply};
+use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
 use crate::component::ComponentResource;
 use crate::store::ComponentStoreData;
@@ -41,7 +41,7 @@ pub struct ComponentCallbackTokenResource {
 impl rustler::Resource for ComponentCallbackTokenResource {}
 
 pub struct ComponentInstanceResource {
-    pub inner: Mutex<Instance>,
+    pub inner: Instance,
 }
 
 #[rustler::resource_impl()]
@@ -67,8 +67,8 @@ pub fn new_instance(
     let term_env = OwnedEnv::new();
     let imports = term_env.save(imports);
     let executor = store_resource.executor()?;
-    let reply = AsyncReply::new(from);
-    let submit_reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
+    let submit_reply = AsyncReply::new(from)?;
 
     if let Err(error) = executor.submit(move |mut store| async move {
         let linker = term_env
@@ -82,11 +82,7 @@ pub fn new_instance(
             Ok(linker) => linker
                 .instantiate_async(&mut store, &component)
                 .await
-                .map(|instance| {
-                    ResourceArc::new(ComponentInstanceResource {
-                        inner: Mutex::new(instance),
-                    })
-                })
+                .map(|instance| ResourceArc::new(ComponentInstanceResource { inner: instance }))
                 .map_err(|error| error.to_string()),
             Err(error) => Err(error),
         };
@@ -220,50 +216,37 @@ pub fn call_exported_function(
     given_params: Term,
     from: Term,
     timeout_ms: Option<u64>,
-) -> rustler::Atom {
-    let executor = match component_store_resource.executor() {
-        Ok(executor) => executor,
-        Err(error) => {
-            AsyncReply::new(from).send_error(format!("{error:?}"));
-            return atoms::ok();
-        }
-    };
-    let instance = match instance_resource.inner.lock() {
-        Ok(instance) => *instance,
-        Err(error) => {
-            AsyncReply::new(from)
-                .send_error(format!("Could not unlock component instance: {error}"));
-            return atoms::ok();
-        }
-    };
+) -> NifResult<rustler::Atom> {
+    let reply = AsyncReply::new(from)?;
+    let executor = component_store_resource.executor()?;
+    let instance = instance_resource.inner;
     let mut thread_env = OwnedEnv::new();
     let function_params = thread_env.save(given_params);
-    let saved_from = thread_env.save(from);
-    let submit_reply = AsyncReply::new(from);
+    let submit_reply = AsyncReply::new(from)?;
     let deadline = timeout_ms
         .map(|timeout| tokio::time::Instant::now() + std::time::Duration::from_millis(timeout));
 
     if let Err(error) = executor.submit(move |mut store| async move {
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            return store;
+        }
         let result = component_execute_function(
             &mut thread_env,
             &mut store,
             instance,
             function_name_path,
             function_params,
-        );
-        let result = match deadline {
-            Some(deadline) => tokio::time::timeout_at(deadline, result).await.ok(),
-            None => Some(result.await),
-        };
-        if let Some(result) = result {
-            send_saved_term(thread_env, saved_from, result);
+        )
+        .await;
+        if deadline.is_none_or(|deadline| tokio::time::Instant::now() < deadline) {
+            reply.send_saved(thread_env, result);
         }
         store
     }) {
         submit_error(submit_reply, error);
     }
 
-    atoms::ok()
+    Ok(atoms::ok())
 }
 
 async fn component_execute_function(
@@ -448,11 +431,9 @@ pub fn receive_callback_result(
     let return_values =
         match convert_return_values(&component_resource.parsed.resolve, import_function, result) {
             Ok(values) => values,
-            Err(error) => {
+            Err(_) => {
                 send_component_callback_result(&token_resource, false, vec![])?;
-                return Err(Error::Term(Box::new(format!(
-                    "Failed to convert imported function return values - {error}"
-                ))));
+                return Ok(atoms::ok());
             }
         };
     send_component_callback_result(&token_resource, true, return_values)?;
@@ -500,7 +481,6 @@ fn send_component_callback_result(
         })?
         .take()
         .ok_or_else(|| Error::Term(Box::new("Component callback result was already sent")))?;
-    sender
-        .send((success, values))
-        .map_err(|_| Error::Term(Box::new("Component callback is no longer waiting")))
+    let _ = sender.send((success, values));
+    Ok(())
 }

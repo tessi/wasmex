@@ -1,7 +1,7 @@
 use crate::{
     atoms,
     engine::{unwrap_engine, EngineResource},
-    store::{StoreOrCaller, StoreOrCallerResource},
+    store::StoreOrCallerResource,
 };
 use rustler::{
     types::tuple::make_tuple, Binary, Encoder, Env, NifResult, OwnedBinary, ResourceArc, Term,
@@ -23,15 +23,14 @@ pub fn compile(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     binary: Binary,
 ) -> Result<ResourceArc<ModuleResource>, rustler::Error> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
-            )))
-        })?);
     let bytes = binary.as_slice();
     let bytes = wat::parse_bytes(bytes)
         .map_err(|e| rustler::Error::Term(Box::new(format!("Error while parsing bytes: {e}."))))?;
+    let store_or_caller = store_or_caller_resource.inner.lock().map_err(|error| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock store_or_caller resource: {error}"
+        )))
+    })?;
     match Module::new(store_or_caller.engine(), bytes) {
         Ok(module) => {
             let resource = ResourceArc::new(ModuleResource {

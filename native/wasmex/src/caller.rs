@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 use wasmtime::{Caller, Engine, Instance, Memory, Trap, Val, ValType};
 
 use crate::{
-    async_reply::{send_saved_term, AsyncReply},
+    async_reply::AsyncReply,
     functions,
     instance::{decode_function_param_terms, map_wasm_values_to_vals},
     instance::{decode_term_as_wasm_value, send_global_value},
@@ -11,7 +11,8 @@ use crate::{
     store::StoreData,
 };
 use rustler::{env::SavedTerm, types::tuple::make_tuple, Encoder, OwnedEnv, ResourceArc, Term};
-use std::sync::Mutex;
+
+const CALLBACK_QUEUE_CAPACITY: usize = 1024;
 
 pub enum CallerCommand {
     GetFuel {
@@ -57,7 +58,7 @@ pub enum CallerCommand {
         function_name: String,
         env: OwnedEnv,
         params: SavedTerm,
-        from: SavedTerm,
+        reply: AsyncReply,
     },
     NewInstance {
         module: wasmtime::Module,
@@ -88,13 +89,13 @@ pub enum CallerCommand {
 
 #[derive(Clone)]
 pub struct CallbackSession {
-    sender: mpsc::UnboundedSender<CallerCommand>,
+    sender: mpsc::Sender<CallerCommand>,
     engine: Engine,
 }
 
 impl CallbackSession {
-    pub fn new(engine: Engine) -> (Self, mpsc::UnboundedReceiver<CallerCommand>) {
-        let (sender, receiver) = mpsc::unbounded_channel();
+    pub fn new(engine: Engine) -> (Self, mpsc::Receiver<CallerCommand>) {
+        let (sender, receiver) = mpsc::channel(CALLBACK_QUEUE_CAPACITY);
         (Self { sender, engine }, receiver)
     }
 
@@ -102,8 +103,47 @@ impl CallbackSession {
         &self.engine
     }
 
-    pub fn submit(&self, command: CallerCommand) -> Result<(), CallerCommand> {
-        self.sender.send(command).map_err(|error| error.0)
+    pub fn submit(&self, command: CallerCommand) -> Result<(), CallbackSubmitError> {
+        self.sender.try_send(command).map_err(|error| match error {
+            mpsc::error::TrySendError::Full(command) => CallbackSubmitError::Busy(command),
+            mpsc::error::TrySendError::Closed(command) => CallbackSubmitError::Closed(command),
+        })
+    }
+}
+
+pub enum CallbackSubmitError {
+    Busy(CallerCommand),
+    Closed(CallerCommand),
+}
+
+impl CallbackSubmitError {
+    pub fn reject(self) {
+        let (command, reason) = match self {
+            Self::Busy(command) => (command, "Wasm callback Caller command queue is full"),
+            Self::Closed(command) => (command, "Caller is no longer valid"),
+        };
+        command.reject(reason);
+    }
+}
+
+impl CallerCommand {
+    fn reject(self, reason: &'static str) {
+        let reply = match self {
+            Self::GetFuel { reply }
+            | Self::SetFuel { reply, .. }
+            | Self::MemoryFromInstance { reply, .. }
+            | Self::MemorySize { reply, .. }
+            | Self::MemoryGetByte { reply, .. }
+            | Self::MemorySetByte { reply, .. }
+            | Self::MemoryRead { reply, .. }
+            | Self::MemoryWrite { reply, .. }
+            | Self::CallExported { reply, .. }
+            | Self::NewInstance { reply, .. }
+            | Self::GetGlobal { reply, .. }
+            | Self::SetGlobal { reply, .. }
+            | Self::FunctionExists { reply, .. } => reply,
+        };
+        reply.send_error(reason);
     }
 }
 
@@ -119,9 +159,7 @@ pub async fn handle_command(caller: &mut Caller<'_, StoreData>, command: CallerC
         },
         CallerCommand::MemoryFromInstance { instance, reply } => {
             match memory_from_instance(&instance, &mut *caller) {
-                Ok(memory) => reply.send(ResourceArc::new(MemoryResource {
-                    inner: Mutex::new(memory),
-                })),
+                Ok(memory) => reply.send(ResourceArc::new(MemoryResource { inner: memory })),
                 Err(error) => reply.send_error(error),
             }
         }
@@ -174,7 +212,7 @@ pub async fn handle_command(caller: &mut Caller<'_, StoreData>, command: CallerC
             function_name,
             env,
             params,
-            from,
+            reply,
         } => {
             let prepared = env.run(|term_env| {
                 let given_params = params
@@ -234,7 +272,7 @@ pub async fn handle_command(caller: &mut Caller<'_, StoreData>, command: CallerC
                 Err(reason) => env.run(|term_env| term_env.error_tuple(reason).encode(term_env)),
             };
             let result = env.save(result);
-            send_saved_term(env, from, result);
+            reply.send_saved(env, result);
         }
         CallerCommand::NewInstance {
             module,

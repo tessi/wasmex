@@ -3,10 +3,13 @@ use crate::{
     caller::{CallbackSession, CallerCommand},
     engine::{unwrap_engine_and_ticker, EngineResource},
     pipe::{Pipe, PipeResource},
-    store_executor::StoreExecutor,
+    store_executor::{InterruptState, StoreExecutor},
 };
 use rustler::{Atom, Error, NifStruct, ResourceArc, Term};
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc, Mutex},
+};
 use wasmtime::{Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{
     p1::WasiP1Ctx, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
@@ -102,6 +105,7 @@ impl ExStoreLimits {
 pub struct StoreData {
     pub(crate) wasi: Option<WasiP1Ctx>,
     pub(crate) limits: StoreLimits,
+    pub(crate) interrupt_requested: Arc<AtomicBool>,
 }
 
 pub struct ComponentStoreData {
@@ -109,6 +113,19 @@ pub struct ComponentStoreData {
     pub(crate) http: Option<WasiHttpCtx>,
     pub(crate) limits: StoreLimits,
     pub(crate) table: ResourceTable,
+    pub(crate) interrupt_requested: Arc<AtomicBool>,
+}
+
+impl InterruptState for StoreData {
+    fn interrupt_requested(&self) -> &AtomicBool {
+        &self.interrupt_requested
+    }
+}
+
+impl InterruptState for ComponentStoreData {
+    fn interrupt_requested(&self) -> &AtomicBool {
+        &self.interrupt_requested
+    }
 }
 
 impl WasiHttpView for ComponentStoreData {
@@ -202,7 +219,14 @@ pub fn new(
     } else {
         StoreLimits::default()
     };
-    let mut store = Store::new(&engine, StoreData { wasi: None, limits });
+    let mut store = Store::new(
+        &engine,
+        StoreData {
+            wasi: None,
+            limits,
+            interrupt_requested: Arc::new(AtomicBool::new(false)),
+        },
+    );
     store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
         inner: Mutex::new(StoreOrCaller::Store(StoreExecutor::new_async(
@@ -230,6 +254,7 @@ pub fn component_store_new(
             ctx: None,
             limits,
             table: wasmtime_wasi::ResourceTable::new(),
+            interrupt_requested: Arc::new(AtomicBool::new(false)),
         },
     );
     store.limiter(|state| &mut state.limits);
@@ -291,6 +316,7 @@ pub fn component_store_new_wasi(
             limits,
             http: http_option,
             table: wasmtime_wasi::ResourceTable::new(),
+            interrupt_requested: Arc::new(AtomicBool::new(false)),
         },
     );
     store.limiter(|state| &mut state.limits);
@@ -339,6 +365,7 @@ pub fn new_wasi(
         StoreData {
             wasi: Some(wasi_ctx),
             limits,
+            interrupt_requested: Arc::new(AtomicBool::new(false)),
         },
     );
     store.limiter(|state| &mut state.limits);
@@ -356,10 +383,10 @@ pub fn set_fuel(
     fuel: u64,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
                 match store.set_fuel(fuel) {
                     Ok(()) => reply.send(()),
@@ -371,10 +398,8 @@ pub fn set_fuel(
             }
         }
         StoreTarget::Caller(session) => {
-            if let Err(CallerCommand::SetFuel { reply, .. }) =
-                session.submit(CallerCommand::SetFuel { fuel, reply })
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(CallerCommand::SetFuel { fuel, reply }) {
+                error.reject();
             }
         }
     }
@@ -386,10 +411,10 @@ pub fn get_fuel(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
-    let reply = AsyncReply::new(from);
+    let reply = AsyncReply::new(from)?;
     match store_or_caller_resource.target()? {
         StoreTarget::Executor(executor) => {
-            let submit_reply = AsyncReply::new(from);
+            let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |store| async move {
                 match store.get_fuel() {
                     Ok(fuel) => reply.send(fuel),
@@ -401,10 +426,8 @@ pub fn get_fuel(
             }
         }
         StoreTarget::Caller(session) => {
-            if let Err(CallerCommand::GetFuel { reply }) =
-                session.submit(CallerCommand::GetFuel { reply })
-            {
-                reply.send_error("Caller is no longer valid");
+            if let Err(error) = session.submit(CallerCommand::GetFuel { reply }) {
+                error.reject();
             }
         }
     }

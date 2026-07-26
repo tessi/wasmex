@@ -190,11 +190,8 @@ fn link_imported_function(
                         // This will allow Elixir callback to operate on these objects.
                         let callback_context = Term::map_new(env);
 
-                        let memory = memory.map(|memory| {
-                            ResourceArc::new(MemoryResource {
-                                inner: Mutex::new(memory),
-                            })
-                        });
+                        let memory =
+                            memory.map(|memory| ResourceArc::new(MemoryResource { inner: memory }));
                         let callback_context = Term::map_put(
                             callback_context,
                             atoms::memory().encode(env),
@@ -223,7 +220,9 @@ fn link_imported_function(
                             .encode(env)
                     });
 
-                    result.expect("expect no send error");
+                    result.map_err(|_| {
+                        WasmtimeError::msg("could not send callback invocation to Elixir")
+                    })?;
 
                     let result = loop {
                         tokio::select! {
@@ -236,9 +235,11 @@ fn link_imported_function(
                                 match command {
                                     Some(command) => handle_command(&mut caller, command).await,
                                     None => {
-                                        return Err(WasmtimeError::msg(
-                                            "the Elixir callback Caller session closed"
-                                        ));
+                                        break (&mut return_receiver).await.map_err(|_| {
+                                            WasmtimeError::msg(
+                                                "the Elixir callback result channel closed"
+                                            )
+                                        })?;
                                     }
                                 }
                             }

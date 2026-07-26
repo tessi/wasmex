@@ -167,7 +167,7 @@ defmodule Wasmex do
       ...>   wasi_snapshot_preview1: %{
       ...>     random_get: {:fn, [:i32, :i32], [:i32],
       ...>                  fn %{memory: memory, caller: caller}, address, size ->
-      ...>                    Enum.each(0..size, fn index ->
+      ...>                    Enum.each(0..(size - 1)//1, fn index ->
       ...>                      Wasmex.Memory.set_byte(caller, memory, address + index, 0)
       ...>                    end)
       ...>                    # We chose `4` as the random number with a fair dice roll
@@ -177,7 +177,7 @@ defmodule Wasmex do
       ...>                 }
       ...>   }
       ...> }
-      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: "(module)", imports: imports})
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: "(module)", imports: imports, wasi: true})
 
   In the example above, we overwrite the `random_get` function which is (as all other WASI functions)
   implemented in Rust. This way our Elixir implementation of `random_get` is used instead of the
@@ -399,7 +399,8 @@ defmodule Wasmex do
   ## Specifying a timeout
 
   The default timeout for `call_function` is 5 seconds, or 5000 milliseconds.
-  When calling a long-running function, you can specify a timeout value (in milliseconds) for this call.
+  When calling a long-running function, you can specify a timeout in milliseconds,
+  or use `:infinity`.
 
       iex> wat = "(module
       ...>          (func $helloWorld (result i32) (i32.const 42))
@@ -409,14 +410,17 @@ defmodule Wasmex do
       iex> Wasmex.call_function(pid, "hello_world", [], 10_000)
       {:ok, [42]}
 
-  In the example above, we specify a timeout of 10 seconds.
+  In the example above, we specify a timeout of 10 seconds. If a call times out,
+  Wasmex interrupts its WebAssembly execution and keeps the Store available for
+  subsequent calls.
   """
-  @spec call_function(GenServer.server(), String.t() | atom(), list(number()), pos_integer()) ::
+  @spec call_function(GenServer.server(), String.t() | atom(), list(number()), timeout()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
     GenServer.call(
       pid,
-      {:call_function, Wasmex.Utils.stringify(name), params, native_timeout(timeout)},
+      {:call_function, Wasmex.Utils.stringify(name), params,
+       Wasmex.Utils.native_timeout(timeout)},
       timeout
     )
   end
@@ -568,13 +572,12 @@ defmodule Wasmex do
 
         {true, results}
       rescue
-        e in RuntimeError -> {false, [e.message]}
+        exception -> {false, [Exception.message(exception)]}
+      catch
+        kind, reason -> {false, [Exception.format_banner(kind, reason)]}
       end
 
     :ok = Wasmex.Native.instance_receive_callback_result(token, success, results)
     {:noreply, state}
   end
-
-  defp native_timeout(:infinity), do: nil
-  defp native_timeout(timeout), do: timeout
 end

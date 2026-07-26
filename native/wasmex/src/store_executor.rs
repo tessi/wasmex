@@ -1,12 +1,23 @@
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use tokio::sync::mpsc;
-use wasmtime::{Engine, Store};
+use wasmtime::{Engine, Store, UpdateDeadline};
 
 const DEFAULT_QUEUE_CAPACITY: usize = 1024;
 
 type StoreFuture<T> = Pin<Box<dyn Future<Output = Store<T>> + Send + 'static>>;
 type StoreCommand<T> = Box<dyn FnOnce(Store<T>) -> StoreFuture<T> + Send + 'static>;
+
+pub trait InterruptState {
+    fn interrupt_requested(&self) -> &AtomicBool;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubmitError {
@@ -33,13 +44,21 @@ impl<T: 'static> Clone for StoreExecutor<T> {
     }
 }
 
-impl<T: Send + 'static> StoreExecutor<T> {
+impl<T: InterruptState + Send + 'static> StoreExecutor<T> {
     pub(crate) fn new_async(mut store: Store<T>, epoch_ticker: crate::engine::EpochTicker) -> Self {
         store.set_epoch_deadline(1);
-        store.epoch_deadline_async_yield_and_update(1);
+        store.epoch_deadline_callback(|store| {
+            if store.data().interrupt_requested().load(Ordering::Acquire) {
+                Ok(UpdateDeadline::Interrupt)
+            } else {
+                Ok(UpdateDeadline::Yield(1))
+            }
+        });
         Self::with_capacity(store, DEFAULT_QUEUE_CAPACITY, Some(epoch_ticker))
     }
+}
 
+impl<T: Send + 'static> StoreExecutor<T> {
     fn with_capacity(
         store: Store<T>,
         capacity: usize,
@@ -74,6 +93,35 @@ impl<T: Send + 'static> StoreExecutor<T> {
                 mpsc::error::TrySendError::Full(_) => SubmitError::Busy,
                 mpsc::error::TrySendError::Closed(_) => SubmitError::Closed,
             })
+    }
+}
+
+pub async fn with_deadline<F>(
+    interrupt_requested: Arc<AtomicBool>,
+    deadline: Option<tokio::time::Instant>,
+    future: F,
+) -> Option<F::Output>
+where
+    F: Future,
+{
+    let Some(deadline) = deadline else {
+        return Some(future.await);
+    };
+    interrupt_requested.store(false, Ordering::Release);
+    if deadline <= tokio::time::Instant::now() {
+        return None;
+    }
+
+    tokio::pin!(future);
+    tokio::select! {
+        biased;
+        _ = tokio::time::sleep_until(deadline) => {
+            interrupt_requested.store(true, Ordering::Release);
+            let _ = future.await;
+            interrupt_requested.store(false, Ordering::Release);
+            None
+        }
+        output = &mut future => Some(output),
     }
 }
 

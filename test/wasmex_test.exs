@@ -709,6 +709,61 @@ defmodule WasmexTest do
       assert {:ok, [42]} = Wasmex.call_function(pid, :identity, [42], 1_000)
     end
 
+    test "a callback completing after timeout does not terminate the server" do
+      wat = """
+      (module
+        (import "env" "slow" (func $slow (result i32)))
+        (func (export "run") (result i32)
+          call $slow
+        )
+        (func (export "identity") (param i32) (result i32)
+          local.get 0
+        )
+      )
+      """
+
+      imports = %{
+        env: %{
+          slow:
+            {:fn, [], [:i32],
+             fn _context ->
+               Process.sleep(100)
+               1
+             end}
+        }
+      }
+
+      pid = start_supervised!({Wasmex, %{bytes: wat, imports: imports}})
+
+      assert catch_exit(Wasmex.call_function(pid, :run, [], 10))
+      Process.sleep(150)
+
+      assert Process.alive?(pid)
+      assert {:ok, [42]} = Wasmex.call_function(pid, :identity, [42])
+    end
+
+    test "an invalid callback result does not terminate the server" do
+      wat = """
+      (module
+        (import "env" "invalid" (func $invalid (result i32)))
+        (func (export "run") (result i32)
+          call $invalid
+        )
+      )
+      """
+
+      imports = %{
+        env: %{
+          invalid: {:fn, [], [:i32], fn _context -> "not an integer" end}
+        }
+      }
+
+      pid = start_supervised!({Wasmex, %{bytes: wat, imports: imports}})
+
+      assert {:error, _reason} = Wasmex.call_function(pid, :run, [])
+      assert Process.alive?(pid)
+    end
+
     test "error handling in highly concurrent scenario" do
       # Test that errors in some tasks don't affect others
       wat = """

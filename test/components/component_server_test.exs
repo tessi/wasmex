@@ -2,6 +2,11 @@ defmodule Wasmex.Components.GenServerTest do
   use ExUnit.Case, async: true
   alias Wasmex.Wasi.WasiP2Options
 
+  test "the low-level component call keeps its optional timeout" do
+    assert function_exported?(Wasmex.Components.Instance, :call_function, 4)
+    assert function_exported?(Wasmex.Components.Instance, :call_function, 5)
+  end
+
   test "interacting with a component GenServer" do
     component_bytes = File.read!(TestHelper.component_type_conversions_file_path())
 
@@ -105,5 +110,66 @@ defmodule Wasmex.Components.GenServerTest do
     # With conversion disabled, need to use kebab-field format
     assert {:ok, %{"kebab-field" => "test"}} =
              HelloWorldNoConversion.echo_kebab(component_pid, %{"kebab-field" => "test"})
+  end
+
+  test "a callback completing after timeout does not terminate the component server" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    imports = %{
+      "greeter" =>
+        {:fn,
+         fn ->
+           Process.sleep(100)
+           "Elixir"
+         end}
+    }
+
+    component_pid =
+      start_supervised!(
+        {Wasmex.Components,
+         bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}, imports: imports}
+      )
+
+    assert catch_exit(Wasmex.Components.call_function(component_pid, "greet", ["World"], 10))
+    Process.sleep(150)
+
+    assert Process.alive?(component_pid)
+
+    assert {:ok, "Hello, World from Elixir!"} =
+             Wasmex.Components.call_function(component_pid, "greet", ["World"])
+  end
+
+  test "an invalid callback result does not terminate the component server" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    component_pid =
+      start_supervised!(
+        {Wasmex.Components,
+         bytes: component_bytes,
+         wasi: %WasiP2Options{allow_http: true},
+         imports: %{"greeter" => {:fn, fn -> 42 end}}}
+      )
+
+    assert {:error, _reason} =
+             Wasmex.Components.call_function(component_pid, "greet", ["World"])
+
+    assert Process.alive?(component_pid)
+  end
+
+  test "a callback exception does not terminate the component server" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+
+    component_pid =
+      start_supervised!(
+        {Wasmex.Components,
+         bytes: component_bytes,
+         wasi: %WasiP2Options{allow_http: true},
+         imports: %{"greeter" => {:fn, fn -> raise "callback failed" end}}}
+      )
+
+    assert {:error, _reason} =
+             Wasmex.Components.call_function(component_pid, "greet", ["World"])
+
+    assert Process.alive?(component_pid)
   end
 end
