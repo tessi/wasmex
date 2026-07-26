@@ -85,7 +85,18 @@ defmodule Wasmex.Instance do
         %{name: name, module_resource: module.resource}
       end)
 
-    case Wasmex.Native.instance_new(store_or_caller_resource, module_resource, imports, links) do
+    result =
+      Wasmex.Utils.native_request(fn from ->
+        Wasmex.Native.instance_new(
+          store_or_caller_resource,
+          module_resource,
+          imports,
+          links,
+          from
+        )
+      end)
+
+    case result do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}
     end
@@ -109,11 +120,14 @@ defmodule Wasmex.Instance do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
 
-    Wasmex.Native.instance_function_export_exists(
-      store_or_caller_resource,
-      instance_resource,
-      name
-    )
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.instance_function_export_exists(
+        store_or_caller_resource,
+        instance_resource,
+        name,
+        from
+      )
+    end)
   end
 
   @doc ~S"""
@@ -128,11 +142,14 @@ defmodule Wasmex.Instance do
 
   ## Implementation Details
 
-  Behind the scenes the wasmex NIF will spawn a Tokio task (green thread) to execute the Wasm function.
-  The Tokio runtime is instantiated with `number of CPU cores` native OS worker threads.
+  Behind the scenes, the NIF submits the call to the Store's bounded executor.
+  Each Store processes one operation at a time and yields cooperatively while WebAssembly runs.
+  If `timeout` is set and the deadline is reached, Wasmex interrupts the WebAssembly call,
+  discards its result, and releases the Store for subsequent operations.
 
   The `from` argument is expected to be as given by `c:GenServer.handle_call/3`.
   The NIF uses this `from` tuple to send a message with the result of this Wasm function call.
+  If the receiving process is no longer waiting, the result is discarded.
 
   ## Function parameters
 
@@ -147,10 +164,11 @@ defmodule Wasmex.Instance do
           __MODULE__.t(),
           binary(),
           [any()],
-          GenServer.from()
+          GenServer.from(),
+          non_neg_integer() | nil
         ) ::
           :ok | {:error, binary()}
-  def call_exported_function(store_or_caller, instance, name, params, from)
+  def call_exported_function(store_or_caller, instance, name, params, from, timeout \\ nil)
       when is_binary(name) do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
@@ -160,7 +178,8 @@ defmodule Wasmex.Instance do
       instance_resource,
       name,
       params,
-      from
+      from,
+      timeout
     )
   end
 
@@ -202,11 +221,14 @@ defmodule Wasmex.Instance do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
 
-    Wasmex.Native.instance_get_global_value(
-      store_or_caller_resource,
-      instance_resource,
-      global_name
-    )
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.instance_get_global_value(
+        store_or_caller_resource,
+        instance_resource,
+        global_name,
+        from
+      )
+    end)
     |> case do
       {:error, _reason} = term -> term
       result when is_number(result) -> {:ok, result}
@@ -236,12 +258,15 @@ defmodule Wasmex.Instance do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: instance_resource} = instance
 
-    Wasmex.Native.instance_set_global_value(
-      store_or_caller_resource,
-      instance_resource,
-      global_name,
-      new_value
-    )
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.instance_set_global_value(
+        store_or_caller_resource,
+        instance_resource,
+        global_name,
+        new_value,
+        from
+      )
+    end)
     |> case do
       {} -> :ok
       {:error, _reason} = term -> term

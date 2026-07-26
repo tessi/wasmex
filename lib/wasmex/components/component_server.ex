@@ -15,7 +15,7 @@ defmodule Wasmex.Components.ComponentServer do
   Given a WIT file `greeter.wit` with the following content:
 
   ```wit
-  package example:greeter
+  package example:greeter;
 
   world greeter {
     export greet: func(who: string) -> string;
@@ -39,8 +39,8 @@ defmodule Wasmex.Components.ComponentServer do
   iex> {:ok, pid} = MyApp.Greeter.start_link(path: "path/to/greeter.wasm")
 
   # Generated function wrappers:
-  iex> MyApp.Greeter.greet(pid, "World")  # Returns: "Hello, World!"
-  iex> MyApp.Greeter.multi_greet(pid, "World", 2) # Returns: ["Hello, World!", "Hello, World!"]
+  iex> MyApp.Greeter.greet(pid, "World")  # Returns: {:ok, "Hello, World!"}
+  iex> MyApp.Greeter.multi_greet(pid, "World", 2) # Returns: {:ok, ["Hello, World!", "Hello, World!"]}
   ```
 
   ## Imports Example
@@ -49,13 +49,13 @@ defmodule Wasmex.Components.ComponentServer do
   For example, given a WIT file `logger.wit`:
 
   ```wit
-  package example:logger
+  package example:logger;
 
   world logger {
-    import log: func(message: string)
-    import get-timestamp: func() -> u64
+    import log: func(message: string);
+    import get-timestamp: func() -> u64;
 
-    export log-with-timestamp: func(message: string)
+    export log-with-timestamp: func(message: string);
   }
   ```
 
@@ -66,31 +66,30 @@ defmodule Wasmex.Components.ComponentServer do
     use Wasmex.Components.ComponentServer,
       wit: "path/to/logger.wit",
       imports: %{
-        "log" => fn message ->
+        "log" => {:fn, fn message ->
           IO.puts(message)
-          :ok
-        end,
-        "get-timestamp" => fn ->
+        end},
+        "get-timestamp" => {:fn, fn ->
           System.system_time(:second)
-        end
+        end}
       }
   end
   ```
 
   # Usage:
   ```elixir
-  iex> {:ok, pid} = MyApp.Logger.start_link(wasm: "path/to/logger.wasm")
+  iex> {:ok, pid} = MyApp.Logger.start_link(path: "path/to/logger.wasm")
   iex> MyApp.Logger.log_with_timestamp(pid, "Hello from Wasm!")
   ```
 
-  The import functions should return the correct types as defined in the WIT file. Incorrect types will likely
-  cause a crash, or possibly a NIF panic.
+  Import functions must return the types defined in the WIT file. An incompatible
+  return value traps the component call and is returned as an error.
 
   ## Options
 
   * `:wit` - Path to the WIT file defining the component's interface
-  * `:convert_field_names` - All function calls will for all arugments
-  recursively convert any map field names from under_score case to kebab-case
+  * `:convert_field_names` - All function calls recursively convert map field names
+  in arguments from underscore case to kebab-case
   and vice versa for return values. Defaults to true.
   * `:imports` - A map of import function implementations that the component requires, where each key
     is the function name as defined in the WIT file and the value is the implementing function

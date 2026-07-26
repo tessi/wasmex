@@ -1,6 +1,7 @@
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, Weak};
+use std::time::Duration;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
@@ -35,6 +36,38 @@ impl Resource for EngineResource {}
 
 pub struct EngineResource {
     pub inner: Mutex<Engine>,
+    pub(crate) epoch_ticker: Mutex<EpochTicker>,
+}
+
+struct EpochTickerState {
+    engine: Engine,
+}
+
+#[derive(Clone)]
+pub(crate) struct EpochTicker {
+    _state: Arc<EpochTickerState>,
+}
+
+impl EpochTicker {
+    fn new(engine: Engine) -> Self {
+        let state = Arc::new(EpochTickerState { engine });
+        let weak_state: Weak<EpochTickerState> = Arc::downgrade(&state);
+
+        TOKIO_RUNTIME.spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(10));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                interval.tick().await;
+                let Some(state) = weak_state.upgrade() else {
+                    break;
+                };
+                state.engine.increment_epoch();
+            }
+        });
+
+        Self { _state: state }
+    }
 }
 
 #[rustler::nif(name = "engine_new")]
@@ -43,8 +76,10 @@ pub fn new(
 ) -> Result<ResourceArc<EngineResource>, rustler::Error> {
     let config = engine_config(engine_config_ex);
     let engine = Engine::new(&config).map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    let epoch_ticker = EpochTicker::new(engine.clone());
     let resource = ResourceArc::new(EngineResource {
         inner: Mutex::new(engine),
+        epoch_ticker: Mutex::new(epoch_ticker),
     });
 
     Ok(resource)
@@ -89,8 +124,25 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_memory64(engine_config.memory64);
     config.wasm_component_model(engine_config.wasm_component_model);
     config.debug_info(engine_config.debug_info);
+    config.epoch_interruption(true);
 
     config
+}
+
+pub(crate) fn unwrap_engine_and_ticker(
+    engine_resource: ResourceArc<EngineResource>,
+) -> Result<(Engine, EpochTicker), rustler::Error> {
+    let ticker = engine_resource
+        .epoch_ticker
+        .lock()
+        .map_err(|error| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock engine epoch ticker: {error}"
+            )))
+        })?
+        .clone();
+    let engine = unwrap_engine(engine_resource)?;
+    Ok((engine, ticker))
 }
 
 pub(crate) fn unwrap_engine(

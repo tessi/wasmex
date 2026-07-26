@@ -14,7 +14,7 @@ defmodule Wasmex.Wasi.WasiOptions do
   ## Example
 
       iex> {:ok, stdin} = Wasmex.Pipe.new()
-      iex> Wasmex.Store.new_wasi(%WasiOptions{
+      iex> Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{
       ...>   args: ["first param", "second param"],
       ...>   env: %{"env_key" => "env_value"},
       ...>   preopen: [

@@ -2,7 +2,7 @@
   <img width="300" src="./logo.svg" alt="Wasmex logo">
 </p>
 <p align="center">
-  <a href="https://github.com/tessi/wasmex/blob/master/LICENSE">
+  <a href="https://github.com/tessi/wasmex/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/tessi/wasmex.svg" alt="License">
   </a>
   <a href="https://github.com/tessi/wasmex/actions/workflows/elixir-ci.yml">
@@ -32,7 +32,7 @@ end
 
 ## Example
 
-There is a toy Wasm program in `test/wasm_test/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
+There is a toy Wasm program in `test/fixture_projects/wasm_test/src/lib.rs`, written in Rust (but could potentially be any other language that compiles to WebAssembly).
 It defines many functions we use for end-to-end testing, but also serves as example code. For example:
 
 ```rust
@@ -42,12 +42,16 @@ pub extern fn sum(x: i32, y: i32) -> i32 {
 }
 ```
 
-Once this program compiled to WebAssembly (which we do every time when running tests), we end up with a `wasmex_test.wasm` binary file.
+Once this program is compiled to WebAssembly (which happens whenever the tests run),
+we get a `wasmex_test.wasm` binary file.
 
 This Wasm file can be executed in Elixir:
 
 ```elixir
-bytes = File.read!("wasmex_test.wasm")
+bytes =
+  File.read!(
+    "test/fixture_projects/wasm_test/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
+  )
 {:ok, pid} = Wasmex.start_link(%{bytes: bytes}) # starts a GenServer running a Wasm instance
 {:ok, [42]} == Wasmex.call_function(pid, "sum", [50, -8])
 ```
@@ -107,7 +111,7 @@ In addition to tests, we expect the formatters and linters (`cargo fmt`, `cargo 
 
 ## License
 
-The entire project is under the MIT License. Please read [the`LICENSE` file](https://github.com/tessi/wasmex/blob/master/LICENSE).
+The entire project is under the MIT License. Please read [the `LICENSE` file](https://github.com/tessi/wasmex/blob/main/LICENSE).
 
 ### Licensing
 

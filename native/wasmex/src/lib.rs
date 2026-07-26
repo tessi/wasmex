@@ -1,3 +1,4 @@
+pub mod async_reply;
 pub mod atoms;
 pub mod caller;
 pub mod component;
@@ -12,6 +13,7 @@ pub mod module;
 pub mod pipe;
 pub mod printable_term_type;
 pub mod store;
+pub mod store_executor;
 pub mod wat;
 pub mod wit;
 

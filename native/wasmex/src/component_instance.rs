@@ -1,15 +1,14 @@
 use std::collections::HashMap;
-use std::sync::{Condvar, Mutex};
+use std::sync::Mutex;
 
 use rustler::env::SavedTerm;
 use wit_parser::{Function, Resolve, WorldItem};
 
+use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
 use crate::component::ComponentResource;
-use crate::engine::TOKIO_RUNTIME;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
-use rustler::types::tuple::make_tuple;
 use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
@@ -19,8 +18,6 @@ use wasmtime::{Error as WasmtimeError, Trap};
 
 use rustler::Term;
 
-use wasmtime::Store;
-
 use wasmtime_wasi;
 use wasmtime_wasi_http;
 
@@ -28,11 +25,12 @@ use crate::component_type_conversion::{
     convert_params, convert_result_term, encode_result, vals_to_terms,
 };
 
+type ComponentCallbackSender = tokio::sync::oneshot::Sender<(bool, Vec<Val>)>;
+
 pub struct ComponentCallbackToken {
-    pub continue_signal: Condvar,
     pub name: String,
     pub namespace: Option<String>,
-    pub return_values: Mutex<Option<(bool, Vec<Val>)>>,
+    pub return_sender: Mutex<Option<ComponentCallbackSender>>,
 }
 
 pub struct ComponentCallbackTokenResource {
@@ -43,7 +41,7 @@ pub struct ComponentCallbackTokenResource {
 impl rustler::Resource for ComponentCallbackTokenResource {}
 
 pub struct ComponentInstanceResource {
-    pub inner: Mutex<Instance>,
+    pub inner: Instance,
 }
 
 #[rustler::resource_impl()]
@@ -53,78 +51,105 @@ impl rustler::Resource for ComponentInstanceResource {}
 pub fn new_instance(
     store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
-    imports: rustler::Term,
-) -> NifResult<ResourceArc<ComponentInstanceResource>> {
-    let store: &mut Store<ComponentStoreData> =
-        &mut *(store_resource.inner.lock().map_err(|e| {
+    imports: Term,
+    from: Term,
+) -> NifResult<rustler::Atom> {
+    let component = component_resource
+        .inner
+        .lock()
+        .map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store resource as the mutex was poisoned: {e}"
+                "Could not unlock component resource as the mutex was poisoned: {e}"
             )))
-        })?);
+        })?
+        .clone();
+    let callback_pid = imports.get_env().pid();
+    let term_env = OwnedEnv::new();
+    let imports = term_env.save(imports);
+    let executor = store_resource.executor()?;
+    let reply = AsyncReply::new(from)?;
+    let submit_reply = AsyncReply::new(from)?;
 
-    let component = component_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock component resource as the mutex was poisoned: {e}"
-        )))
-    })?;
+    if let Err(error) = executor.submit(move |mut store| async move {
+        let linker = term_env
+            .run(|env| {
+                let imports = imports.load(env);
+                create_linker(&store, imports, callback_pid)
+            })
+            .map_err(|error| format!("{error:?}"));
 
-    let mut linker = Linker::new(store.engine());
-    linker.allow_shadowing(true);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)
-        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
-    if store.data().http.is_some() {
-        wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker)
-            .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
+        let result = match linker {
+            Ok(linker) => linker
+                .instantiate_async(&mut store, &component)
+                .await
+                .map(|instance| ResourceArc::new(ComponentInstanceResource { inner: instance }))
+                .map_err(|error| error.to_string()),
+            Err(error) => Err(error),
+        };
+
+        match result {
+            Ok(instance) => reply.send(instance),
+            Err(error) => reply.send_error(error),
+        }
+        store
+    }) {
+        submit_error(submit_reply, error);
     }
 
-    // Instantiate the component
+    Ok(atoms::ok())
+}
 
-    // Handle imports
+fn create_linker(
+    store: &wasmtime::Store<ComponentStoreData>,
+    imports: Term,
+    callback_pid: LocalPid,
+) -> NifResult<Linker<ComponentStoreData>> {
+    let mut linker = Linker::new(store.engine());
+    linker.allow_shadowing(true);
+    wasmtime_wasi::p2::add_to_linker_async(&mut linker)
+        .map_err(|error| Error::Term(Box::new(error.to_string())))?;
+    if store.data().http.is_some() {
+        wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)
+            .map_err(|error| Error::Term(Box::new(error.to_string())))?;
+    }
+
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
         if Term::is_tuple(implementation) {
-            // root imports
-            link_import(&mut linker.root(), name, None, implementation)?;
+            link_import(&mut linker.root(), name, None, callback_pid)?;
         } else {
             let imports_map = implementation.decode::<HashMap<String, Term>>()?;
             let mut namespace = linker
                 .instance(&name)
-                .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
-            for (implementation_name, implementation) in imports_map {
+                .map_err(|error| Error::Term(Box::new(error.to_string())))?;
+            for implementation_name in imports_map.into_keys() {
                 link_import(
                     &mut namespace,
                     implementation_name,
                     Some(name.clone()),
-                    implementation,
+                    callback_pid,
                 )?;
             }
         }
     }
-
-    let instance = linker
-        .instantiate(&mut *store, &component)
-        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))?;
-
-    Ok(ResourceArc::new(ComponentInstanceResource {
-        inner: Mutex::new(instance),
-    }))
+    Ok(linker)
 }
 
 fn create_callback_token(
     name: String,
     namespace: Option<String>,
+    return_sender: tokio::sync::oneshot::Sender<(bool, Vec<Val>)>,
 ) -> ResourceArc<ComponentCallbackTokenResource> {
     ResourceArc::new(ComponentCallbackTokenResource {
         token: ComponentCallbackToken {
-            continue_signal: Condvar::new(),
             name,
             namespace,
-            return_values: Mutex::new(None),
+            return_sender: Mutex::new(Some(return_sender)),
         },
     })
 }
 
-fn call_elixir_import(
+async fn call_elixir_import(
     name: String,
     namespace: Option<String>,
     params: &[Val],
@@ -132,7 +157,8 @@ fn call_elixir_import(
     pid: LocalPid,
 ) -> Result<(), WasmtimeError> {
     let mut msg_env = OwnedEnv::new();
-    let callback_token = create_callback_token(name.clone(), namespace.clone());
+    let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
+    let callback_token = create_callback_token(name.clone(), namespace.clone(), return_sender);
 
     let _ = msg_env.send_and_clear(&pid, |env| {
         let param_terms = vals_to_terms(params, env);
@@ -145,12 +171,9 @@ fn call_elixir_import(
         )
     });
 
-    let mut result = callback_token.token.return_values.lock().unwrap();
-    while result.is_none() {
-        result = callback_token.token.continue_signal.wait(result).unwrap();
-    }
-
-    let (success, returned_values) = result.take().unwrap();
+    let (success, returned_values) = return_receiver
+        .await
+        .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
     if !success {
         return Err(WasmtimeError::msg("Callback failed"));
     }
@@ -165,22 +188,21 @@ fn link_import(
     linker_instance: &mut LinkerInstance<ComponentStoreData>,
     name: String,
     namespace: Option<String>,
-    implementation: Term,
+    pid: LocalPid,
 ) -> NifResult<()> {
-    let pid = implementation.get_env().pid();
     let name_for_closure = name.clone();
 
     linker_instance
-        .func_new(
+        .func_new_async(
             &name,
             move |_store, _function_type, params, result_values| {
-                call_elixir_import(
+                Box::new(call_elixir_import(
                     name_for_closure.clone(),
                     namespace.clone(),
                     params,
                     result_values,
                     pid,
-                )
+                ))
             },
         )
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
@@ -193,67 +215,53 @@ pub fn call_exported_function(
     function_name_path: Vec<String>,
     given_params: Term,
     from: Term,
-) -> rustler::Atom {
-    // create erlang environment for the thread
+    timeout_ms: Option<u64>,
+) -> NifResult<rustler::Atom> {
+    let reply = AsyncReply::new(from)?;
+    let executor = component_store_resource.executor()?;
+    let instance = instance_resource.inner;
     let mut thread_env = OwnedEnv::new();
-    // copy over params into the thread environment
     let function_params = thread_env.save(given_params);
-    let from = thread_env.save(from);
+    let submit_reply = AsyncReply::new(from)?;
+    let deadline = timeout_ms
+        .map(|timeout| tokio::time::Instant::now() + std::time::Duration::from_millis(timeout));
 
-    TOKIO_RUNTIME.spawn_blocking(move || {
-        // Execute function and get the result
+    if let Err(error) = executor.submit(move |mut store| async move {
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            return store;
+        }
         let result = component_execute_function(
             &mut thread_env,
-            component_store_resource,
-            instance_resource,
+            &mut store,
+            instance,
             function_name_path,
             function_params,
-        );
+        )
+        .await;
+        if deadline.is_none_or(|deadline| tokio::time::Instant::now() < deadline) {
+            reply.send_saved(thread_env, result);
+        }
+        store
+    }) {
+        submit_error(submit_reply, error);
+    }
 
-        // Send result directly to the caller
-        thread_env.run(|env| {
-            let from_tuple = from.load(env).decode::<Term>().unwrap();
-            let result_term = result
-                .load(env)
-                .decode::<Term>()
-                .unwrap_or(atoms::error().encode(env));
-
-            // GenServer.call from tuple is {pid, ref}
-            // LocalPid in Rustler can handle both local and remote PIDs (despite the name)
-            let (caller_pid, ref_term) = from_tuple
-                .decode::<(LocalPid, Term)>()
-                .expect("from must be a GenServer {pid, ref} tuple");
-
-            // Send GenServer reply format directly to caller: {ref, result}
-            let _ = env.send(&caller_pid, make_tuple(env, &[ref_term, result_term]));
-        });
-    });
-
-    atoms::ok()
+    Ok(atoms::ok())
 }
 
-fn component_execute_function(
+async fn component_execute_function(
     thread_env: &mut OwnedEnv,
-    component_store_resource: ResourceArc<ComponentStoreResource>,
-    instance_resource: ResourceArc<ComponentInstanceResource>,
+    component_store: &mut wasmtime::Store<ComponentStoreData>,
+    instance: Instance,
     function_name_path: Vec<String>,
     function_params: SavedTerm,
 ) -> SavedTerm {
-    let result = thread_env.run(|env| {
-        let component_store: &mut Store<ComponentStoreData> =
-            &mut (component_store_resource.inner.lock().unwrap());
-        let instance = &mut instance_resource.inner.lock().unwrap();
+    let prepared = thread_env.run(|env| {
+        let given_params = function_params
+            .load(env)
+            .decode::<Vec<Term>>()
+            .map_err(|error| format!("could not load 'function params': {error:?}"))?;
 
-        let given_params = match function_params.load(env).decode::<Vec<Term>>() {
-            Ok(vec) => vec,
-            Err(err) => {
-                return env
-                    .error_tuple(format!("could not load 'function params': {err:?}"))
-                    .encode(env)
-            }
-        };
-
-        // reduce function_name_path to a lookup index by iterating over function_name_path and calling instance.get_export
         let mut lookup_index = None;
         for (index, name) in function_name_path.iter().enumerate() {
             if let Some(inner) = lookup_index {
@@ -267,74 +275,77 @@ fn component_execute_function(
             }
 
             if lookup_index.is_none() {
-                if function_name_path.len() == 1 {
-                    return env
-                        .error_tuple(format!(
-                            "exported function `{}` not found.",
-                            function_name_path.join(", ")
-                        ))
-                        .encode(env);
+                let reason = if function_name_path.len() == 1 {
+                    format!(
+                        "exported function `{}` not found.",
+                        function_name_path.join(", ")
+                    )
                 } else {
-                    return env
-                        .error_tuple(format!(
+                    format!(
                         "exported function `[{}]` not found. Could not find `{}` at position {}",
                         function_name_path.join(", "),
                         name,
                         index
-                    ))
-                        .encode(env);
-                }
+                    )
+                };
+                return Err(reason);
             }
         }
 
-        let lookup_index = match lookup_index {
-            Some(index) => index,
-            None => {
-                return env
-                    .error_tuple(format!(
-                        "exported function `{}` not found.",
-                        function_name_path.join(", ")
-                    ))
-                    .encode(env);
-            }
-        };
+        let lookup_index = lookup_index.ok_or_else(|| {
+            format!(
+                "exported function `{}` not found.",
+                function_name_path.join(", ")
+            )
+        })?;
 
-        let function_result = instance.get_func(&mut *component_store, lookup_index);
-        let function = match function_result {
-            Some(func) => func,
-            None => {
-                return env
-                    .error_tuple(format!(
-                        "exported function `{}` not found",
-                        function_name_path.join(", ")
-                    ))
-                    .encode(env)
-            }
-        };
+        let function = instance
+            .get_func(&mut *component_store, lookup_index)
+            .ok_or_else(|| {
+                format!(
+                    "exported function `{}` not found",
+                    function_name_path.join(", ")
+                )
+            })?;
 
-        let function_type = function.ty(&component_store);
+        let function_type = function.ty(&*component_store);
         let param_types = function_type.params();
         let param_types = param_types.map(|x| x.1.clone()).collect::<Vec<Type>>();
 
-        let converted_params = match convert_params(param_types.as_ref(), given_params) {
-            Ok(params) => params,
-            Err(Error::Term(e)) => {
-                return env.error_tuple(e.encode(env)).encode(env);
-            }
-            Err(e) => {
-                let reason = format!("Error converting param: {e:?}");
-                return env.error_tuple(&reason).encode(env);
-            }
-        };
+        let converted_params =
+            convert_params(param_types.as_ref(), given_params).map_err(|error| match error {
+                Error::Term(value) => {
+                    let value = value.encode(env);
+                    value
+                        .decode::<String>()
+                        .unwrap_or_else(|_| format!("Error converting param: {value:?}"))
+                }
+                error => format!("Error converting param: {error:?}"),
+            })?;
         let results_count = function_type.results().len();
+        Ok::<_, String>((function, converted_params, results_count))
+    });
 
-        let mut result = vec![Val::Bool(false); results_count];
-        match function.call(
+    let (function, converted_params, results_count) = match prepared {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            let result = thread_env.run(|env| env.error_tuple(reason).encode(env));
+            return thread_env.save(result);
+        }
+    };
+
+    let mut result_values = vec![Val::Bool(false); results_count];
+    let call_result = function
+        .call_async(
             &mut *component_store,
             converted_params.as_slice(),
-            &mut result,
-        ) {
-            Ok(_) => encode_result(env, result),
+            &mut result_values,
+        )
+        .await;
+
+    let result = thread_env.run(|env| {
+        match call_result {
+            Ok(()) => encode_result(env, result_values),
             Err(err) => {
                 let reason = format!("{err}");
                 if let Ok(trap) = err.downcast::<Trap>() {
@@ -355,9 +366,14 @@ fn component_execute_function(
 pub fn receive_callback_result(
     component_resource: ResourceArc<ComponentResource>,
     token_resource: ResourceArc<ComponentCallbackTokenResource>,
-    _success: bool,
+    success: bool,
     result: Term,
 ) -> NifResult<rustler::Atom> {
+    if !success {
+        send_component_callback_result(&token_resource, false, vec![])?;
+        return Ok(atoms::ok());
+    }
+
     let parsed_component = &component_resource.parsed;
     let world = &parsed_component.resolve.worlds[parsed_component.world_id];
     let name = &token_resource.token.name;
@@ -412,25 +428,15 @@ pub fn receive_callback_result(
             })?
     };
 
-    let return_values = token_resource
-        .token
-        .return_values
-        .lock()
-        .map_err(|e| Error::Term(Box::new(format!("Failed to lock return values: {e}"))))?;
-
-    convert_return_values(
-        &component_resource.parsed.resolve,
-        import_function,
-        return_values,
-        result,
-    )
-    .map_err(|e| {
-        Error::Term(Box::new(format!(
-            "Failed to convert imported function return values - {e}"
-        )))
-    })?;
-
-    token_resource.token.continue_signal.notify_one();
+    let return_values =
+        match convert_return_values(&component_resource.parsed.resolve, import_function, result) {
+            Ok(values) => values,
+            Err(_) => {
+                send_component_callback_result(&token_resource, false, vec![])?;
+                return Ok(atoms::ok());
+            }
+        };
+    send_component_callback_result(&token_resource, true, return_values)?;
 
     Ok(atoms::ok())
 }
@@ -438,28 +444,43 @@ pub fn receive_callback_result(
 fn convert_return_values(
     wit_resolver: &Resolve,
     function: &Function,
-    mut return_values: std::sync::MutexGuard<'_, Option<(bool, Vec<Val>)>>,
     result: Term,
-) -> Result<(), String> {
+) -> Result<Vec<Val>, String> {
     if let Some(result_type) = &function.result {
-        let mut vals = Vec::new();
-        vals.push(
-            convert_result_term(result, result_type, wit_resolver, vec![]).map_err(
-                |(msg, path)| {
-                    if path.is_empty() {
-                        msg
-                    } else {
-                        format!("{msg:?} at path: {path:?}")
-                    }
-                },
-            )?,
-        );
-
-        // Set the return values
-        *return_values = Some((true, vals));
+        Ok(vec![convert_result_term(
+            result,
+            result_type,
+            wit_resolver,
+            vec![],
+        )
+        .map_err(|(msg, path)| {
+            if path.is_empty() {
+                msg
+            } else {
+                format!("{msg:?} at path: {path:?}")
+            }
+        })?])
     } else {
-        *return_values = Some((true, vec![]));
+        Ok(vec![])
     }
+}
 
+fn send_component_callback_result(
+    token_resource: &ComponentCallbackTokenResource,
+    success: bool,
+    values: Vec<Val>,
+) -> NifResult<()> {
+    let sender = token_resource
+        .token
+        .return_sender
+        .lock()
+        .map_err(|error| {
+            Error::Term(Box::new(format!(
+                "Failed to lock component callback sender: {error}"
+            )))
+        })?
+        .take()
+        .ok_or_else(|| Error::Term(Box::new("Component callback result was already sent")))?;
+    let _ = sender.send((success, values));
     Ok(())
 }

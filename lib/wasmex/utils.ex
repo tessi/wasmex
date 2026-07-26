@@ -20,4 +20,18 @@ defmodule Wasmex.Utils do
 
   def stringify(s) when is_binary(s), do: s
   def stringify(s) when is_atom(s), do: Atom.to_string(s)
+
+  @doc false
+  def native_timeout(:infinity), do: nil
+  def native_timeout(timeout), do: timeout
+
+  @doc false
+  def native_request(request) when is_function(request, 1) do
+    reference = make_ref()
+    :ok = request.({self(), reference})
+
+    receive do
+      {^reference, result} -> result
+    end
+  end
 end

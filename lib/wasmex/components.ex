@@ -245,12 +245,30 @@ defmodule Wasmex.Components do
     end
   end
 
-  @type function_name_or_path :: String.t() | list(String.t()) | tuple() | atom() | list(atom())
+  @type function_name_or_path :: String.t() | atom() | [String.t() | atom()] | tuple()
 
-  @spec call_function(GenServer.server(), function_name_or_path(), list(any()), pos_integer()) ::
+  @doc """
+  Calls an exported component function.
+
+  `name_or_path` may be a function name or a path identifying an exported
+  interface function. Parameters and results use the Elixir representations
+  described in the component interface type documentation above.
+
+  The default timeout is 5 seconds. A timeout exits the calling process unless
+  it traps exits, just like `GenServer.call/3`. Wasmtime component calls cannot
+  currently be cancelled without invalidating the component instance, so a
+  timed-out call continues in the background. Its late result is discarded and
+  later operations on the same Store wait for it to finish. Use `:infinity` for
+  calls whose duration is intentionally unbounded.
+  """
+  @spec call_function(GenServer.server(), function_name_or_path(), list(any()), timeout()) ::
           {:ok, any()} | {:error, any()}
   def call_function(pid, name_or_path, params, timeout \\ 5000) do
-    GenServer.call(pid, {:call_function, name_or_path, params}, timeout)
+    GenServer.call(
+      pid,
+      {:call_function, name_or_path, params, Wasmex.Utils.native_timeout(timeout)},
+      timeout
+    )
   end
 
   @impl true
@@ -266,11 +284,11 @@ defmodule Wasmex.Components do
 
   @impl true
   def handle_call(
-        {:call_function, name, params},
+        {:call_function, name, params, timeout},
         from,
         %{instance: instance} = state
       ) do
-    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from)
+    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
     {:noreply, state}
   end
 
@@ -288,8 +306,23 @@ defmodule Wasmex.Components do
         Map.get(imports, name)
       end
 
-    result = apply(function, params)
-    :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
+    {success, result} =
+      try do
+        {true, apply(function, params)}
+      rescue
+        exception -> {false, Exception.message(exception)}
+      catch
+        kind, reason -> {false, Exception.format_banner(kind, reason)}
+      end
+
+    :ok =
+      Wasmex.Native.component_receive_callback_result(
+        component.resource,
+        token,
+        success,
+        result
+      )
+
     {:noreply, state}
   end
 end

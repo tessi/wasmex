@@ -1,9 +1,8 @@
-use crate::store::{ComponentStoreData, ComponentStoreResource};
+use crate::store::ComponentStoreResource;
 use rustler::Binary;
 use rustler::Error;
 use rustler::NifResult;
 use rustler::ResourceArc;
-use wasmtime::Store;
 use wit_parser::decoding::DecodedWasm;
 use wit_parser::Resolve;
 use wit_parser::WorldId;
@@ -29,12 +28,7 @@ pub fn new_component(
     store_or_caller_resource: ResourceArc<ComponentStoreResource>,
     component_binary: Binary,
 ) -> NifResult<ResourceArc<ComponentResource>> {
-    let store_or_caller: &mut Store<ComponentStoreData> =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+    let executor = store_or_caller_resource.executor()?;
     let bytes = component_binary.as_slice();
     let decoded_wasm = wit_parser::decoding::decode(bytes)
         .map_err(|e| Error::Term(Box::new(format!("Unable to decode WASM: {e}"))))?;
@@ -45,7 +39,7 @@ pub fn new_component(
         DecodedWasm::Component(resolve, world_id) => ParsedComponent { world_id, resolve },
     };
 
-    let component = Component::new(store_or_caller.engine(), bytes)
+    let component = Component::new(executor.engine(), bytes)
         .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
 
     Ok(ResourceArc::new(ComponentResource {

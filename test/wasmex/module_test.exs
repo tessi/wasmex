@@ -79,7 +79,12 @@ defmodule Wasmex.ModuleTest do
         "void" => {:fn, [], []}
       }
 
-      assert expected == Wasmex.Module.exports(module)
+      exports =
+        module
+        |> Wasmex.Module.exports()
+        |> Map.drop(["__data_end", "__heap_base"])
+
+      assert expected == exports
     end
 
     test "lists table data" do

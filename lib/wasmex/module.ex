@@ -178,10 +178,10 @@ defmodule Wasmex.Module do
 
   @doc ~S"""
   Deserializes an in-memory compiled module previously created with
-  `Wasmex.Module.serialize/1` or `Wasmex.Engine::precompile_module/2`.
+  `Wasmex.Module.serialize/1` or `Wasmex.Engine.precompile_module/2`.
 
   This function will deserialize the binary blobs emitted by
-  `Wasmex.Module.serialize/1` and `Wasmex.Engine::precompile_module/2`
+  `Wasmex.Module.serialize/1` and `Wasmex.Engine.precompile_module/2`
   back into an in-memory `Wasmex.Module` that's ready to be instantiated.
 
   # Unsafety
@@ -199,7 +199,7 @@ defmodule Wasmex.Module do
 
   For these reasons this function is `unsafe`. This function is only
   designed to receive the previous input from `Wasmex.Module.serialize/1`
-  and `Wasmex.Engine::precompile_module/2`. If the exact output of those
+  and `Wasmex.Engine.precompile_module/2`. If the exact output of those
   functions (unmodified) is passed to this function then calls to this
   function can be considered safe. It is the caller's responsibility to
   provide the guarantee that only previously-serialized bytes are being

@@ -8,7 +8,7 @@ defmodule Wasmex.Engine do
   program.
 
   You can create an engine with default configuration settings using
-  `EngineConfig::default()`. Be sure to consult the documentation of
+  `Wasmex.Engine.default/0`. Be sure to consult the documentation of
   `Wasmex.EngineConfig` for default settings.
 
   ## Example
