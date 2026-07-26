@@ -14,6 +14,11 @@ defmodule Wasmex.Store do
   unsuitable for creating an unbounded number of instances in it because Store will
   never release this memory. It’s recommended to have a Store correspond roughly
   to the lifetime of a “main instance”.
+
+  Store operations are submitted to a bounded asynchronous executor and processed
+  one at a time in submission order. WebAssembly execution yields cooperatively,
+  allowing other async work to run between epochs, but a long-running operation
+  still prevents later operations on the same Store from starting.
   """
 
   alias Wasmex.Engine

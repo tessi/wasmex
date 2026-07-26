@@ -15,7 +15,7 @@ defmodule Wasmex.Wasi.PreopenOptions do
 
         iex> Wasmex.Store.new_wasi(%Wasmex.Wasi.WasiOptions{
         ...>   preopen: [
-        ...>     %PreopenOptions{path: "/tmp", alias: "temp"}
+        ...>     %Wasmex.Wasi.PreopenOptions{path: "/tmp", alias: "temp"}
         ...>   ],
         ...> })
   """

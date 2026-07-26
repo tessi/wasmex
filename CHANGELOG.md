@@ -26,15 +26,15 @@ Types of changes
 - Updated Wasmtime from 39.0.1 to 47.0.2, Rustler to 0.38.0, rustler_precompiled to 0.9.0, and refreshed the remaining Rust and Elixir dependencies.
 - Migrated the WASI Preview 1, WASI Preview 2, and WASI HTTP integrations to the Wasmtime 47 APIs.
 - Moved core and component instantiation, function execution, WASI, and WASI HTTP workloads to Wasmtime's asynchronous APIs. Each Store now runs on a bounded, single-owner Tokio executor that preserves operation ordering and provides backpressure without blocking executor threads.
-- Added cooperative epoch-based yielding for long-running WebAssembly calls and cancellation tied to call timeouts, allowing a Store to process subsequent work after a timed-out call.
+- Added cooperative epoch-based yielding for core WebAssembly calls. Timed-out core calls are interrupted so their Store can process subsequent work.
+- Component calls that outlive their caller's timeout now finish in the background and discard their late result, preserving the Wasmtime component instance for subsequent calls.
 - Reworked imported-function callbacks to await asynchronous replies while servicing scoped Caller operations, including memory, fuel, globals, export lookup, nested calls, and instance creation.
 
 ### Fixed
 
 - Corrected public typespecs to accept registered GenServer names and to reflect the full range of WebAssembly component parameter and return values. Thanks @Sorixelle (#971)
 - Propagate errors encountered while registering WASI and WASI HTTP component interfaces instead of silently ignoring them.
-- Removed the unsafe global storage and lifetime extension previously used for callback-scoped Callers.
-- Component callback failures and result-conversion errors now release the waiting Wasmtime call instead of potentially leaving it blocked indefinitely.
+- Callback failures, result-conversion errors, and replies that arrive after a caller timeout now release the waiting Wasmtime call without terminating the Wasmex server.
 
 ## [0.14.0 - 2025-12-16]
 

@@ -19,7 +19,7 @@ defmodule Wasmex.StoreLimits do
       ...>   memory_size: 1_000_000,
       ...>   table_elements: 100_000,
       ...>   instances: 2,
-      ...>   tables: 10
+      ...>   tables: 10,
       ...>   memories: 10
       ...> })
   """

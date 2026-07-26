@@ -3,6 +3,7 @@ defmodule Wasmex.StoreTest do
   import TestHelper, only: [t: 1]
 
   doctest Wasmex.Store
+  doctest Wasmex.StoreLimits
 
   describe t(&Store.new/0) do
     test "creates a new Store" do

@@ -6,6 +6,6 @@ To build the NIF module, run:
 cargo build
 ```
 
-It is atomatically build, though, when compiling the elixir sources.
+It is automatically built when compiling the Elixir sources.
 
 The NIF is loaded in `lib/wasmex/native.ex`.

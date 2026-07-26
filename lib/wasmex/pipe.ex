@@ -52,7 +52,7 @@ defmodule Wasmex.Pipe do
 
   ## Example
 
-      iex> {:ok, %Pipe{}} = Wasmex.Pipe.new()
+      iex> {:ok, %Wasmex.Pipe{}} = Wasmex.Pipe.new()
   """
   @spec new() :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
   def new() do

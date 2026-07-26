@@ -144,9 +144,12 @@ defmodule Wasmex.Instance do
 
   Behind the scenes, the NIF submits the call to the Store's bounded executor.
   Each Store processes one operation at a time and yields cooperatively while WebAssembly runs.
+  If `timeout` is set and the deadline is reached, Wasmex interrupts the WebAssembly call,
+  discards its result, and releases the Store for subsequent operations.
 
   The `from` argument is expected to be as given by `c:GenServer.handle_call/3`.
   The NIF uses this `from` tuple to send a message with the result of this Wasm function call.
+  If the receiving process is no longer waiting, the result is discarded.
 
   ## Function parameters
 
