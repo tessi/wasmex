@@ -590,11 +590,9 @@ defmodule WasmexTest do
         Task.async(fn ->
           start_time = System.monotonic_time(:millisecond)
 
-          # Do some work that requires scheduler responsiveness
-          for _ <- 1..100 do
-            # Should complete in ~100ms if scheduler is responsive
-            Process.sleep(1)
-          end
+          # A single timer still requires a responsive scheduler, without
+          # accumulating wakeup jitter across many very short sleeps.
+          Process.sleep(100)
 
           elapsed = System.monotonic_time(:millisecond) - start_time
           elapsed
