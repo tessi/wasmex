@@ -90,8 +90,8 @@ defmodule Wasmex do
 
   The `caller` MUST be used instead of a `store` in Wasmex API functions.
   Wasmex might deadlock if the `store` is used instead of the `caller`
-  (because running the Wasm instance holds a Mutex lock on the `store` so
-  we cannot use that store again during the execution of an imported function).
+  (because a Store processes one operation at a time, and the current operation
+  cannot finish until the imported function returns).
   The caller, however, MUST NOT be used outside of the imported functions scope.
 
   All other params are regular parameters as specified by the parameter type list.
@@ -414,7 +414,11 @@ defmodule Wasmex do
   @spec call_function(GenServer.server(), String.t() | atom(), list(number()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
-    GenServer.call(pid, {:call_function, Wasmex.Utils.stringify(name), params}, timeout)
+    GenServer.call(
+      pid,
+      {:call_function, Wasmex.Utils.stringify(name), params, native_timeout(timeout)},
+      timeout
+    )
   end
 
   @doc ~S"""
@@ -522,11 +526,11 @@ defmodule Wasmex do
 
   @impl true
   def handle_call(
-        {:call_function, name, params},
+        {:call_function, name, params, timeout},
         from,
         %{store: store, instance: instance} = state
       ) do
-    :ok = Wasmex.Instance.call_exported_function(store, instance, name, params, from)
+    :ok = Wasmex.Instance.call_exported_function(store, instance, name, params, from, timeout)
     {:noreply, state}
   end
 
@@ -570,4 +574,7 @@ defmodule Wasmex do
     :ok = Wasmex.Native.instance_receive_callback_result(token, success, results)
     {:noreply, state}
   end
+
+  defp native_timeout(:infinity), do: nil
+  defp native_timeout(timeout), do: timeout
 end

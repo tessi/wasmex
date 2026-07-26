@@ -1,11 +1,15 @@
-//! Memory API of an WebAssembly instance.
+//! Memory API of a WebAssembly instance.
 
-use crate::store::{StoreOrCaller, StoreOrCallerResource};
-use crate::{atoms, instance};
-use rustler::{Atom, Binary, Error, NewBinary, NifResult, ResourceArc, Term};
-use std::io::Write;
+use crate::{
+    async_reply::{submit_error, AsyncReply},
+    atoms,
+    caller::CallerCommand,
+    instance,
+    store::{StoreOrCallerResource, StoreTarget},
+};
+use rustler::{Atom, Binary, ResourceArc, Term};
 use std::sync::Mutex;
-use wasmtime::{Instance, Memory, Store};
+use wasmtime::{Instance, Memory};
 
 pub struct MemoryResource {
     pub inner: Mutex<Memory>,
@@ -14,42 +18,83 @@ pub struct MemoryResource {
 #[rustler::resource_impl()]
 impl rustler::Resource for MemoryResource {}
 
+fn clone_memory(resource: &MemoryResource) -> Result<Memory, rustler::Error> {
+    resource
+        .inner
+        .lock()
+        .map(|memory| *memory)
+        .map_err(|error| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock memory resource: {error}"
+            )))
+        })
+}
+
 #[rustler::nif(name = "memory_from_instance")]
 pub fn from_instance(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<instance::InstanceResource>,
-) -> Result<ResourceArc<MemoryResource>, rustler::Error> {
-    let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock instance resource: {e}")))
-    })?);
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {e}"
-            )))
-        })?);
-    let memory = memory_from_instance(&instance, store_or_caller)?;
-    let resource = ResourceArc::new(MemoryResource {
-        inner: Mutex::new(memory.to_owned()),
-    });
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let instance: Instance = *instance_resource.inner.lock().map_err(|error| {
+        rustler::Error::Term(Box::new(format!(
+            "Could not unlock instance resource: {error}"
+        )))
+    })?;
+    let reply = AsyncReply::new(from);
 
-    Ok(resource)
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match memory_from_instance(&instance, &mut store) {
+                    Ok(memory) => reply.send(ResourceArc::new(MemoryResource {
+                        inner: Mutex::new(memory),
+                    })),
+                    Err(error) => reply.send_error(error),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemoryFromInstance { instance, reply };
+            if let Err(CallerCommand::MemoryFromInstance { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "memory_size")]
 pub fn size(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
-) -> NifResult<usize> {
-    let store_or_caller: &StoreOrCaller =
-        &*(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-        })?);
-    let memory = memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?;
-    let length = memory.data_size(store_or_caller);
-    Ok(length)
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let reply = AsyncReply::new(from);
+
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |store| async move {
+                reply.send(memory.data_size(&store));
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemorySize { memory, reply };
+            if let Err(CallerCommand::MemorySize { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "memory_grow")]
@@ -57,35 +102,27 @@ pub fn grow(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     pages: u64,
-) -> NifResult<u64> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {e}"
-            )))
-        })?);
-    let memory = memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?;
-    let store = match store_or_caller {
-        StoreOrCaller::Store(store) => store,
-        StoreOrCaller::Caller(_) => {
-            return Err(Error::Term(Box::new("Cannot grow memory from caller")))
-        }
-    };
-    let old_pages = grow_by_pages(&memory, store, pages)?;
-    Ok(old_pages)
-}
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let reply = AsyncReply::new(from);
 
-/// Grows the memory by the given amount of pages. Returns the old page count.
-fn grow_by_pages<T>(
-    memory: &Memory,
-    store: &mut Store<T>,
-    number_of_pages: u64,
-) -> Result<u64, Error> {
-    memory
-        .grow(store, number_of_pages)
-        .map_err(|err| Error::Term(Box::new(format!("Failed to grow the memory: {err}."))))
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match memory.grow(&mut store, pages) {
+                    Ok(old_pages) => reply.send(old_pages),
+                    Err(error) => reply.send_error(format!("Failed to grow the memory: {error}.")),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(_) => reply.send_error("Cannot grow memory from caller"),
+    }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "memory_get_byte")]
@@ -93,20 +130,37 @@ pub fn get_byte(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
-) -> NifResult<u8> {
-    let store_or_caller = &*(store_or_caller_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-    })?);
-    let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?);
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let reply = AsyncReply::new(from);
 
-    let mut buffer = [0];
-    memory
-        .read(store_or_caller, index, &mut buffer)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-
-    Ok(buffer[0])
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |store| async move {
+                let mut buffer = [0];
+                match memory.read(&store, index, &mut buffer) {
+                    Ok(()) => reply.send(buffer[0]),
+                    Err(error) => reply.send_error(error.to_string()),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemoryGetByte {
+                memory,
+                index,
+                reply,
+            };
+            if let Err(CallerCommand::MemoryGetByte { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "memory_set_byte")]
@@ -114,80 +168,126 @@ pub fn set_byte(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
-    value: Term,
-) -> NifResult<Atom> {
-    let store_or_caller = &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-    })?);
-    let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?);
-    let value = value.decode()?;
-    memory
-        .write(store_or_caller, index, &[value])
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    value: u8,
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let reply = AsyncReply::new(from);
 
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match memory.write(&mut store, index, &[value]) {
+                    Ok(()) => reply.send(atoms::ok()),
+                    Err(error) => reply.send_error(error.to_string()),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemorySetByte {
+                memory,
+                index,
+                value,
+                reply,
+            };
+            if let Err(CallerCommand::MemorySetByte { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
     Ok(atoms::ok())
 }
 
-pub fn memory_from_instance(
+pub fn memory_from_instance<T: wasmtime::AsContextMut>(
     instance: &Instance,
-    store_or_caller: &mut StoreOrCaller,
-) -> Result<Memory, Error> {
+    mut store: T,
+) -> Result<Memory, String> {
     instance
-        .exports(store_or_caller)
+        .exports(&mut store)
         .find_map(|export| export.into_memory())
-        .ok_or_else(|| Error::Term(Box::new("The WebAssembly module has no exported memory.")))
+        .ok_or_else(|| "The WebAssembly module has no exported memory.".to_string())
 }
 
-#[rustler::nif(name = "memory_read_binary", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_read_binary")]
 pub fn read_binary(
-    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
     len: usize,
-) -> NifResult<Binary> {
-    let store_or_caller: &StoreOrCaller =
-        &*(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {e}"
-            )))
-        })?);
-    let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?);
-    let mut buffer = vec![0u8; len];
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let reply = AsyncReply::new(from);
 
-    memory
-        .read(store_or_caller, index, &mut buffer)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-
-    let mut binary = NewBinary::new(env, len);
-    binary.as_mut_slice().write_all(&buffer).unwrap();
-
-    Ok(binary.into())
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |store| async move {
+                let mut buffer = vec![0u8; len];
+                match memory.read(&store, index, &mut buffer) {
+                    Ok(()) => reply.send_binary(buffer),
+                    Err(error) => reply.send_error(error.to_string()),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemoryRead {
+                memory,
+                index,
+                len,
+                reply,
+            };
+            if let Err(CallerCommand::MemoryRead { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
 }
 
-#[rustler::nif(name = "memory_write_binary", schedule = "DirtyCpu")]
+#[rustler::nif(name = "memory_write_binary")]
 pub fn write_binary(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
     binary: Binary,
-) -> NifResult<Atom> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource: {e}"
-            )))
-        })?);
-    let memory: &Memory = &*(memory_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!("Could not unlock memory resource: {e}")))
-    })?);
-    memory
-        .write(store_or_caller, index, binary.as_slice())
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let memory = clone_memory(&memory_resource)?;
+    let bytes = binary.as_slice().to_vec();
+    let reply = AsyncReply::new(from);
 
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match memory.write(&mut store, index, &bytes) {
+                    Ok(()) => reply.send(atoms::ok()),
+                    Err(error) => reply.send_error(error.to_string()),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = CallerCommand::MemoryWrite {
+                memory,
+                index,
+                bytes,
+                reply,
+            };
+            if let Err(CallerCommand::MemoryWrite { reply, .. }) = session.submit(command) {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
     Ok(atoms::ok())
 }

@@ -23,11 +23,17 @@ defmodule Wasmex.Components.Instance do
     %{resource: store_or_caller_resource} = store_or_caller
     %{resource: component_resource} = component
 
-    case Wasmex.Native.component_instance_new(
-           store_or_caller_resource,
-           component_resource,
-           imports
-         ) do
+    result =
+      Wasmex.Utils.native_request(fn from ->
+        Wasmex.Native.component_instance_new(
+          store_or_caller_resource,
+          component_resource,
+          imports,
+          from
+        )
+      end)
+
+    case result do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(store_or_caller_resource, resource)}
     end
@@ -37,7 +43,8 @@ defmodule Wasmex.Components.Instance do
         %__MODULE__{store_resource: store_resource, instance_resource: instance_resource},
         function_or_path,
         args,
-        from
+        from,
+        timeout
       ) do
     function_path = parse_function_path(function_or_path)
 
@@ -46,7 +53,8 @@ defmodule Wasmex.Components.Instance do
       instance_resource,
       function_path,
       args,
-      from
+      from,
+      timeout
     )
   end
 

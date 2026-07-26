@@ -3,17 +3,17 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 
 use crate::{
+    async_reply::{send_saved_term, submit_error, AsyncReply},
     atoms,
-    engine::TOKIO_RUNTIME,
     environment::{link_imports, link_modules, CallbackTokenResource},
     functions,
     module::ModuleResource,
     printable_term_type::PrintableTermType,
-    store::{StoreData, StoreOrCaller, StoreOrCallerResource},
+    store::{StoreData, StoreOrCallerResource, StoreTarget},
 };
 use rustler::{
     env::SavedTerm,
-    types::{tuple::make_tuple, ListIterator, LocalPid},
+    types::{tuple::make_tuple, ListIterator},
     Encoder, Env, Error, MapIterator, NifMap, NifResult, OwnedEnv, ResourceArc, Term, TermType,
 };
 use std::ops::Deref;
@@ -24,6 +24,11 @@ use wasmtime::{Instance, Linker, Module, Trap, Val, ValType};
 pub struct LinkedModule {
     pub name: String,
     pub module_resource: ResourceArc<ModuleResource>,
+}
+
+pub struct OwnedLinkedModule {
+    pub name: String,
+    pub module: Module,
 }
 
 pub struct InstanceResource {
@@ -44,102 +49,179 @@ impl rustler::Resource for InstanceResource {}
 pub fn new(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     module_resource: ResourceArc<ModuleResource>,
-    imports: MapIterator,
+    imports: Term,
     linked_modules: Vec<LinkedModule>,
-) -> Result<ResourceArc<InstanceResource>, rustler::Error> {
-    let module = module_resource.inner.lock().map_err(|e| {
-        rustler::Error::Term(Box::new(format!(
-            "Could not unlock module resource as the mutex was poisoned: {e}"
-        )))
-    })?;
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
+    from: Term,
+) -> Result<rustler::Atom, rustler::Error> {
+    let module = module_resource
+        .inner
+        .lock()
+        .map_err(|e| {
             rustler::Error::Term(Box::new(format!(
-                "Could not unlock store_or_caller resource as the mutex was poisoned: {e}"
+                "Could not unlock module resource as the mutex was poisoned: {e}"
             )))
-        })?);
+        })?
+        .clone();
+    let linked_modules = linked_modules
+        .into_iter()
+        .map(|linked_module| {
+            let module = linked_module
+                .module_resource
+                .inner
+                .lock()
+                .map_err(|error| {
+                    rustler::Error::Term(Box::new(format!(
+                        "Could not unlock linked module resource: {error}"
+                    )))
+                })?
+                .clone();
+            Ok(OwnedLinkedModule {
+                name: linked_module.name,
+                module,
+            })
+        })
+        .collect::<Result<Vec<_>, rustler::Error>>()?;
 
-    let instance = link_and_create_instance(store_or_caller, &module, imports, linked_modules)?;
-    let resource = ResourceArc::new(InstanceResource {
-        inner: Mutex::new(instance),
-    });
-    Ok(resource)
+    let callback_pid = imports.get_env().pid();
+    let term_env = OwnedEnv::new();
+    let imports = term_env.save(imports);
+    let reply = AsyncReply::new(from);
+
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match instantiate(
+                    &mut store,
+                    module,
+                    linked_modules,
+                    callback_pid,
+                    term_env,
+                    imports,
+                )
+                .await
+                {
+                    Ok(instance) => reply.send(instance),
+                    Err(error) => reply.send_error(error),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = crate::caller::CallerCommand::NewInstance {
+                module,
+                linked_modules,
+                callback_pid,
+                env: term_env,
+                imports,
+                reply,
+            };
+            if let Err(crate::caller::CallerCommand::NewInstance { reply, .. }) =
+                session.submit(command)
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+
+    Ok(atoms::ok())
 }
 
-fn link_and_create_instance(
-    store_or_caller: &mut StoreOrCaller,
-    module: &Module,
+pub(crate) async fn instantiate(
+    mut store: impl wasmtime::AsContextMut<Data = StoreData>,
+    module: Module,
+    linked_modules: Vec<OwnedLinkedModule>,
+    callback_pid: rustler::LocalPid,
+    term_env: OwnedEnv,
+    imports: SavedTerm,
+) -> Result<ResourceArc<InstanceResource>, String> {
+    let mut linker = term_env
+        .run(|env| {
+            let imports = imports.load(env).decode::<MapIterator>()?;
+            create_linker(&store, imports, callback_pid)
+        })
+        .map_err(|error| format!("{error:?}"))?;
+
+    link_modules(&mut linker, &mut store, linked_modules)
+        .await
+        .map_err(|error| format!("{error:?}"))?;
+    linker
+        .instantiate_async(&mut store, &module)
+        .await
+        .map(|instance| {
+            ResourceArc::new(InstanceResource {
+                inner: Mutex::new(instance),
+            })
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn create_linker(
+    store: impl wasmtime::AsContext<Data = StoreData>,
     imports: MapIterator,
-    linked_modules: Vec<LinkedModule>,
-) -> Result<Instance, Error> {
-    let mut linker = Linker::new(store_or_caller.engine());
-    if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
+    callback_pid: rustler::LocalPid,
+) -> Result<Linker<StoreData>, Error> {
+    let store = store.as_context();
+    let mut linker = Linker::new(store.engine());
+    if store.data().wasi.is_some() {
         linker.allow_shadowing(true);
-        wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s: &mut StoreData| {
+        wasmtime_wasi::p1::add_to_linker_async(&mut linker, |s: &mut StoreData| {
             s.wasi.as_mut().unwrap()
         })
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
 
-    link_imports(store_or_caller.engine(), &mut linker, imports)?;
-    link_modules(&mut linker, store_or_caller, linked_modules)?;
-
-    linker
-        .instantiate(store_or_caller, module)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))
+    link_imports(store.engine(), &mut linker, imports, callback_pid)?;
+    Ok(linker)
 }
 
 #[rustler::nif(name = "instance_get_global_value")]
 pub fn get_global_value(
-    env: rustler::Env,
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     global_name: String,
-) -> NifResult<Term> {
+    from: Term,
+) -> NifResult<rustler::Atom> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock instance resource as the mutex was poisoned: {e}"
         )))
     })?);
-    let mut store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+    let reply = AsyncReply::new(from);
 
-    let global = instance
-        .get_global(&mut store_or_caller, &global_name)
-        .ok_or_else(|| {
-            rustler::Error::Term(Box::new(format!(
-                "exported global `{global_name}` not found"
-            )))
-        })?;
-
-    let value = global.get(store_or_caller);
-
-    match value {
-        Val::I32(i) => Ok(i.encode(env)),
-        Val::I64(i) => Ok(i.encode(env)),
-        Val::F32(i) => Ok(f32::from_bits(i).encode(env)),
-        Val::F64(i) => Ok(f64::from_bits(i).encode(env)),
-        Val::V128(i) => Ok(rustler::BigInt::from(i.as_u128()).encode(env)),
-        Val::FuncRef(_) => Err(rustler::Error::Term(Box::new(
-            "unable_to_return_func_ref_type",
-        ))),
-        Val::ExternRef(_) => Err(rustler::Error::Term(Box::new(
-            "unable_to_return_extern_ref_type",
-        ))),
-        Val::AnyRef(_) => Err(rustler::Error::Term(Box::new(
-            "unable_to_return_any_ref_type",
-        ))),
-        Val::ExnRef(_) => Err(rustler::Error::Term(Box::new(
-            "unable_to_return_exn_ref_type",
-        ))),
-        Val::ContRef(_) => Err(rustler::Error::Term(Box::new(
-            "unable_to_return_cont_ref_type",
-        ))),
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match instance
+                    .get_global(&mut store, &global_name)
+                    .ok_or_else(|| format!("exported global `{global_name}` not found"))
+                    .map(|global| global.get(&mut store))
+                {
+                    Ok(value) => send_global_value(reply, value),
+                    Err(error) => reply.send_error(error),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = crate::caller::CallerCommand::GetGlobal {
+                instance,
+                name: global_name,
+                reply,
+            };
+            if let Err(crate::caller::CallerCommand::GetGlobal { reply, .. }) =
+                session.submit(command)
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
     }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "instance_set_global_value")]
@@ -148,48 +230,65 @@ pub fn set_global_value(
     instance_resource: ResourceArc<InstanceResource>,
     global_name: String,
     new_value: Term,
-) -> NifResult<()> {
+    from: Term,
+) -> NifResult<rustler::Atom> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock instance resource as the mutex was poisoned: {e}"
         )))
     })?);
-    let mut store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+    let term_env = OwnedEnv::new();
+    let new_value = term_env.save(new_value);
+    let reply = AsyncReply::new(from);
 
-    let global = instance
-        .get_global(&mut store_or_caller, &global_name)
-        .ok_or_else(|| {
-            rustler::Error::Term(Box::new(format!(
-                "exported global `{global_name}` not found"
-            )))
-        })?;
-
-    let global_type = global.ty(&store_or_caller).content().clone();
-
-    let new_value = decode_term_as_wasm_value(global_type.clone(), new_value).ok_or_else(|| {
-        rustler::Error::Term(Box::new(format!(
-            "Cannot convert to a WebAssembly {:?} value. Given `{:?}`.",
-            global_type,
-            PrintableTermType::PrintTerm(new_value.get_type())
-        )))
-    })?;
-
-    let val: Val = match new_value {
-        WasmValue::I32(value) => value.into(),
-        WasmValue::I64(value) => value.into(),
-        WasmValue::F32(value) => value.into(),
-        WasmValue::F64(value) => value.into(),
-        WasmValue::V128(value) => value.into(),
-    };
-
-    global
-        .set(store_or_caller, val)
-        .map_err(|e| rustler::Error::Term(Box::new(format!("Could not set global: {e}"))))
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                let result = term_env.run(|env| {
+                    let term = new_value.load(env);
+                    let global = instance
+                        .get_global(&mut store, &global_name)
+                        .ok_or_else(|| format!("exported global `{global_name}` not found"))?;
+                    let global_type = global.ty(&store).content().clone();
+                    let value =
+                        decode_term_as_wasm_value(global_type.clone(), term).ok_or_else(|| {
+                            format!(
+                                "Cannot convert to a WebAssembly {:?} value. Given `{:?}`.",
+                                global_type,
+                                PrintableTermType::PrintTerm(term.get_type())
+                            )
+                        })?;
+                    let value = map_wasm_values_to_vals(&[value]).remove(0);
+                    global
+                        .set(&mut store, value)
+                        .map_err(|error| format!("Could not set global: {error}"))
+                });
+                match result {
+                    Ok(()) => reply.send(()),
+                    Err(error) => reply.send_error(error),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = crate::caller::CallerCommand::SetGlobal {
+                instance,
+                name: global_name,
+                env: term_env,
+                value: new_value,
+                reply,
+            };
+            if let Err(crate::caller::CallerCommand::SetGlobal { reply, .. }) =
+                session.submit(command)
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
 }
 
 #[rustler::nif(name = "instance_function_export_exists")]
@@ -197,21 +296,53 @@ pub fn function_export_exists(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
-) -> NifResult<bool> {
+    from: Term,
+) -> NifResult<rustler::Atom> {
     let instance: Instance = *(instance_resource.inner.lock().map_err(|e| {
         rustler::Error::Term(Box::new(format!(
             "Could not unlock instance resource as the mutex was poisoned: {e}"
         )))
     })?);
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock instance/store resource as the mutex was poisoned: {e}"
-            )))
-        })?);
+    let reply = AsyncReply::new(from);
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                reply.send(functions::exists(&instance, &mut store, &function_name));
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            let command = crate::caller::CallerCommand::FunctionExists {
+                instance,
+                name: function_name,
+                reply,
+            };
+            if let Err(crate::caller::CallerCommand::FunctionExists { reply, .. }) =
+                session.submit(command)
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
+    }
+    Ok(atoms::ok())
+}
 
-    let result = functions::exists(&instance, store_or_caller, &function_name);
-    Ok(result)
+pub(crate) fn send_global_value(reply: AsyncReply, value: Val) {
+    match value {
+        Val::I32(value) => reply.send(value),
+        Val::I64(value) => reply.send(value),
+        Val::F32(value) => reply.send(f32::from_bits(value)),
+        Val::F64(value) => reply.send(f64::from_bits(value)),
+        Val::V128(value) => reply.send(rustler::BigInt::from(value.as_u128())),
+        Val::FuncRef(_) => reply.send_error("unable_to_return_func_ref_type"),
+        Val::ExternRef(_) => reply.send_error("unable_to_return_extern_ref_type"),
+        Val::AnyRef(_) => reply.send_error("unable_to_return_any_ref_type"),
+        Val::ExnRef(_) => reply.send_error("unable_to_return_exn_ref_type"),
+        Val::ContRef(_) => reply.send_error("unable_to_return_cont_ref_type"),
+    }
 }
 
 #[rustler::nif(name = "instance_call_exported_function")]
@@ -221,89 +352,106 @@ pub fn call_exported_function(
     function_name: String,
     params: Term,
     from: Term,
+    timeout_ms: Option<u64>,
 ) -> rustler::Atom {
-    // create erlang environment for the thread
-    let mut thread_env = OwnedEnv::new();
-    // copy over params into the thread environment
-    let function_params = thread_env.save(params);
-    let from = thread_env.save(from);
+    let target = match store_or_caller_resource.target() {
+        Ok(target) => target,
+        Err(error) => {
+            AsyncReply::new(from).send_error(format!("{error:?}"));
+            return atoms::ok();
+        }
+    };
 
-    TOKIO_RUNTIME.spawn_blocking(move || {
-        // Execute function and get the result
+    if let StoreTarget::Caller(session) = target {
+        let env = OwnedEnv::new();
+        let params = env.save(params);
+        let saved_from = env.save(from);
+        let submit_reply = AsyncReply::new(from);
+        let command = crate::caller::CallerCommand::CallExported {
+            instance: *instance_resource.inner.lock().unwrap(),
+            function_name,
+            env,
+            params,
+            from: saved_from,
+        };
+        if session.submit(command).is_err() {
+            submit_reply.send_error("Caller is no longer valid");
+        }
+        return atoms::ok();
+    }
+    let StoreTarget::Executor(executor) = target else {
+        unreachable!()
+    };
+
+    let deadline = timeout_ms
+        .map(|timeout| tokio::time::Instant::now() + std::time::Duration::from_millis(timeout));
+
+    let mut thread_env = OwnedEnv::new();
+    let function_params = thread_env.save(params);
+    let saved_from = thread_env.save(from);
+    let submit_reply = AsyncReply::new(from);
+
+    if let Err(error) = executor.submit(move |mut store| async move {
         let result = execute_function(
             &mut thread_env,
-            store_or_caller_resource,
+            &mut store,
             instance_resource,
             function_name,
             function_params,
         );
-
-        // Send GenServer reply directly to the caller
-        thread_env.run(|env| {
-            let from_tuple = from.load(env).decode::<Term>().unwrap();
-            let result_term = result
-                .load(env)
-                .decode::<Term>()
-                .unwrap_or(atoms::error().encode(env));
-
-            // GenServer.call from tuple is {pid, ref}
-            let (caller_pid, ref_term) = from_tuple
-                .decode::<(LocalPid, Term)>()
-                .expect("from must be a GenServer {pid, ref} tuple");
-
-            // Send GenServer reply format directly to caller: {ref, result}
-            let _ = env.send(&caller_pid, make_tuple(env, &[ref_term, result_term]));
-        });
-    });
+        let result = match deadline {
+            Some(deadline) => tokio::time::timeout_at(deadline, result).await.ok(),
+            None => Some(result.await),
+        };
+        if let Some(result) = result {
+            send_saved_term(thread_env, saved_from, result);
+        }
+        store
+    }) {
+        submit_error(submit_reply, error);
+    }
 
     atoms::ok()
 }
 
-fn execute_function(
+async fn execute_function(
     thread_env: &mut OwnedEnv,
-    store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
+    store: &mut wasmtime::Store<StoreData>,
     instance_resource: ResourceArc<InstanceResource>,
     function_name: String,
     function_params: SavedTerm,
 ) -> SavedTerm {
-    let result = thread_env.run(|env: Env| {
-        let given_params = match function_params.load(env).decode::<Vec<Term>>() {
-            Ok(vec) => vec,
-            Err(_) => {
-                return env
-                    .error_tuple("could not load 'function params'")
-                    .encode(env)
-            }
-        };
+    let prepared = thread_env.run(|env: Env| {
+        let given_params = function_params
+            .load(env)
+            .decode::<Vec<Term>>()
+            .map_err(|_| "could not load 'function params'".to_string())?;
         let instance: Instance = *(instance_resource.deref().inner.lock().unwrap());
-        let mut store_or_caller = store_or_caller_resource.deref().inner.lock().unwrap();
-        let function_result = functions::find(&instance, &mut store_or_caller, &function_name);
-        let function = match function_result {
-            Some(func) => func,
-            None => {
-                return env
-                    .error_tuple(&format!("exported function `{function_name}` not found"))
-                    .encode(env)
-            }
-        };
-        let function_params_result = decode_function_param_terms(
-            &function
-                .ty(&*store_or_caller)
-                .params()
-                .collect::<Vec<ValType>>(),
+        let function = functions::find(&instance, &mut *store, &function_name)
+            .ok_or_else(|| format!("exported function `{function_name}` not found"))?;
+        let function_params = decode_function_param_terms(
+            &function.ty(&*store).params().collect::<Vec<ValType>>(),
             given_params,
-        );
-        let function_params = match function_params_result {
-            Ok(vec) => map_wasm_values_to_vals(&vec),
-            Err(reason) => return env.error_tuple(&reason).encode(env),
-        };
-        let results_count = function.ty(&*store_or_caller).results().len();
-        let mut results = vec![Val::null_extern_ref(); results_count];
-        let call_result = function.call(
-            &mut *store_or_caller,
-            function_params.as_slice(),
-            &mut results,
-        );
+        )
+        .map(|values| map_wasm_values_to_vals(&values))?;
+        let results_count = function.ty(&*store).results().len();
+        Ok::<_, String>((function, function_params, results_count))
+    });
+
+    let (function, function_params, results_count) = match prepared {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            let result = thread_env.run(|env| env.error_tuple(reason).encode(env));
+            return thread_env.save(result);
+        }
+    };
+
+    let mut results = vec![Val::null_extern_ref(); results_count];
+    let call_result = function
+        .call_async(&mut *store, function_params.as_slice(), &mut results)
+        .await;
+
+    let result = thread_env.run(|env: Env| {
         match call_result {
             Ok(_) => (),
             Err(err) => {
@@ -367,7 +515,7 @@ pub enum WasmValue {
     V128(u128),
 }
 
-fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmValue> {
+pub(crate) fn decode_term_as_wasm_value(expected_type: ValType, term: Term) -> Option<WasmValue> {
     let value = match (expected_type, term.get_type()) {
         (ValType::I32, TermType::Integer | TermType::Float) => match term.decode::<i32>() {
             Ok(value) => WasmValue::I32(value),
@@ -501,9 +649,20 @@ pub fn receive_callback_result(
         vec![]
     };
 
-    let mut result = token_resource.token.return_values.lock().unwrap();
-    *result = Some((success, results));
-    token_resource.token.continue_signal.notify_one();
+    let sender = token_resource
+        .token
+        .return_sender
+        .lock()
+        .map_err(|error| {
+            Error::Term(Box::new(format!(
+                "Could not unlock callback result sender: {error}"
+            )))
+        })?
+        .take()
+        .ok_or_else(|| Error::Term(Box::new("Callback result was already sent")))?;
+    sender
+        .send((success, results))
+        .map_err(|_| Error::Term(Box::new("Callback is no longer waiting for a result")))?;
 
     Ok(atoms::ok())
 }

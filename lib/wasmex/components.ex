@@ -250,7 +250,7 @@ defmodule Wasmex.Components do
   @spec call_function(GenServer.server(), function_name_or_path(), list(any()), pos_integer()) ::
           {:ok, any()} | {:error, any()}
   def call_function(pid, name_or_path, params, timeout \\ 5000) do
-    GenServer.call(pid, {:call_function, name_or_path, params}, timeout)
+    GenServer.call(pid, {:call_function, name_or_path, params, native_timeout(timeout)}, timeout)
   end
 
   @impl true
@@ -266,11 +266,11 @@ defmodule Wasmex.Components do
 
   @impl true
   def handle_call(
-        {:call_function, name, params},
+        {:call_function, name, params, timeout},
         from,
         %{instance: instance} = state
       ) do
-    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from)
+    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
     {:noreply, state}
   end
 
@@ -292,4 +292,7 @@ defmodule Wasmex.Components do
     :ok = Wasmex.Native.component_receive_callback_result(component.resource, token, true, result)
     {:noreply, state}
   end
+
+  defp native_timeout(:infinity), do: nil
+  defp native_timeout(timeout), do: timeout
 end

@@ -51,7 +51,12 @@ defmodule Wasmex.Memory do
     %{resource: store_or_caller_resource} = store_or_caller
     %Wasmex.Instance{resource: instance_resource} = instance
 
-    case Wasmex.Native.memory_from_instance(store_or_caller_resource, instance_resource) do
+    result =
+      Wasmex.Utils.native_request(fn from ->
+        Wasmex.Native.memory_from_instance(store_or_caller_resource, instance_resource, from)
+      end)
+
+    case result do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}
     end
@@ -74,7 +79,10 @@ defmodule Wasmex.Memory do
   def size(store_or_caller, memory) do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
-    Wasmex.Native.memory_size(store_or_caller_resource, memory_resource)
+
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_size(store_or_caller_resource, memory_resource, from)
+    end)
   end
 
   @doc ~S"""
@@ -97,7 +105,10 @@ defmodule Wasmex.Memory do
   def grow(store_or_caller, memory, pages) do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
-    Wasmex.Native.memory_grow(store_or_caller_resource, memory_resource, pages)
+
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_grow(store_or_caller_resource, memory_resource, pages, from)
+    end)
   end
 
   @doc ~S"""
@@ -120,7 +131,9 @@ defmodule Wasmex.Memory do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
 
-    Wasmex.Native.memory_get_byte(store_or_caller_resource, memory_resource, index)
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_get_byte(store_or_caller_resource, memory_resource, index, from)
+    end)
   end
 
   @doc ~S"""
@@ -143,7 +156,15 @@ defmodule Wasmex.Memory do
     %{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
 
-    Wasmex.Native.memory_set_byte(store_or_caller_resource, memory_resource, index, value)
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_set_byte(
+        store_or_caller_resource,
+        memory_resource,
+        index,
+        value,
+        from
+      )
+    end)
   end
 
   @doc ~S"""
@@ -171,12 +192,15 @@ defmodule Wasmex.Memory do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
 
-    Wasmex.Native.memory_write_binary(
-      store_or_caller_resource,
-      memory_resource,
-      index,
-      binary
-    )
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_write_binary(
+        store_or_caller_resource,
+        memory_resource,
+        index,
+        binary,
+        from
+      )
+    end)
   end
 
   @doc ~S"""
@@ -209,12 +233,15 @@ defmodule Wasmex.Memory do
     %Wasmex.StoreOrCaller{resource: store_or_caller_resource} = store_or_caller
     %__MODULE__{resource: memory_resource} = memory
 
-    Wasmex.Native.memory_read_binary(
-      store_or_caller_resource,
-      memory_resource,
-      index,
-      length
-    )
+    Wasmex.Utils.native_request(fn from ->
+      Wasmex.Native.memory_read_binary(
+        store_or_caller_resource,
+        memory_resource,
+        index,
+        length,
+        from
+      )
+    end)
   end
 
   @doc ~S"""

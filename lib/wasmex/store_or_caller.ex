@@ -5,7 +5,7 @@ defmodule Wasmex.StoreOrCaller do
   A Store is a collection of Wasm instances and host-defined state, see `Wasmex.Store`.
   A Caller takes the place of a Store in imported function calls. If a Store is needed in
   Elixir-provided imported functions, always use the provided Caller because
-  using the Store will cause a deadlock (the running Wasm instance locks the Stores Mutex).
+  using the Store will cause a deadlock (the Store is already processing the current Wasm call).
 
   When configured, a StoreOrCaller can consume fuel to halt or yield execution as desired.
   See `Wasmex.EngineConfig.consume_fuel/2` for more information on fuel consumption.
@@ -63,7 +63,12 @@ defmodule Wasmex.StoreOrCaller do
   """
   @spec set_fuel(__MODULE__.t(), pos_integer()) :: :ok | {:error, binary()}
   def set_fuel(%__MODULE__{resource: resource}, fuel) do
-    case Wasmex.Native.store_or_caller_set_fuel(resource, fuel) do
+    result =
+      Wasmex.Utils.native_request(fn from ->
+        Wasmex.Native.store_or_caller_set_fuel(resource, fuel, from)
+      end)
+
+    case result do
       {} -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -82,7 +87,12 @@ defmodule Wasmex.StoreOrCaller do
   """
   @spec get_fuel(__MODULE__.t()) :: {:ok, pos_integer()} | {:error, binary()}
   def get_fuel(%__MODULE__{resource: resource}) do
-    case Wasmex.Native.store_or_caller_get_fuel(resource) do
+    result =
+      Wasmex.Utils.native_request(fn from ->
+        Wasmex.Native.store_or_caller_get_fuel(resource, from)
+      end)
+
+    case result do
       {:error, reason} -> {:error, reason}
       get_fuel -> {:ok, get_fuel}
     end

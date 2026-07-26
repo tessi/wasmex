@@ -1,14 +1,13 @@
 use crate::{
-    caller::{get_caller, get_caller_mut},
-    engine::{unwrap_engine, EngineResource},
+    async_reply::{submit_error, AsyncReply},
+    caller::{CallbackSession, CallerCommand},
+    engine::{unwrap_engine_and_ticker, EngineResource},
     pipe::{Pipe, PipeResource},
+    store_executor::StoreExecutor,
 };
-use rustler::{Error, NifStruct, ResourceArc};
+use rustler::{Atom, Error, NifStruct, ResourceArc, Term};
 use std::{collections::HashMap, sync::Mutex};
-use wasmtime::{
-    AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
-    StoreLimitsBuilder,
-};
+use wasmtime::{Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{
     p1::WasiP1Ctx, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
 };
@@ -133,8 +132,8 @@ impl WasiView for ComponentStoreData {
 }
 
 pub enum StoreOrCaller {
-    Store(Store<StoreData>),
-    Caller(i32),
+    Store(StoreExecutor<StoreData>),
+    Caller(CallbackSession),
 }
 
 pub struct StoreOrCallerResource {
@@ -142,7 +141,7 @@ pub struct StoreOrCallerResource {
 }
 
 pub struct ComponentStoreResource {
-    pub inner: Mutex<Store<ComponentStoreData>>,
+    pub inner: Mutex<StoreExecutor<ComponentStoreData>>,
 }
 
 #[rustler::resource_impl()]
@@ -155,36 +154,41 @@ impl StoreOrCaller {
     pub fn engine(&self) -> &Engine {
         match self {
             StoreOrCaller::Store(store) => store.engine(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().engine(),
-        }
-    }
-
-    pub fn data(&self) -> &StoreData {
-        match self {
-            StoreOrCaller::Store(store) => store.data(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().data(),
+            StoreOrCaller::Caller(session) => session.engine(),
         }
     }
 }
 
-impl AsContext for StoreOrCaller {
-    type Data = StoreData;
-
-    fn as_context(&self) -> StoreContext<'_, Self::Data> {
-        match self {
-            StoreOrCaller::Store(store) => store.as_context(),
-            StoreOrCaller::Caller(token) => get_caller(token).unwrap().as_context(),
+impl StoreOrCallerResource {
+    pub fn target(&self) -> Result<StoreTarget, rustler::Error> {
+        let inner = self.inner.lock().map_err(|error| {
+            rustler::Error::Term(Box::new(format!(
+                "Could not unlock store resource: {error}"
+            )))
+        })?;
+        match &*inner {
+            StoreOrCaller::Store(executor) => Ok(StoreTarget::Executor(executor.clone())),
+            StoreOrCaller::Caller(session) => Ok(StoreTarget::Caller(session.clone())),
         }
     }
 }
 
-impl AsContextMut for StoreOrCaller {
-    fn as_context_mut(&mut self) -> StoreContextMut<'_, Self::Data> {
-        match self {
-            StoreOrCaller::Store(store) => store.as_context_mut(),
-            StoreOrCaller::Caller(token) => get_caller_mut(token).unwrap().as_context_mut(),
-        }
+impl ComponentStoreResource {
+    pub fn executor(&self) -> Result<StoreExecutor<ComponentStoreData>, rustler::Error> {
+        self.inner
+            .lock()
+            .map(|executor| executor.clone())
+            .map_err(|error| {
+                rustler::Error::Term(Box::new(format!(
+                    "Could not unlock component store resource: {error}"
+                )))
+            })
     }
+}
+
+pub enum StoreTarget {
+    Executor(StoreExecutor<StoreData>),
+    Caller(CallbackSession),
 }
 
 #[rustler::nif(name = "store_new")]
@@ -192,7 +196,7 @@ pub fn new(
     limits: Option<ExStoreLimits>,
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<StoreOrCallerResource>, rustler::Error> {
-    let engine = unwrap_engine(engine_resource)?;
+    let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
     let limits = if let Some(limits) = limits {
         limits.to_wasmtime()
     } else {
@@ -201,7 +205,9 @@ pub fn new(
     let mut store = Store::new(&engine, StoreData { wasi: None, limits });
     store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
-        inner: Mutex::new(StoreOrCaller::Store(store)),
+        inner: Mutex::new(StoreOrCaller::Store(StoreExecutor::new_async(
+            store, ticker,
+        ))),
     });
     Ok(resource)
 }
@@ -211,7 +217,7 @@ pub fn component_store_new(
     limits: Option<ExStoreLimits>,
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<ComponentStoreResource>, rustler::Error> {
-    let engine = unwrap_engine(engine_resource)?;
+    let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
     let limits = if let Some(limits) = limits {
         limits.to_wasmtime()
     } else {
@@ -228,7 +234,7 @@ pub fn component_store_new(
     );
     store.limiter(|state| &mut state.limits);
     let resource: ResourceArc<ComponentStoreResource> = ResourceArc::new(ComponentStoreResource {
-        inner: Mutex::new(store),
+        inner: Mutex::new(StoreExecutor::new_async(store, ticker)),
     });
     Ok(resource)
 }
@@ -265,7 +271,7 @@ pub fn component_store_new_wasi(
             .allow_ip_name_lookup(true);
     }
 
-    let engine = unwrap_engine(engine_resource)?;
+    let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
     let limits = if let Some(limits) = limits {
         limits.to_wasmtime()
     } else {
@@ -289,7 +295,7 @@ pub fn component_store_new_wasi(
     );
     store.limiter(|state| &mut state.limits);
     let resource: ResourceArc<ComponentStoreResource> = ResourceArc::new(ComponentStoreResource {
-        inner: Mutex::new(store),
+        inner: Mutex::new(StoreExecutor::new_async(store, ticker)),
     });
     Ok(resource)
 }
@@ -322,7 +328,7 @@ pub fn new_wasi(
     wasi_preopen_directories(options.preopen, &mut builder)?;
     let wasi_ctx = builder.build_p1();
 
-    let engine = unwrap_engine(engine_resource)?;
+    let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
     let limits = if let Some(limits) = limits {
         limits.to_wasmtime()
     } else {
@@ -337,7 +343,9 @@ pub fn new_wasi(
     );
     store.limiter(|state| &mut state.limits);
     let resource = ResourceArc::new(StoreOrCallerResource {
-        inner: Mutex::new(StoreOrCaller::Store(store)),
+        inner: Mutex::new(StoreOrCaller::Store(StoreExecutor::new_async(
+            store, ticker,
+        ))),
     });
     Ok(resource)
 }
@@ -346,43 +354,61 @@ pub fn new_wasi(
 pub fn set_fuel(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     fuel: u64,
-) -> Result<(), rustler::Error> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-        })?);
-    match store_or_caller {
-        StoreOrCaller::Store(store) => store.set_fuel(fuel),
-        StoreOrCaller::Caller(token) => get_caller_mut(token)
-            .ok_or_else(|| {
-                rustler::Error::Term(Box::new(
-                    "Caller is not valid. Only use a caller within its own function scope.",
-                ))
-            })
-            .map(|c| c.set_fuel(fuel))?,
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let reply = AsyncReply::new(from);
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |mut store| async move {
+                match store.set_fuel(fuel) {
+                    Ok(()) => reply.send(()),
+                    Err(error) => reply.send_error(format!("Could not set fuel: {error}")),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            if let Err(CallerCommand::SetFuel { reply, .. }) =
+                session.submit(CallerCommand::SetFuel { fuel, reply })
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not set fuel: {e}"))))
+    Ok(crate::atoms::ok())
 }
 
 #[rustler::nif(name = "store_or_caller_get_fuel")]
 pub fn get_fuel(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
-) -> Result<u64, rustler::Error> {
-    let store_or_caller: &mut StoreOrCaller =
-        &mut *(store_or_caller_resource.inner.try_lock().map_err(|e| {
-            rustler::Error::Term(Box::new(format!("Could not unlock store resource: {e}")))
-        })?);
-    match store_or_caller {
-        StoreOrCaller::Store(store) => store.get_fuel(),
-        StoreOrCaller::Caller(token) => get_caller_mut(token)
-            .ok_or_else(|| {
-                rustler::Error::Term(Box::new(
-                    "Caller is not valid. Only use a caller within its own function scope.",
-                ))
-            })
-            .map(|c| c.get_fuel())?,
+    from: Term,
+) -> Result<Atom, rustler::Error> {
+    let reply = AsyncReply::new(from);
+    match store_or_caller_resource.target()? {
+        StoreTarget::Executor(executor) => {
+            let submit_reply = AsyncReply::new(from);
+            if let Err(error) = executor.submit(move |store| async move {
+                match store.get_fuel() {
+                    Ok(fuel) => reply.send(fuel),
+                    Err(error) => reply.send_error(format!("Could not get fuel: {error}")),
+                }
+                store
+            }) {
+                submit_error(submit_reply, error);
+            }
+        }
+        StoreTarget::Caller(session) => {
+            if let Err(CallerCommand::GetFuel { reply }) =
+                session.submit(CallerCommand::GetFuel { reply })
+            {
+                reply.send_error("Caller is no longer valid");
+            }
+        }
     }
-    .map_err(|e| rustler::Error::Term(Box::new(format!("Could not get fuel: {e}"))))
+    Ok(crate::atoms::ok())
 }
 
 fn add_pipe<F>(

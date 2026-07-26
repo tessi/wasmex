@@ -36,12 +36,14 @@ defmodule Wasmex.Native do
   def module_serialize(_module_resource), do: error()
   def module_unsafe_deserialize(_binary, _engine_resource), do: error()
 
-  def instance_new(_store_or_caller_resource, _module_resource, _imports, _links), do: error()
+  def instance_new(_store_or_caller_resource, _module_resource, _imports, _links, _from),
+    do: error()
 
   def instance_function_export_exists(
         _store_or_caller_resource,
         _instance_resource,
-        _function_name
+        _function_name,
+        _from
       ),
       do: error()
 
@@ -52,28 +54,44 @@ defmodule Wasmex.Native do
         _instance_resource,
         _function_name,
         _params,
-        _from
+        _from,
+        _timeout
       ),
       do: error()
 
-  def instance_get_global_value(_store_or_caller_resource, _instance_resource, _global_name),
-    do: error()
+  def instance_get_global_value(
+        _store_or_caller_resource,
+        _instance_resource,
+        _global_name,
+        _from
+      ),
+      do: error()
 
   def instance_set_global_value(
         _store_or_caller_resource,
         _instance_resource,
         _global_name,
-        _new_value
+        _new_value,
+        _from
       ),
       do: error()
 
-  def memory_from_instance(_store_resource, _memory_resource), do: error()
-  def memory_size(_store_resource, _memory_resource), do: error()
-  def memory_grow(_store_resource, _memory_resource, _pages), do: error()
-  def memory_get_byte(_store_or_caller_resource, _memory_resource, _index), do: error()
-  def memory_set_byte(_store_or_caller_resource, _memory_resource, _index, _value), do: error()
-  def memory_read_binary(_store_resource, _memory_resource, _index, _length), do: error()
-  def memory_write_binary(_store_resource, _memory_resource, _index, _binary), do: error()
+  def memory_from_instance(_store_resource, _memory_resource, _from), do: error()
+  def memory_size(_store_resource, _memory_resource, _from), do: error()
+  def memory_grow(_store_resource, _memory_resource, _pages, _from), do: error()
+  def memory_get_byte(_store_or_caller_resource, _memory_resource, _index, _from), do: error()
+
+  def memory_set_byte(
+        _store_or_caller_resource,
+        _memory_resource,
+        _index,
+        _value,
+        _from
+      ),
+      do: error()
+
+  def memory_read_binary(_store_resource, _memory_resource, _index, _length, _from), do: error()
+  def memory_write_binary(_store_resource, _memory_resource, _index, _binary, _from), do: error()
 
   def pipe_new(), do: error()
   def pipe_size(_pipe_resource), do: error()
@@ -87,12 +105,21 @@ defmodule Wasmex.Native do
   def component_store_new(_store_limits, _engine_resource), do: error()
   def component_store_new_wasi(_wasi_options, _store_limits, _engine_resource), do: error()
 
-  def store_or_caller_get_fuel(_store_or_caller_resource), do: error()
-  def store_or_caller_set_fuel(_store_or_caller_resource, _fuel), do: error()
+  def store_or_caller_get_fuel(_store_or_caller_resource, _from), do: error()
+  def store_or_caller_set_fuel(_store_or_caller_resource, _fuel, _from), do: error()
 
   def component_new(_store, _component_bytes), do: error()
-  def component_instance_new(_store, _component, _imports), do: error()
-  def component_call_function(_store, _instance, _function_name_path, _params, _from), do: error()
+  def component_instance_new(_store, _component, _imports, _from), do: error()
+
+  def component_call_function(
+        _store,
+        _instance,
+        _function_name_path,
+        _params,
+        _from,
+        _timeout
+      ),
+      do: error()
 
   def component_receive_callback_result(_component_resource, _token, _success, _result),
     do: error()
