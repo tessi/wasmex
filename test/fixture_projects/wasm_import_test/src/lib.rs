@@ -1,3 +1,4 @@
+#[link(wasm_import_module = "env")]
 extern "C" {
     fn imported_sum3(a: u32, b: u32, c: u32) -> u32;
     fn imported_sumf(a: f32, b: f32) -> f32;

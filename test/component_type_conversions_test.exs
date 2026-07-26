@@ -398,7 +398,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
     test "get random bytes with shadowing wasi:random/random in Elixir" do
       component_pid =
         %{
-          "wasi:random/random@0.2.4" => %{
+          "wasi:random/random@0.2.12" => %{
             "get-random-bytes" => {:fn, &List.duplicate(0, &1)}
           }
         }

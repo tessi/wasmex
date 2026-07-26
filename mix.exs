@@ -7,7 +7,7 @@ defmodule Wasmex.MixProject do
     [
       app: :wasmex,
       version: @version,
-      elixir: "~> 1.12",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       name: "wasmex",
@@ -27,10 +27,10 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler_precompiled, "~> 0.8"},
-      {:rustler, "~> 0.37.1"},
-      {:ex_doc, "~> 0.39.1", only: [:dev, :test]},
-      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false}
+      {:rustler_precompiled, "~> 0.9"},
+      {:rustler, "~> 0.38"},
+      {:ex_doc, "~> 0.40.3", only: [:dev, :test]},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false}
     ]
   end
 

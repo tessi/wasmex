@@ -5,15 +5,17 @@ use crate::{
 };
 use rustler::{Error, NifStruct, ResourceArc};
 use std::{collections::HashMap, sync::Mutex};
-use wasi_common::sync::WasiCtxBuilder;
 use wasmtime::{
     AsContext, AsContextMut, Engine, Store, StoreContext, StoreContextMut, StoreLimits,
     StoreLimitsBuilder,
 };
-use wasmtime_wasi::ResourceTable;
-use wasmtime_wasi::WasiCtx;
-use wasmtime_wasi::WasiView;
-use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
+use wasmtime_wasi::{
+    p1::WasiP1Ctx, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
+};
+use wasmtime_wasi_http::{
+    p2::{WasiHttpCtxView, WasiHttpView},
+    WasiHttpCtx,
+};
 
 #[derive(Debug, NifStruct)]
 #[module = "Wasmex.Wasi.PreopenOptions"]
@@ -99,7 +101,7 @@ impl ExStoreLimits {
 }
 
 pub struct StoreData {
-    pub(crate) wasi: Option<wasi_common::WasiCtx>,
+    pub(crate) wasi: Option<WasiP1Ctx>,
     pub(crate) limits: StoreLimits,
 }
 
@@ -111,12 +113,12 @@ pub struct ComponentStoreData {
 }
 
 impl WasiHttpView for ComponentStoreData {
-    fn ctx(&mut self) -> &mut WasiHttpCtx {
-        self.http.as_mut().expect("WasiHttpCtx is not set")
-    }
-
-    fn table(&mut self) -> &mut ResourceTable {
-        &mut self.table
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: self.http.as_mut().expect("WasiHttpCtx is not set"),
+            table: &mut self.table,
+            hooks: Default::default(),
+        }
     }
 }
 
@@ -306,11 +308,7 @@ pub fn new_wasi(
 
     let mut builder = WasiCtxBuilder::new();
 
-    builder
-        .args(&options.args)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?
-        .envs(wasi_env)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    builder.args(&options.args).envs(wasi_env);
 
     add_pipe(options.stdin, &mut builder, |pipe, builder| {
         builder.stdin(pipe);
@@ -322,7 +320,7 @@ pub fn new_wasi(
         builder.stderr(pipe);
     })?;
     wasi_preopen_directories(options.preopen, &mut builder)?;
-    let wasi_ctx = builder.build();
+    let wasi_ctx = builder.build_p1();
 
     let engine = unwrap_engine(engine_resource)?;
     let limits = if let Some(limits) = limits {
@@ -387,18 +385,21 @@ pub fn get_fuel(
     .map_err(|e| rustler::Error::Term(Box::new(format!("Could not get fuel: {e}"))))
 }
 
-fn add_pipe(
+fn add_pipe<F>(
     pipe: Option<ExPipe>,
     builder: &mut WasiCtxBuilder,
-    f: fn(Box<Pipe>, &mut WasiCtxBuilder) -> (),
-) -> Result<(), rustler::Error> {
+    f: F,
+) -> Result<(), rustler::Error>
+where
+    F: FnOnce(Pipe, &mut WasiCtxBuilder),
+{
     if let Some(ExPipe { resource }) = pipe {
         let pipe = resource.pipe.lock().map_err(|_e| {
             rustler::Error::Term(Box::new(
                 "Could not unlock resource as the mutex was poisoned.",
             ))
         })?;
-        let pipe = Box::new(pipe.clone());
+        let pipe = pipe.clone();
         f(pipe, builder);
     }
     Ok(())
@@ -418,12 +419,9 @@ fn preopen_directory(
     preopen: &ExWasiPreopenOptions,
 ) -> Result<(), Error> {
     let path = &preopen.path;
-    let dir = wasi_common::sync::Dir::from_std_file(
-        std::fs::File::open(path).map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?,
-    );
     let guest_path = preopen.alias.as_ref().unwrap_or(path);
     builder
-        .preopened_dir(dir, guest_path)
+        .preopened_dir(path, guest_path, DirPerms::all(), FilePerms::all())
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     Ok(())
 }

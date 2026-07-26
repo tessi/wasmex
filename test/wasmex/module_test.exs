@@ -62,8 +62,6 @@ defmodule Wasmex.ModuleTest do
       %{module: module} = TestHelper.wasm_module()
 
       expected = %{
-        "__data_end" => {:global, %{mutability: :const, type: :i32}},
-        "__heap_base" => {:global, %{mutability: :const, type: :i32}},
         "arity_0" => {:fn, [], [:i32]},
         "bool_casted_to_i32" => {:fn, [], [:i32]},
         "divide" => {:fn, [:i32, :i32], [:i32]},

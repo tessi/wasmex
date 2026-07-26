@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wit-bindgen-rt = { version = "0.41.0", features = ["bitflags"] }
-wasi = "0.14.2"
+wit-bindgen-rt = { version = "0.44.0", features = ["bitflags"] }
+wasi = "0.14.7"
 
 [lib]
 crate-type = ["cdylib"]

@@ -7,8 +7,8 @@ on:
       - main
 
 env:
-  ELIXIR_VERSION: 1.17.3
-  OTP_VERSION: 27.1
+  ELIXIR_VERSION: 1.20.2
+  OTP_VERSION: 29.0.3
   MIX_ENV: test
   WASMEX_BUILD: true
 
@@ -26,7 +26,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
       - id: get-cache-key
         run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}" >> $GITHUB_OUTPUT
@@ -114,7 +114,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
       - name: Add targets
         run: |
@@ -123,11 +123,11 @@ jobs:
           rustup target add wasm32-wasip2
 
       - name: "Install cargo-component"
-        run: cargo install --locked cargo-component
+        run: cargo install --locked cargo-component --version 0.21.1
         shell: bash
 
       - name: "Install wasm-tools"
-        run: cargo install --locked wasm-tools
+        run: cargo install --locked wasm-tools --version 1.254.0
         shell: bash
 
       - uses: actions/cache@v4

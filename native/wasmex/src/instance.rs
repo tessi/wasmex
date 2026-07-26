@@ -75,8 +75,10 @@ fn link_and_create_instance(
     let mut linker = Linker::new(store_or_caller.engine());
     if let Some(_wasi_ctx) = &store_or_caller.data().wasi {
         linker.allow_shadowing(true);
-        wasi_common::sync::add_to_linker(&mut linker, |s: &mut StoreData| s.wasi.as_mut().unwrap())
-            .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+        wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s: &mut StoreData| {
+            s.wasi.as_mut().unwrap()
+        })
+        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     }
 
     link_imports(store_or_caller.engine(), &mut linker, imports)?;
@@ -226,7 +228,7 @@ pub fn call_exported_function(
     let function_params = thread_env.save(params);
     let from = thread_env.save(from);
 
-    TOKIO_RUNTIME.spawn(async move {
+    TOKIO_RUNTIME.spawn_blocking(move || {
         // Execute function and get the result
         let result = execute_function(
             &mut thread_env,
@@ -433,11 +435,7 @@ pub fn decode_function_param_terms(
     }
 
     let mut function_params = Vec::<WasmValue>::with_capacity(params.len());
-    for (nth, (param, given_param)) in params
-        .iter()
-        .zip(function_param_terms.into_iter())
-        .enumerate()
-    {
+    for (nth, (param, given_param)) in params.iter().zip(function_param_terms).enumerate() {
         let value = match (
             decode_term_as_wasm_value(param.clone(), given_param),
             given_param.get_type(),
