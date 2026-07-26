@@ -247,7 +247,7 @@ defmodule Wasmex.Components do
 
   @type function_name_or_path :: String.t() | list(String.t()) | tuple() | atom() | list(atom())
 
-  @spec call_function(GenServer.server(), function_name_or_path(), list(number()), pos_integer()) ::
+  @spec call_function(GenServer.server(), function_name_or_path(), list(any()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name_or_path, params, timeout \\ 5000) do
     GenServer.call(pid, {:call_function, name_or_path, params}, timeout)
