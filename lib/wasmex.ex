@@ -307,7 +307,7 @@ defmodule Wasmex do
       iex> Wasmex.function_exists(pid, "something_else")
       false
   """
-  @spec function_exists(pid(), String.t()) :: boolean()
+  @spec function_exists(GenServer.server(), String.t()) :: boolean()
   def function_exists(pid, name) do
     GenServer.call(pid, {:exported_function_exists, Wasmex.Utils.stringify(name)})
   end
@@ -401,7 +401,7 @@ defmodule Wasmex do
 
   In the example above, we specify a timeout of 10 seconds.
   """
-  @spec call_function(pid(), String.t() | atom(), list(number()), pos_integer()) ::
+  @spec call_function(GenServer.server(), String.t() | atom(), list(number()), pos_integer()) ::
           {:ok, list(number())} | {:error, any()}
   def call_function(pid, name, params, timeout \\ 5000) do
     GenServer.call(pid, {:call_function, Wasmex.Utils.stringify(name), params}, timeout)
@@ -415,7 +415,7 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.Memory{}} = Wasmex.memory(pid)
   """
-  @spec memory(pid()) :: {:ok, Wasmex.Memory.t()} | {:error, any()}
+  @spec memory(GenServer.server()) :: {:ok, Wasmex.Memory.t()} | {:error, any()}
   def memory(pid), do: GenServer.call(pid, {:memory})
 
   @doc ~S"""
@@ -426,7 +426,7 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.StoreOrCaller{}} = Wasmex.store(pid)
   """
-  @spec store(pid()) :: {:ok, Wasmex.StoreOrCaller.t()} | {:error, any()}
+  @spec store(GenServer.server()) :: {:ok, Wasmex.StoreOrCaller.t()} | {:error, any()}
   def store(pid), do: GenServer.call(pid, {:store})
 
   @doc ~S"""
@@ -437,7 +437,7 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.Module{}} = Wasmex.module(pid)
   """
-  @spec module(pid()) :: {:ok, Wasmex.Module.t()} | {:error, any()}
+  @spec module(GenServer.server()) :: {:ok, Wasmex.Module.t()} | {:error, any()}
   def module(pid), do: GenServer.call(pid, {:module})
 
   @doc ~S"""
@@ -448,7 +448,7 @@ defmodule Wasmex do
       iex> {:ok, pid} = Wasmex.start_link(%{bytes: File.read!(TestHelper.wasm_test_file_path())})
       iex> {:ok, %Wasmex.Instance{}} = Wasmex.instance(pid)
   """
-  @spec instance(pid()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
+  @spec instance(GenServer.server()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
   def instance(pid), do: GenServer.call(pid, {:instance})
 
   # Server
