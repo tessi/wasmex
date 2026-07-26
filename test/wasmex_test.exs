@@ -4,6 +4,16 @@ defmodule WasmexTest do
 
   doctest Wasmex
 
+  test "register by name" do
+    %{module: module, store: store} = TestHelper.wasm_module()
+
+    _pid =
+      start_supervised!({Wasmex, %{store: store, module: module, name: WasmexTest.Registered}})
+
+    assert Wasmex.function_exists(WasmexTest.Registered, :arity_0)
+    assert {:ok, [42]} = Wasmex.call_function(WasmexTest.Registered, :arity_0, [])
+  end
+
   defp start_wasmex_gen_server(_context) do
     %{module: module, store: store} = TestHelper.wasm_module()
     pid = start_supervised!({Wasmex, %{store: store, module: module}})

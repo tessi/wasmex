@@ -16,6 +16,10 @@ Types of changes
 
 ## [Unreleased]
 
+### Added
+
+- Added support for registering core Wasmex GenServers with the `:name` option.
+
 ### Fixed
 
 - Corrected public typespecs to accept registered GenServer names and to reflect the full range of WebAssembly component parameter and return values. Thanks @Sorixelle (#971)

@@ -39,6 +39,13 @@ defmodule Wasmex do
       iex> bytes = File.read!(TestHelper.wasm_test_file_path())
       iex> {:ok, _pid} = Wasmex.start_link(%{bytes: bytes})
 
+  A process name can be registered with the `:name` option:
+
+      iex> bytes = File.read!(TestHelper.wasm_test_file_path())
+      iex> {:ok, _pid} = Wasmex.start_link(%{bytes: bytes, name: MyWasm})
+      iex> Wasmex.call_function(MyWasm, "sum", [50, -8])
+      {:ok, [42]}
+
   Alternatively, a precompiled `Wasmex.Module` can be passed with its `Wasmex.Store`:
 
       iex> {:ok, store} = Wasmex.Store.new()
@@ -254,13 +261,16 @@ defmodule Wasmex do
       |> Enum.uniq_by(&elem(&1, 0))
       |> Enum.map(&build_compiled_links(&1, store))
 
-    GenServer.start_link(__MODULE__, %{
+    state = %{
       store: store,
       module: module,
       instance: instance,
       links: compiled_links,
       imports: imports
-    })
+    }
+
+    gen_server_opts = opts |> Map.take([:name]) |> Map.to_list()
+    GenServer.start_link(__MODULE__, state, gen_server_opts)
   end
 
   defp flatten_links(links) do
