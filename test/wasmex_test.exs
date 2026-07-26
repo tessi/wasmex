@@ -319,6 +319,8 @@ defmodule WasmexTest do
       {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{consume_fuel: true})
       {:ok, store} = Wasmex.Store.new(nil, engine)
       bytes = File.read!(TestHelper.wasm_test_file_path())
+      # Instantiation may execute a compiler-generated start function.
+      Wasmex.StoreOrCaller.set_fuel(store, 1_000_000_000)
       pid = start_supervised!({Wasmex, %{store: store, bytes: bytes}})
       Wasmex.StoreOrCaller.set_fuel(store, 2)
 
@@ -467,6 +469,74 @@ defmodule WasmexTest do
       pid = start_supervised!({Wasmex, %{store: store, module: module, imports: imports}})
       assert Wasmex.call_function(pid, :call_import, [1, 2]) == {:ok, [3]}
     end
+
+    test "using globals and export lookup through the scoped Caller" do
+      wat = """
+      (module
+        (import "env" "inspect_instance" (func $inspect_instance (result i32)))
+        (global $count (export "count") (mut i32) (i32.const 1))
+
+        (func $call_import (export "call_import") (result i32)
+          call $inspect_instance
+        )
+      )
+      """
+
+      imports = %{
+        env: %{
+          inspect_instance:
+            {:fn, [], [:i32],
+             fn %{instance: instance, caller: caller} ->
+               assert Wasmex.Instance.function_export_exists(caller, instance, "call_import")
+               assert {:ok, 1} = Wasmex.Instance.get_global_value(caller, instance, "count")
+               assert :ok = Wasmex.Instance.set_global_value(caller, instance, "count", 42)
+               42
+             end}
+        }
+      }
+
+      {:ok, pid} = Wasmex.start_link(%{bytes: wat, imports: imports})
+
+      assert {:ok, [42]} = Wasmex.call_function(pid, :call_import, [])
+      assert {:ok, store} = Wasmex.store(pid)
+      assert {:ok, instance} = Wasmex.instance(pid)
+      assert {:ok, 42} = Wasmex.Instance.get_global_value(store, instance, "count")
+    end
+
+    test "instantiating another module through the scoped Caller" do
+      wat = """
+      (module
+        (import "env" "create_instance" (func $create_instance (result i32)))
+        (func (export "run") (result i32)
+          call $create_instance
+        )
+      )
+      """
+
+      child_wat = """
+      (module
+        (func (export "answer") (result i32)
+          i32.const 42
+        )
+      )
+      """
+
+      imports = %{
+        env: %{
+          create_instance:
+            {:fn, [], [:i32],
+             fn %{caller: caller} ->
+               assert {:ok, module} = Wasmex.Module.compile(caller, child_wat)
+               assert {:ok, instance} = Wasmex.Instance.new(caller, module, %{})
+               assert Wasmex.Instance.function_export_exists(caller, instance, "answer")
+               1
+             end}
+        }
+      }
+
+      {:ok, pid} = Wasmex.start_link(%{bytes: wat, imports: imports})
+      assert {:ok, [1]} = Wasmex.call_function(pid, :run, [])
+    end
   end
 
   describe "unsafe_deserialize && serialize modules" do
@@ -512,7 +582,7 @@ defmodule WasmexTest do
     end
 
     test "high concurrency - 1000 concurrent WebAssembly function calls" do
-      # This test demonstrates Tokio's efficiency with green threads vs OS threads
+      # This test exercises the Store executor without creating one OS thread per call.
       wat = """
       (module
         (func $add (export "add") (param i32 i32) (result i32)
@@ -617,6 +687,26 @@ defmodule WasmexTest do
 
       # Wait for WASM tasks to complete
       Task.await_many(wasm_tasks, 10_000)
+    end
+
+    test "a timed-out infinite call is cancelled and releases its Store" do
+      wat = """
+      (module
+        (func $run_forever (export "run_forever")
+          (loop $forever
+            br $forever
+          )
+        )
+        (func $identity (export "identity") (param i32) (result i32)
+          local.get 0
+        )
+      )
+      """
+
+      {:ok, pid} = Wasmex.start_link(%{bytes: wat})
+
+      assert catch_exit(Wasmex.call_function(pid, :run_forever, [], 50))
+      assert {:ok, [42]} = Wasmex.call_function(pid, :identity, [42], 1_000)
     end
 
     test "error handling in highly concurrent scenario" do
