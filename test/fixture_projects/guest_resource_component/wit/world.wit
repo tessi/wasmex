@@ -1,0 +1,36 @@
+package wasmex:resources@1.2.3;
+
+interface counters {
+    resource accumulator {
+        constructor(initial: u32);
+        with-value: static func(value: u32) -> accumulator;
+        add-other: func(other: borrow<accumulator>) -> u32;
+        take-other: func(other: accumulator) -> u32;
+        take-other-with: func(other: accumulator, add: u32) -> u32;
+        take-two: func(first: accumulator, second: accumulator) -> u32;
+        make-label: func(text: string) -> label;
+        maybe-label: func(text: option<string>) -> option<label>;
+        hang: func();
+        increment: func() -> u32;
+        get-value: func() -> u32;
+        reset: func(value: u32);
+        is-in-range: func(a: u32, b: u32) -> bool;
+    }
+
+    resource label {
+        constructor(text: string);
+        text: func() -> string;
+    }
+
+    resource factory {
+        make-accumulator: static func(value: u32) -> accumulator;
+        make-label: static func(text: string) -> label;
+        make-pair: static func(value: u32, text: string) -> tuple<accumulator, label>;
+        drop-count: static func() -> u32;
+        reset-drop-count: static func();
+    }
+}
+
+world example {
+    export counters;
+}

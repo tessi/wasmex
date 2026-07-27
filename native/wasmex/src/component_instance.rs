@@ -1,12 +1,12 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rustler::env::SavedTerm;
 use wit_parser::{Function, Resolve, WorldItem};
 
 use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
-use crate::component::ComponentResource;
+use crate::component::{ComponentResource, ParsedComponent};
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 use rustler::NifResult;
@@ -42,6 +42,7 @@ impl rustler::Resource for ComponentCallbackTokenResource {}
 
 pub struct ComponentInstanceResource {
     pub inner: Instance,
+    pub parsed: Arc<ParsedComponent>,
 }
 
 #[rustler::resource_impl()]
@@ -64,6 +65,7 @@ pub fn new_instance(
         })?
         .clone();
     let callback_pid = imports.get_env().pid();
+    let parsed = component_resource.parsed.clone();
     let term_env = OwnedEnv::new();
     let imports = term_env.save(imports);
     let executor = store_resource.executor()?;
@@ -82,7 +84,12 @@ pub fn new_instance(
             Ok(linker) => linker
                 .instantiate_async(&mut store, &component)
                 .await
-                .map(|instance| ResourceArc::new(ComponentInstanceResource { inner: instance }))
+                .map(|instance| {
+                    ResourceArc::new(ComponentInstanceResource {
+                        inner: instance,
+                        parsed,
+                    })
+                })
                 .map_err(|error| error.to_string()),
             Err(error) => Err(error),
         };

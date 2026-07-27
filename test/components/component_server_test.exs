@@ -3,6 +3,7 @@ defmodule Wasmex.Components.GenServerTest do
   alias Wasmex.Wasi.WasiP2Options
 
   test "the low-level component call keeps its optional timeout" do
+    assert Code.ensure_loaded?(Wasmex.Components.Instance)
     assert function_exported?(Wasmex.Components.Instance, :call_function, 4)
     assert function_exported?(Wasmex.Components.Instance, :call_function, 5)
   end

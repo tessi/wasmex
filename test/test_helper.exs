@@ -2,6 +2,7 @@ defmodule TestHelper do
   @fixture_project_dir "#{Path.dirname(__ENV__.file)}/fixture_projects"
   @component_type_conversions_source_dir "#{@fixture_project_dir}/component_type_conversions"
   @component_exported_interface_source_dir "#{@fixture_project_dir}/component_exported_interface"
+  @guest_resource_component_source_dir "#{@fixture_project_dir}/guest_resource_component"
   @wasm_test_source_dir "#{@fixture_project_dir}/wasm_test"
   @wasm_link_test_source_dir "#{@fixture_project_dir}/wasm_link_test"
   @wasm_link_dep_test_source_dir "#{@fixture_project_dir}/wasm_link_dep_test"
@@ -16,6 +17,13 @@ defmodule TestHelper do
   def component_exported_interface_file_path,
     do:
       "#{@component_exported_interface_source_dir}/target/wasm32-wasip1/debug/exported_interface.wasm"
+
+  def guest_resource_component_file_path,
+    do:
+      "#{@guest_resource_component_source_dir}/target/wasm32-wasip2/release/guest_resource_component.wasm"
+
+  def guest_resource_component_wit_path,
+    do: "#{@guest_resource_component_source_dir}/wit/world.wit"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -60,6 +68,12 @@ defmodule TestHelper do
           parallelism: true
         )
     end)
+
+    {_, 0} =
+      System.cmd("cargo", ["build", "--target=wasm32-wasip2", "--release"],
+        cd: @guest_resource_component_source_dir,
+        stderr_to_stdout: true
+      )
 
     {_, 0} =
       System.cmd(
