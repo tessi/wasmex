@@ -4,11 +4,20 @@ on:
   pull_request:
     paths:
       - "native/wasmex/**"
+      - ".github/workflows/rust-ci.yml"
   push:
     branches:
       - main
     paths:
       - "native/wasmex/**"
+      - ".github/workflows/rust-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -18,25 +27,25 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - uses: actions/cache@v4
+      - name: Cache Rust build dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: rust-cargo-${{ hashFiles('**/Cargo.lock') }}
+          workspaces: native/wasmex
 
-      - run: cargo fmt -- --check
+      - name: Check formatting
+        run: cargo fmt -- --check
 
-      - run: |
+      - name: Run tests
+        run: cargo test --all-targets --all-features
+
+      - name: Run Clippy
+        run: |
           touch src/lib.rs
           # need to disable extra_unused_lifetimes clippy because of rustler lifetime issues
           # https://github.com/rusterlium/rustler/issues/428

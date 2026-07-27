@@ -107,7 +107,8 @@ If you plan to change something on the Rust part of this project, set the follow
 
 I´m looking forward to your contributions. Please open a PR containing the motivation of your change. If it is a bigger change or refactoring, consider creating an issue first. We can discuss changes there first which might safe us time down the road :)
 
-Any changes should be covered by tests, they can be run with `mix test`.
+Run `WASMEX_BUILD=true mix test` for the Elixir integration suite and
+`cargo test --manifest-path native/wasmex/Cargo.toml --all-targets --all-features` for the Rust unit tests.
 In addition to tests, we expect the formatters and linters (`cargo fmt`, `cargo clippy`, `mix format`, `mix credo`) to pass.
 
 ## License

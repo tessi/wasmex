@@ -9,6 +9,14 @@ on:
 env:
   MIX_ENV: test
   WASMEX_BUILD: true
+  CARGO_COMPONENT_VERSION: 0.21.1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -26,8 +34,10 @@ jobs:
             elixir: 1.18.4
           - otp: 29.0.3
             elixir: 1.19.5
+          - otp: 29.0.3
+            elixir: 1.20.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
@@ -37,16 +47,38 @@ jobs:
         with:
           toolchain: 1.97.1
 
+      - name: Install cargo-component
+        uses: taiki-e/install-action@v2.79.11
+        with:
+          tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
+
       - name: Add targets
         run: |
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasip1
           rustup target add wasm32-wasip2
 
-      - name: "Install cargo-component"
-        run: cargo install --locked cargo-component --version 0.21.1
-        shell: bash
+      - name: Cache Rust build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: elixir-tests
+          add-job-id-key: false
+          cache-bin: false
+          save-if: ${{ matrix.otp == '28.5.0.3' && matrix.elixir == '1.20.2' }}
+          workspaces: |
+            native/wasmex
+            test/fixture_projects/component_exported_interface
+            test/fixture_projects/component_type_conversions
+            test/fixture_projects/guest_resource_component
+            test/fixture_projects/wasi_test
+            test/fixture_projects/wasm_import_test
+            test/fixture_projects/wasm_link_dep_test
+            test/fixture_projects/wasm_link_import_test
+            test/fixture_projects/wasm_link_test
+            test/fixture_projects/wasm_test
 
-      - run: mix do deps.get, deps.compile
+      - name: Install Mix dependencies
+        run: mix do deps.get + deps.compile
 
-      - run: mix test
+      - name: Run tests
+        run: mix test

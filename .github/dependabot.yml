@@ -1,5 +1,15 @@
 version: 2
 updates:
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: weekly
+  groups:
+    github-actions:
+      patterns:
+      - "*"
+  reviewers:
+  - tessi
 - package-ecosystem: mix
   directory: "/"
   schedule:

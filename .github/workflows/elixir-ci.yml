@@ -11,6 +11,14 @@ env:
   OTP_VERSION: 29.0.3
   MIX_ENV: test
   WASMEX_BUILD: true
+  CARGO_COMPONENT_VERSION: 0.21.1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deps:
@@ -18,7 +26,7 @@ jobs:
     outputs:
       deps-cache-key: ${{ steps.get-cache-key.outputs.key }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -31,7 +39,7 @@ jobs:
       - id: get-cache-key
         run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: cache-deps
         with:
           path: |
@@ -39,20 +47,20 @@ jobs:
             _build
           key: ${{ steps.get-cache-key.outputs.key }}
 
-      - run: mix do deps.get, deps.compile
+      - run: mix do deps.get + deps.compile
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
   credo:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: cache-deps
         with:
           path: |
@@ -63,10 +71,9 @@ jobs:
       - run: mix credo
 
   format:
-    needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -78,13 +85,13 @@ jobs:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: cache-deps
         with:
           path: |
@@ -92,19 +99,42 @@ jobs:
             _build
           key: ${{ needs.deps.outputs.deps-cache-key }}
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+
+      - name: Restore Rust build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: elixir-tests
+          add-job-id-key: false
+          cache-bin: false
+          save-if: false
+          workspaces: |
+            native/wasmex
+            test/fixture_projects/component_exported_interface
+            test/fixture_projects/component_type_conversions
+            test/fixture_projects/guest_resource_component
+            test/fixture_projects/wasi_test
+            test/fixture_projects/wasm_import_test
+            test/fixture_projects/wasm_link_dep_test
+            test/fixture_projects/wasm_link_import_test
+            test/fixture_projects/wasm_link_test
+            test/fixture_projects/wasm_test
+
       - run: mix docs
 
   test:
     needs: deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: cache-deps
         with:
           path: |
@@ -122,22 +152,28 @@ jobs:
           rustup target add wasm32-wasip1
           rustup target add wasm32-wasip2
 
-      - name: "Install cargo-component"
-        run: cargo install --locked cargo-component --version 0.21.1
-        shell: bash
-
-      - name: "Install wasm-tools"
-        run: cargo install --locked wasm-tools --version 1.254.0
-        shell: bash
-
-      - uses: actions/cache@v4
+      - name: Cache Rust build dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: elixir-cargo-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: elixir-tests
+          add-job-id-key: false
+          cache-bin: false
+          workspaces: |
+            native/wasmex
+            test/fixture_projects/component_exported_interface
+            test/fixture_projects/component_type_conversions
+            test/fixture_projects/guest_resource_component
+            test/fixture_projects/wasi_test
+            test/fixture_projects/wasm_import_test
+            test/fixture_projects/wasm_link_dep_test
+            test/fixture_projects/wasm_link_import_test
+            test/fixture_projects/wasm_link_test
+            test/fixture_projects/wasm_test
 
-      - run: mix test
+      - name: Install cargo-component
+        uses: taiki-e/install-action@v2.79.11
+        with:
+          tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
+
+      - name: Run tests
+        run: mix test
