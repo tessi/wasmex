@@ -2,6 +2,7 @@ pub mod async_reply;
 pub mod atoms;
 pub mod caller;
 pub mod component;
+pub mod component_guest_resource;
 pub mod component_instance;
 mod component_type_conversion;
 pub mod engine;

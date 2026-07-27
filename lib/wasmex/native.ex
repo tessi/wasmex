@@ -121,10 +121,38 @@ defmodule Wasmex.Native do
       ),
       do: error()
 
+  def component_guest_resource_new(_store, _instance, _resource_path, _params, _from, _timeout),
+    do: error()
+
+  def component_guest_resource_call(
+        _resource,
+        _function_kind,
+        _function_name,
+        _params,
+        _from,
+        _timeout
+      ),
+      do: error()
+
+  def component_guest_resource_call_static(
+        _store,
+        _instance,
+        _resource_path,
+        _function_kind,
+        _function_name,
+        _params,
+        _from,
+        _timeout
+      ),
+      do: error()
+
+  def component_guest_resource_drop(_resource, _from, _timeout), do: error()
+
   def component_receive_callback_result(_component_resource, _token, _success, _result),
     do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
+  def wit_exported_resources(_path, _wit, _world), do: error()
 
   def wat_to_wasm(_wat), do: error()
 

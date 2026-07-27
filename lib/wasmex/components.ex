@@ -131,10 +131,26 @@ defmodule Wasmex.Components do
       {:error, 404}  # error case
       ```
 
-  ### Currently Unsupported Types
+  ### Guest Resources
 
-  The following WIT type is not yet supported:
-  - Resources
+  Guest-owned resources exported by a component can be constructed and called
+  with `Wasmex.Components.GuestResource`. It can generate an arity-aware API
+  from WIT:
+
+  ```elixir
+  defmodule Counter do
+    use Wasmex.Components.GuestResource,
+      wit: File.read!("counter.wit"),
+      resource: "counter"
+  end
+
+  {:ok, counter} = Counter.new(component_pid, 42)
+  {:ok, value} = Counter.get_value(counter)
+  :ok = Counter.drop(counter)
+  ```
+
+  Resource values passed through arbitrary freestanding component functions
+  and host-owned imported resources are not yet supported.
 
   Support for the Component Model should be considered beta quality.
 
@@ -271,6 +287,14 @@ defmodule Wasmex.Components do
     )
   end
 
+  @doc """
+  Returns the low-level component instance owned by a component server.
+
+  Guest resource APIs accept either this value or the component server directly.
+  """
+  @spec instance(GenServer.server()) :: Wasmex.Components.Instance.t()
+  def instance(pid), do: GenServer.call(pid, :instance)
+
   @impl true
   def init(%{store: store, component: component, imports: imports} = state) do
     case Wasmex.Components.Instance.new(store, component, imports) do
@@ -290,6 +314,10 @@ defmodule Wasmex.Components do
       ) do
     :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
     {:noreply, state}
+  end
+
+  def handle_call(:instance, _from, %{instance: instance} = state) do
+    {:reply, instance, state}
   end
 
   @impl true

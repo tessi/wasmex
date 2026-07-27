@@ -7,12 +7,12 @@ use wit_parser::decoding::DecodedWasm;
 use wit_parser::Resolve;
 use wit_parser::WorldId;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use wasmtime::component::Component;
 
 pub struct ComponentResource {
     pub inner: Mutex<Component>,
-    pub parsed: ParsedComponent,
+    pub parsed: Arc<ParsedComponent>,
 }
 
 pub struct ParsedComponent {
@@ -44,6 +44,6 @@ pub fn new_component(
 
     Ok(ResourceArc::new(ComponentResource {
         inner: Mutex::new(component),
-        parsed: parsed_component,
+        parsed: Arc::new(parsed_component),
     }))
 }

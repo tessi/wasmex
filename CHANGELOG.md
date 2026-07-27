@@ -19,6 +19,7 @@ Types of changes
 ### Added
 
 - Added support for registering core Wasmex GenServers with the `:name` option.
+- Added guest-owned Component Model resources with WIT-generated APIs, ownership-aware arguments and results, timeouts, static functions, and explicit cleanup.
 
 ### Changed
 
