@@ -99,10 +99,7 @@ jobs:
             _build
           key: ${{ needs.deps.outputs.deps-cache-key }}
 
-      - name: Generate docs
-        run: mix docs
-        env:
-          WASMEX_BUILD: false
+      - run: mix docs
 
   test:
     needs: deps
