@@ -99,6 +99,29 @@ jobs:
             _build
           key: ${{ needs.deps.outputs.deps-cache-key }}
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+
+      - name: Restore Rust build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: elixir-tests
+          add-job-id-key: false
+          cache-bin: false
+          save-if: false
+          workspaces: |
+            native/wasmex
+            test/fixture_projects/component_exported_interface
+            test/fixture_projects/component_type_conversions
+            test/fixture_projects/guest_resource_component
+            test/fixture_projects/wasi_test
+            test/fixture_projects/wasm_import_test
+            test/fixture_projects/wasm_link_dep_test
+            test/fixture_projects/wasm_link_import_test
+            test/fixture_projects/wasm_link_test
+            test/fixture_projects/wasm_test
+
       - run: mix docs
 
   test:
