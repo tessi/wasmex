@@ -41,6 +41,7 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           rustup target add wasm32-wasip1
+          rustup target add wasm32-wasip2
 
       - name: "Install cargo-component"
         run: cargo install --locked cargo-component --version 0.21.1
