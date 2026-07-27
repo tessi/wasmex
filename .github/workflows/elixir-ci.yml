@@ -99,7 +99,10 @@ jobs:
             _build
           key: ${{ needs.deps.outputs.deps-cache-key }}
 
-      - run: mix docs
+      - name: Generate docs
+        run: mix docs
+        env:
+          WASMEX_BUILD: false
 
   test:
     needs: deps
@@ -147,16 +150,10 @@ jobs:
             test/fixture_projects/wasm_link_test
             test/fixture_projects/wasm_test
 
-      - name: Cache cargo-component
-        uses: actions/cache@v6
-        id: cargo-component
-        with:
-          path: ~/.cargo/bin/cargo-component
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-component-${{ env.CARGO_COMPONENT_VERSION }}
-
       - name: Install cargo-component
-        if: steps.cargo-component.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-component --version "${CARGO_COMPONENT_VERSION}"
+        uses: taiki-e/install-action@v2.79.11
+        with:
+          tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 
       - name: Run tests
         run: mix test

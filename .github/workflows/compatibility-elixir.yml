@@ -19,28 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cargo-component:
-    name: Prepare cargo-component
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cache cargo-component
-        uses: actions/cache@v6
-        id: cargo-component
-        with:
-          path: ~/.cargo/bin/cargo-component
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-component-${{ env.CARGO_COMPONENT_VERSION }}
-
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.cargo-component.outputs.cache-hit != 'true'
-        with:
-          toolchain: 1.97.1
-
-      - name: Install cargo-component
-        if: steps.cargo-component.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-component --version "${CARGO_COMPONENT_VERSION}"
-
   test:
-    needs: cargo-component
     runs-on: ubuntu-latest
     name: OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }}
     strategy:
@@ -68,6 +47,11 @@ jobs:
         with:
           toolchain: 1.97.1
 
+      - name: Install cargo-component
+        uses: taiki-e/install-action@v2.79.11
+        with:
+          tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
+
       - name: Add targets
         run: |
           rustup target add wasm32-unknown-unknown
@@ -92,13 +76,6 @@ jobs:
             test/fixture_projects/wasm_link_import_test
             test/fixture_projects/wasm_link_test
             test/fixture_projects/wasm_test
-
-      - name: Restore cargo-component
-        uses: actions/cache/restore@v6
-        with:
-          path: ~/.cargo/bin/cargo-component
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-component-${{ env.CARGO_COMPONENT_VERSION }}
-          fail-on-cache-miss: true
 
       - name: Install Mix dependencies
         run: mix do deps.get + deps.compile
