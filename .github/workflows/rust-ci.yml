@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "native/wasmex/**"
+      - ".github/workflows/rust-ci.yml"
   push:
     branches:
       - main
     paths:
       - "native/wasmex/**"
+      - ".github/workflows/rust-ci.yml"
 
 permissions:
   contents: read
