@@ -1,5 +1,5 @@
 use rustler::{Encoder, Error, NifResult, Term};
-use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldItem, WorldKey};
+use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldId, WorldItem, WorldKey};
 
 #[rustler::nif(name = "wit_exported_functions")]
 pub fn exported_functions(env: rustler::Env, path: String, wit: String) -> NifResult<Term> {
@@ -28,6 +28,45 @@ pub fn exported_resources<'a>(
     wit: String,
     world: Option<String>,
 ) -> NifResult<Term<'a>> {
+    resources(env, path, wit, world, false)
+}
+
+#[rustler::nif(name = "wit_imported_resources")]
+pub fn imported_resources<'a>(
+    env: rustler::Env<'a>,
+    path: String,
+    wit: String,
+    world: Option<String>,
+) -> NifResult<Term<'a>> {
+    resources(env, path, wit, world, true)
+}
+
+#[rustler::nif(name = "wit_imported_resources_from_path", schedule = "DirtyIo")]
+pub fn imported_resources_from_path<'a>(
+    env: rustler::Env<'a>,
+    path: String,
+    world: Option<String>,
+) -> NifResult<Term<'a>> {
+    let mut resolve = Resolve::new();
+    let (package_id, _) = resolve.push_path(&path).map_err(|error| {
+        Error::Term(Box::new(format!(
+            "Failed to parse WIT path `{path}`: {error}"
+        )))
+    })?;
+    let world_id = resolve
+        .select_world(&[package_id], world.as_deref())
+        .map_err(|error| Error::Term(Box::new(format!("Failed to select world: {error}"))))?;
+
+    resources_for_world(env, &resolve, world_id, true)
+}
+
+fn resources<'a>(
+    env: rustler::Env<'a>,
+    path: String,
+    wit: String,
+    world: Option<String>,
+    imported: bool,
+) -> NifResult<Term<'a>> {
     let mut resolve = Resolve::new();
     let package_id = resolve.push_str(&path, &wit).map_err(|error| {
         Error::Term(Box::new(format!(
@@ -37,9 +76,25 @@ pub fn exported_resources<'a>(
     let world_id = resolve
         .select_world(&[package_id], world.as_deref())
         .map_err(|error| Error::Term(Box::new(format!("Failed to select world: {error}"))))?;
+
+    resources_for_world(env, &resolve, world_id, imported)
+}
+
+fn resources_for_world<'a>(
+    env: rustler::Env<'a>,
+    resolve: &Resolve,
+    world_id: WorldId,
+    imported: bool,
+) -> NifResult<Term<'a>> {
     let mut resources = Vec::new();
 
-    for (world_key, world_item) in &resolve.worlds[world_id].exports {
+    let world_items = if imported {
+        &resolve.worlds[world_id].imports
+    } else {
+        &resolve.worlds[world_id].exports
+    };
+
+    for (world_key, world_item) in world_items {
         let WorldItem::Interface {
             id: interface_id, ..
         } = world_item
@@ -54,12 +109,8 @@ pub fn exported_resources<'a>(
                 WorldKey::Name(name) => Some(name.as_str()),
                 WorldKey::Interface(_) => None,
             })
-            .ok_or_else(|| {
-                Error::Term(Box::new(
-                    "An exported resource interface has no name".to_string(),
-                ))
-            })?;
-        let export_name = interface_export_name(&resolve, world_key, *interface_id)?;
+            .ok_or_else(|| Error::Term(Box::new("A resource interface has no name".to_string())))?;
+        let interface_path = interface_world_name(resolve, world_key, *interface_id)?;
 
         for (resource_name, resource_type_id) in &interface.types {
             if !matches!(resolve.types[*resource_type_id].kind, TypeDefKind::Resource) {
@@ -96,6 +147,7 @@ pub fn exported_resources<'a>(
                     };
                     Some((
                         function.item_name().to_string(),
+                        function.name.clone(),
                         kind.to_string(),
                         arity,
                         has_return,
@@ -107,7 +159,7 @@ pub fn exported_resources<'a>(
                 (
                     resource_name.clone(),
                     interface_name.to_string(),
-                    export_name.clone(),
+                    interface_path.clone(),
                     functions,
                 )
                     .encode(env),
@@ -118,7 +170,7 @@ pub fn exported_resources<'a>(
     Ok(resources.encode(env))
 }
 
-fn interface_export_name(
+fn interface_world_name(
     resolve: &Resolve,
     world_key: &WorldKey,
     interface_id: wit_parser::InterfaceId,
@@ -128,14 +180,13 @@ fn interface_export_name(
     }
 
     let interface = &resolve.interfaces[interface_id];
-    let interface_name = interface.name.as_deref().ok_or_else(|| {
-        Error::Term(Box::new(
-            "An exported resource interface has no name".to_string(),
-        ))
-    })?;
+    let interface_name = interface
+        .name
+        .as_deref()
+        .ok_or_else(|| Error::Term(Box::new("A resource interface has no name".to_string())))?;
     let package_id = interface.package.ok_or_else(|| {
         Error::Term(Box::new(format!(
-            "Exported interface `{interface_name}` does not belong to a package"
+            "Resource interface `{interface_name}` does not belong to a package"
         )))
     })?;
     Ok(resolve.packages[package_id]

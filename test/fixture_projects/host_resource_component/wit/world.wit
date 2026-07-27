@@ -1,0 +1,34 @@
+package wasmex:host-resources@1.0.0;
+
+interface counters {
+    resource counter {
+        constructor(initial: u32);
+        with-value: static func(value: u32) -> counter;
+        make-pair: static func(first: u32, second: u32) -> tuple<counter, counter>;
+        maybe: static func(value: option<u32>) -> option<counter>;
+        increment: func() -> u32;
+        value: func() -> u32;
+        add-other: func(other: borrow<counter>) -> u32;
+        take-other: func(other: counter) -> u32;
+    }
+
+    resource label {
+        constructor(text: string);
+        text: func() -> string;
+    }
+}
+
+interface tests {
+    run-basic: func(initial: u32) -> u32;
+    run-borrow: func(first: u32, second: u32) -> u32;
+    run-take: func(first: u32, second: u32) -> u32;
+    run-static: func(value: u32) -> u32;
+    run-pair: func(first: u32, second: u32) -> u32;
+    run-maybe: func(value: option<u32>) -> option<u32>;
+    run-label: func(text: string) -> string;
+}
+
+world example {
+    import counters;
+    export tests;
+}

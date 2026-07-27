@@ -3,6 +3,8 @@ defmodule TestHelper do
   @component_type_conversions_source_dir "#{@fixture_project_dir}/component_type_conversions"
   @component_exported_interface_source_dir "#{@fixture_project_dir}/component_exported_interface"
   @guest_resource_component_source_dir "#{@fixture_project_dir}/guest_resource_component"
+  @host_resource_component_source_dir "#{@fixture_project_dir}/host_resource_component"
+  @wasi_host_resource_component_source_dir "#{@fixture_project_dir}/wasi_host_resource_component"
   @wasm_test_source_dir "#{@fixture_project_dir}/wasm_test"
   @wasm_link_test_source_dir "#{@fixture_project_dir}/wasm_link_test"
   @wasm_link_dep_test_source_dir "#{@fixture_project_dir}/wasm_link_dep_test"
@@ -24,6 +26,20 @@ defmodule TestHelper do
 
   def guest_resource_component_wit_path,
     do: "#{@guest_resource_component_source_dir}/wit/world.wit"
+
+  def host_resource_component_file_path,
+    do:
+      "#{@host_resource_component_source_dir}/target/wasm32-wasip2/release/host_resource_component.wasm"
+
+  def host_resource_component_wit_path,
+    do: "#{@host_resource_component_source_dir}/wit/world.wit"
+
+  def wasi_host_resource_component_file_path,
+    do:
+      "#{@wasi_host_resource_component_source_dir}/target/wasm32-wasip2/release/wasi_host_resource_component.wasm"
+
+  def wasi_host_resource_component_wit_path,
+    do: "#{@wasi_host_resource_component_source_dir}/wit"
 
   def wasm_test_file_path,
     do: "#{@wasm_test_source_dir}/target/wasm32-unknown-unknown/debug/wasmex_test.wasm"
@@ -72,6 +88,18 @@ defmodule TestHelper do
     {_, 0} =
       System.cmd("cargo", ["build", "--target=wasm32-wasip2", "--release"],
         cd: @guest_resource_component_source_dir,
+        stderr_to_stdout: true
+      )
+
+    {_, 0} =
+      System.cmd("cargo", ["build", "--target=wasm32-wasip2", "--release"],
+        cd: @host_resource_component_source_dir,
+        stderr_to_stdout: true
+      )
+
+    {_, 0} =
+      System.cmd("cargo", ["build", "--target=wasm32-wasip2", "--release"],
+        cd: @wasi_host_resource_component_source_dir,
         stderr_to_stdout: true
       )
 
