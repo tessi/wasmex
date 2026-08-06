@@ -2,18 +2,19 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use rustler::env::SavedTerm;
-use wit_parser::{Function, Resolve, WorldItem};
+use rustler::types::tuple;
 
 use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
 use crate::component::{ComponentResource, ParsedComponent};
+use crate::component_host_resource::HostResourceRegistry;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
 use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
-use wasmtime::component::{Instance, Linker, LinkerInstance, Type, Val};
+use wasmtime::component::{types::ComponentFunc, Instance, Linker, LinkerInstance, Type, Val};
 use wasmtime::{Error as WasmtimeError, Trap};
 
 use rustler::Term;
@@ -21,16 +22,18 @@ use rustler::Term;
 use wasmtime_wasi;
 use wasmtime_wasi_http;
 
-use crate::component_type_conversion::{
-    convert_params, convert_result_term, encode_result, vals_to_terms,
-};
+use crate::component_type_conversion::{convert_params, encode_result};
 
-type ComponentCallbackSender = tokio::sync::oneshot::Sender<(bool, Vec<Val>)>;
+struct ComponentCallbackResult {
+    success: bool,
+    env: OwnedEnv,
+    result: SavedTerm,
+}
+
+type ComponentCallbackSender = tokio::sync::oneshot::Sender<ComponentCallbackResult>;
 
 pub struct ComponentCallbackToken {
-    pub name: String,
-    pub namespace: Option<String>,
-    pub return_sender: Mutex<Option<ComponentCallbackSender>>,
+    return_sender: Mutex<Option<ComponentCallbackSender>>,
 }
 
 pub struct ComponentCallbackTokenResource {
@@ -43,6 +46,7 @@ impl rustler::Resource for ComponentCallbackTokenResource {}
 pub struct ComponentInstanceResource {
     pub inner: Instance,
     pub parsed: Arc<ParsedComponent>,
+    _host_resources: Arc<HostResourceRegistry>,
 }
 
 #[rustler::resource_impl()]
@@ -81,13 +85,14 @@ pub fn new_instance(
             .map_err(|error| format!("{error:?}"));
 
         let result = match linker {
-            Ok(linker) => linker
+            Ok((linker, host_resources)) => linker
                 .instantiate_async(&mut store, &component)
                 .await
                 .map(|instance| {
                     ResourceArc::new(ComponentInstanceResource {
                         inner: instance,
                         parsed,
+                        _host_resources: host_resources,
                     })
                 })
                 .map_err(|error| error.to_string()),
@@ -110,8 +115,9 @@ fn create_linker(
     store: &wasmtime::Store<ComponentStoreData>,
     imports: Term,
     callback_pid: LocalPid,
-) -> NifResult<Linker<ComponentStoreData>> {
+) -> NifResult<(Linker<ComponentStoreData>, Arc<HostResourceRegistry>)> {
     let mut linker = Linker::new(store.engine());
+    let host_resources = Arc::new(HostResourceRegistry::new());
     linker.allow_shadowing(true);
     wasmtime_wasi::p2::add_to_linker_async(&mut linker)
         .map_err(|error| Error::Term(Box::new(error.to_string())))?;
@@ -123,70 +129,140 @@ fn create_linker(
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
         if Term::is_tuple(implementation) {
-            link_import(&mut linker.root(), name, None, callback_pid)?;
+            link_implementation(
+                &mut linker.root(),
+                name,
+                implementation,
+                None,
+                callback_pid,
+                host_resources.clone(),
+            )?;
         } else {
             let imports_map = implementation.decode::<HashMap<String, Term>>()?;
             let mut namespace = linker
                 .instance(&name)
                 .map_err(|error| Error::Term(Box::new(error.to_string())))?;
-            for implementation_name in imports_map.into_keys() {
-                link_import(
+            for (implementation_name, implementation) in imports_map {
+                link_implementation(
                     &mut namespace,
                     implementation_name,
+                    implementation,
                     Some(name.clone()),
                     callback_pid,
+                    host_resources.clone(),
                 )?;
             }
         }
     }
-    Ok(linker)
+    Ok((linker, host_resources))
+}
+
+fn link_implementation(
+    linker_instance: &mut LinkerInstance<ComponentStoreData>,
+    name: String,
+    implementation: Term,
+    namespace: Option<String>,
+    callback_pid: LocalPid,
+    host_resources: Arc<HostResourceRegistry>,
+) -> NifResult<()> {
+    match implementation_tag(implementation).as_deref() {
+        Some("fn") => link_import(
+            linker_instance,
+            name,
+            namespace,
+            callback_pid,
+            host_resources,
+        ),
+        Some("resource") => link_resource(
+            linker_instance,
+            name,
+            namespace,
+            callback_pid,
+            host_resources,
+        ),
+        _ => Ok(()),
+    }
+}
+
+fn implementation_tag(term: Term) -> Option<String> {
+    tuple::get_tuple(term).ok()?.first()?.atom_to_string().ok()
 }
 
 fn create_callback_token(
-    name: String,
-    namespace: Option<String>,
-    return_sender: tokio::sync::oneshot::Sender<(bool, Vec<Val>)>,
+    return_sender: ComponentCallbackSender,
 ) -> ResourceArc<ComponentCallbackTokenResource> {
     ResourceArc::new(ComponentCallbackTokenResource {
         token: ComponentCallbackToken {
-            name,
-            namespace,
             return_sender: Mutex::new(Some(return_sender)),
         },
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn call_elixir_import(
+    mut store: wasmtime::StoreContextMut<'_, ComponentStoreData>,
+    function_type: ComponentFunc,
     name: String,
     namespace: Option<String>,
     params: &[Val],
     result_values: &mut [Val],
     pid: LocalPid,
+    host_resources: Arc<HostResourceRegistry>,
 ) -> Result<(), WasmtimeError> {
+    let params_env = OwnedEnv::new();
+    let saved_params = params_env.run(|env| {
+        host_resources
+            .vals_to_terms(params, env, &mut store)
+            .map(|terms| params_env.save(terms))
+    });
+    let saved_params = saved_params.map_err(WasmtimeError::msg)?;
     let mut msg_env = OwnedEnv::new();
     let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
-    let callback_token = create_callback_token(name.clone(), namespace.clone(), return_sender);
+    let callback_token = create_callback_token(return_sender);
 
-    let _ = msg_env.send_and_clear(&pid, |env| {
-        let param_terms = vals_to_terms(params, env);
-        (
-            atoms::invoke_callback(),
-            namespace,
-            name,
-            callback_token.clone(),
-            param_terms,
-        )
-    });
+    msg_env
+        .send_and_clear(&pid, |env| {
+            let param_terms =
+                params_env.run(|params_env| saved_params.load(params_env).in_env(env));
+            (
+                atoms::invoke_callback(),
+                namespace,
+                name,
+                callback_token,
+                param_terms,
+            )
+        })
+        .map_err(|_| WasmtimeError::msg("Could not send component callback"))?;
 
-    let (success, returned_values) = return_receiver
+    let callback_result = return_receiver
         .await
         .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
-    if !success {
+    if !callback_result.success {
         return Err(WasmtimeError::msg("Callback failed"));
     }
 
-    if !returned_values.is_empty() {
-        result_values[0] = returned_values[0].clone();
+    let result_types = function_type.results().collect::<Vec<_>>();
+    if result_types.len() != result_values.len() {
+        return Err(WasmtimeError::msg(format!(
+            "Expected {} component callback results, got {} result slots",
+            result_types.len(),
+            result_values.len()
+        )));
+    }
+    if result_types.len() > 1 {
+        return Err(WasmtimeError::msg(
+            "Component callbacks with multiple results are not supported",
+        ));
+    }
+    if let Some(result_type) = result_types.first() {
+        let converted = callback_result.env.run(|env| {
+            let result = callback_result.result.load(env);
+            host_resources
+                .term_to_val(&result, result_type, &mut store)
+                .map_err(|error| format!("{error:?}"))
+        });
+        let converted = converted.map_err(WasmtimeError::msg)?;
+        result_values[0] = converted;
     }
     Ok(())
 }
@@ -196,23 +272,79 @@ fn link_import(
     name: String,
     namespace: Option<String>,
     pid: LocalPid,
+    host_resources: Arc<HostResourceRegistry>,
 ) -> NifResult<()> {
     let name_for_closure = name.clone();
 
     linker_instance
-        .func_new_async(
-            &name,
-            move |_store, _function_type, params, result_values| {
-                Box::new(call_elixir_import(
-                    name_for_closure.clone(),
-                    namespace.clone(),
-                    params,
-                    result_values,
-                    pid,
-                ))
-            },
-        )
+        .func_new_async(&name, move |store, function_type, params, result_values| {
+            Box::new(call_elixir_import(
+                store,
+                function_type,
+                name_for_closure.clone(),
+                namespace.clone(),
+                params,
+                result_values,
+                pid,
+                host_resources.clone(),
+            ))
+        })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
+}
+
+fn link_resource(
+    linker_instance: &mut LinkerInstance<ComponentStoreData>,
+    name: String,
+    namespace: Option<String>,
+    pid: LocalPid,
+    host_resources: Arc<HostResourceRegistry>,
+) -> NifResult<()> {
+    let (_, resource_type) = host_resources
+        .register_type()
+        .map_err(|reason| Error::Term(Box::new(reason)))?;
+    linker_instance
+        .resource_async(&name.clone(), resource_type, move |_store, rep| {
+            let name = name.clone();
+            let namespace = namespace.clone();
+            let host_resources = host_resources.clone();
+            Box::new(async move {
+                call_elixir_resource_destructor(host_resources, rep, pid, namespace, name).await
+            })
+        })
+        .map_err(|error| Error::Term(Box::new(error.to_string())))
+}
+
+async fn call_elixir_resource_destructor(
+    host_resources: Arc<HostResourceRegistry>,
+    rep: u32,
+    pid: LocalPid,
+    namespace: Option<String>,
+    name: String,
+) -> Result<(), WasmtimeError> {
+    let resource = host_resources.take_term(rep).map_err(WasmtimeError::msg)?;
+    let mut msg_env = OwnedEnv::new();
+    let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
+    let callback_token = create_callback_token(return_sender);
+
+    msg_env
+        .send_and_clear(&pid, |env| {
+            (
+                atoms::invoke_callback(),
+                namespace,
+                name,
+                callback_token,
+                vec![resource.copy_to(env)],
+            )
+        })
+        .map_err(|_| WasmtimeError::msg("Could not send component destructor callback"))?;
+    let result = return_receiver
+        .await
+        .map_err(|_| WasmtimeError::msg("Component destructor callback result channel closed"))?;
+    if result.success {
+        Ok(())
+    } else {
+        Err(WasmtimeError::msg("Component destructor callback failed"))
+    }
 }
 
 #[rustler::nif(name = "component_call_function")]
@@ -371,111 +503,27 @@ async fn component_execute_function(
 
 #[rustler::nif(name = "component_receive_callback_result")]
 pub fn receive_callback_result(
-    component_resource: ResourceArc<ComponentResource>,
     token_resource: ResourceArc<ComponentCallbackTokenResource>,
     success: bool,
     result: Term,
 ) -> NifResult<rustler::Atom> {
-    if !success {
-        send_component_callback_result(&token_resource, false, vec![])?;
-        return Ok(atoms::ok());
-    }
-
-    let parsed_component = &component_resource.parsed;
-    let world = &parsed_component.resolve.worlds[parsed_component.world_id];
-    let name = &token_resource.token.name;
-    let namespace = &token_resource.token.namespace;
-
-    let import_function = if let Some(namespace) = namespace {
-        let (_package_name, _interface_name, interface_id) = parsed_component
-            .resolve
-            .package_names
-            .iter()
-            .flat_map(|(package_name, package_id)| {
-                let package = parsed_component.resolve.packages.get(*package_id).unwrap();
-                package
-                    .interfaces
-                    .iter()
-                    .map(|(interface_name, interface_id)| {
-                        (package_name.clone(), interface_name.clone(), *interface_id)
-                    })
-            })
-            .find(|(package_name, interface_name, _interface_id)| {
-                let namespace = namespace.to_string();
-                let full_name = package_name.interface_id(interface_name);
-                full_name == namespace
-            })
-            .ok_or_else(|| {
-                Error::Term(Box::new(format!("Could not find package name {namespace}")))
-            })?;
-        let interface = parsed_component
-            .resolve
-            .interfaces
-            .get(interface_id)
-            .unwrap();
-        let (_function_name, function) = interface
-            .functions
-            .iter()
-            .find(|(function_name, _function)| function_name.as_str() == name)
-            .ok_or_else(|| {
-                Error::Term(Box::new(format!("Could not find import function {name}")))
-            })?;
-        function
-    } else {
-        world
-            .imports
-            .iter()
-            .filter_map(|(_, item)| match item {
-                WorldItem::Function(function) => Some(function),
-                _ => None,
-            })
-            .find(|f| f.item_name() == name)
-            .ok_or_else(|| {
-                Error::Term(Box::new(format!("Could not find import function {name}")))
-            })?
-    };
-
-    let return_values =
-        match convert_return_values(&component_resource.parsed.resolve, import_function, result) {
-            Ok(values) => values,
-            Err(_) => {
-                send_component_callback_result(&token_resource, false, vec![])?;
-                return Ok(atoms::ok());
-            }
-        };
-    send_component_callback_result(&token_resource, true, return_values)?;
+    let env = OwnedEnv::new();
+    let result = env.save(result);
+    send_component_callback_result(
+        &token_resource,
+        ComponentCallbackResult {
+            success,
+            env,
+            result,
+        },
+    )?;
 
     Ok(atoms::ok())
 }
 
-fn convert_return_values(
-    wit_resolver: &Resolve,
-    function: &Function,
-    result: Term,
-) -> Result<Vec<Val>, String> {
-    if let Some(result_type) = &function.result {
-        Ok(vec![convert_result_term(
-            result,
-            result_type,
-            wit_resolver,
-            vec![],
-        )
-        .map_err(|(msg, path)| {
-            if path.is_empty() {
-                msg
-            } else {
-                format!("{msg:?} at path: {path:?}")
-            }
-        })?])
-    } else {
-        Ok(vec![])
-    }
-}
-
 fn send_component_callback_result(
     token_resource: &ComponentCallbackTokenResource,
-    success: bool,
-    values: Vec<Val>,
+    result: ComponentCallbackResult,
 ) -> NifResult<()> {
     let sender = token_resource
         .token
@@ -488,6 +536,6 @@ fn send_component_callback_result(
         })?
         .take()
         .ok_or_else(|| Error::Term(Box::new("Component callback result was already sent")))?;
-    let _ = sender.send((success, values));
+    let _ = sender.send(result);
     Ok(())
 }

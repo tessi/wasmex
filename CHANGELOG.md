@@ -20,6 +20,7 @@ Types of changes
 
 - Added support for registering core Wasmex GenServers with the `:name` option.
 - Added guest-owned Component Model resources with WIT-generated APIs, ownership-aware arguments and results, timeouts, static functions, and explicit cleanup.
+- Added host-owned Component Model resources with WIT-generated import definitions, dependency-aware `wit_path:` discovery, opaque Elixir state, borrow and ownership semantics, nested resource results, destructors, and support for overriding standard WASI resource imports.
 
 ### Changed
 

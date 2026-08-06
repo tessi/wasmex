@@ -3,6 +3,7 @@ pub mod atoms;
 pub mod caller;
 pub mod component;
 pub mod component_guest_resource;
+mod component_host_resource;
 pub mod component_instance;
 mod component_type_conversion;
 pub mod engine;

@@ -1,0 +1,16 @@
+package demo:wasi-error@1.0.0;
+
+interface factory {
+    use wasi:io/error@0.2.12.{error};
+    make-error: func(message: string) -> error;
+}
+
+interface app {
+    describe: func(message: string) -> string;
+}
+
+world demo {
+    import wasi:io/error@0.2.12;
+    import factory;
+    export app;
+}

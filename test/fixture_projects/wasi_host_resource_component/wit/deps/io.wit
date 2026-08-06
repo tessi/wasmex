@@ -1,0 +1,7 @@
+package wasi:io@0.2.12;
+
+interface error {
+    resource error {
+        to-debug-string: func() -> string;
+    }
+}

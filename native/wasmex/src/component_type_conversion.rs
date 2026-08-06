@@ -2,7 +2,7 @@ use rustler::types::atom;
 use rustler::types::tuple::{self, make_tuple};
 use rustler::{Encoder, Error, Term, TermType};
 use std::collections::HashMap;
-use wasmtime::component::{ResourceAny, Type, Val};
+use wasmtime::component::{ResourceAny, ResourceType, Type, Val};
 use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 
 use crate::atoms;
@@ -12,10 +12,29 @@ use crate::component_guest_resource::ComponentGuestResource;
 ///
 /// Used to for Wasm function calls from Elixir and translating params to Wasm values.
 /// The opposite of this is `val_to_term` and `convert_result_term`.
-pub fn term_to_val(
+pub fn term_to_val(param_term: &Term, param_type: &Type, path: Vec<String>) -> Result<Val, Error> {
+    term_to_val_with_resource(
+        param_term,
+        param_type,
+        path,
+        &mut |term, resource_type, owned| {
+            let resource = decode_guest_resource(term)?;
+            if owned {
+                resource.owned(resource_type)
+            } else {
+                resource.borrow(resource_type)
+            }
+            .map(Val::Resource)
+            .map_err(|reason| Error::Term(Box::new(reason)))
+        },
+    )
+}
+
+pub fn term_to_val_with_resource(
     param_term: &Term,
     param_type: &Type,
     mut path: Vec<String>,
+    convert_resource: &mut dyn FnMut(&Term, ResourceType, bool) -> Result<Val, Error>,
 ) -> Result<Val, Error> {
     let term_type = param_term.get_type();
     match (term_type, param_type) {
@@ -79,7 +98,8 @@ pub fn term_to_val(
             let mut list_values = Vec::with_capacity(decoded_list.len());
             for (index, term) in decoded_list.iter().enumerate() {
                 path.push(format!("list[{index}]"));
-                let val = term_to_val(term, &list.ty(), path.clone())?;
+                let val =
+                    term_to_val_with_resource(term, &list.ty(), path.clone(), convert_resource)?;
                 path.pop();
                 list_values.push(val);
             }
@@ -91,7 +111,12 @@ pub fn term_to_val(
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
             for (index, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
                 path.push(format!("tuple[{index}]"));
-                let component_val = term_to_val(&tuple_term, &tuple_type, path.clone())?;
+                let component_val = term_to_val_with_resource(
+                    &tuple_term,
+                    &tuple_type,
+                    path.clone(),
+                    convert_resource,
+                )?;
                 path.pop();
                 tuple_vals.push(component_val);
             }
@@ -111,7 +136,12 @@ pub fn term_to_val(
                     .find(|(field_name, _)| field_name == field.name);
                 if let Some((field_name, field_term)) = field_term_option {
                     path.push(format!("record('{field_name}')"));
-                    let field_value = term_to_val(field_term, &field.ty, path.clone())?;
+                    let field_value = term_to_val_with_resource(
+                        field_term,
+                        &field.ty,
+                        path.clone(),
+                        convert_resource,
+                    )?;
                     path.pop();
                     kv.push((field.name.to_string(), field_value))
                 }
@@ -170,7 +200,12 @@ pub fn term_to_val(
             let some_atom = first_term.atom_to_string()?;
             if some_atom == "some" {
                 path.push("option(some)".to_string());
-                let inner_val = term_to_val(second_term, &option_type.ty(), path.clone())?;
+                let inner_val = term_to_val_with_resource(
+                    second_term,
+                    &option_type.ty(),
+                    path.clone(),
+                    convert_resource,
+                )?;
                 path.pop();
                 Ok(Val::Option(Some(Box::new(inner_val))))
             } else {
@@ -239,7 +274,12 @@ pub fn term_to_val(
             if result_kind == "ok" {
                 if let Some(ok_type) = result_type.ok() {
                     path.push("result(ok)".to_string());
-                    let ok_val = term_to_val(second_term, &ok_type, path.clone())?;
+                    let ok_val = term_to_val_with_resource(
+                        second_term,
+                        &ok_type,
+                        path.clone(),
+                        convert_resource,
+                    )?;
                     path.pop();
                     Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
                 } else {
@@ -250,7 +290,12 @@ pub fn term_to_val(
             } else if result_kind == "error" {
                 if let Some(err_type) = result_type.err() {
                     path.push("result(error)".to_string());
-                    let err_val = term_to_val(second_term, &err_type, path.clone())?;
+                    let err_val = term_to_val_with_resource(
+                        second_term,
+                        &err_type,
+                        path.clone(),
+                        convert_resource,
+                    )?;
                     path.pop();
                     Ok(Val::Result(Err(Some(Box::new(err_val)))))
                 } else {
@@ -308,7 +353,12 @@ pub fn term_to_val(
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
                     path.push(format!("Variant('{}')", case.name));
-                    let payload_val = term_to_val(payload_term, &case_type, path.clone())?;
+                    let payload_val = term_to_val_with_resource(
+                        payload_term,
+                        &case_type,
+                        path.clone(),
+                        convert_resource,
+                    )?;
                     path.pop();
                     Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
                 } else {
@@ -343,20 +393,8 @@ pub fn term_to_val(
 
             Ok(Val::Flags(flags))
         }
-        (TermType::Map, Type::Own(resource_type)) => {
-            let resource = decode_guest_resource(param_term)?;
-            resource
-                .owned(*resource_type)
-                .map(Val::Resource)
-                .map_err(|reason| Error::Term(Box::new(reason)))
-        }
-        (TermType::Map, Type::Borrow(resource_type)) => {
-            let resource = decode_guest_resource(param_term)?;
-            resource
-                .borrow(*resource_type)
-                .map(Val::Resource)
-                .map_err(|reason| Error::Term(Box::new(reason)))
-        }
+        (_, Type::Own(resource_type)) => convert_resource(param_term, *resource_type, true),
+        (_, Type::Borrow(resource_type)) => convert_resource(param_term, *resource_type, false),
         (term_type, val_type) => {
             if path.is_empty() {
                 Err(Error::Term(Box::new(format!(
@@ -379,14 +417,14 @@ pub fn term_to_val(
 /// Used to for Wasm function calls when passing Wasm params to an Elixir function call.
 /// The opposite of this is `term_to_val`, similar to `convert_result_term`.
 pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, path: Vec<String>) -> Term<'a> {
-    val_to_term_with_resource(val, env, path, &|_, env| "Unsupported type".encode(env))
+    val_to_term_with_resource(val, env, path, &mut |_, env| "Unsupported type".encode(env))
 }
 
 pub fn val_to_term_with_resource<'a>(
     val: &Val,
     env: rustler::Env<'a>,
     mut path: Vec<String>,
-    encode_resource: &dyn Fn(ResourceAny, rustler::Env<'a>) -> Term<'a>,
+    encode_resource: &mut dyn FnMut(ResourceAny, rustler::Env<'a>) -> Term<'a>,
 ) -> Term<'a> {
     match val {
         Val::String(string) => string.encode(env),
@@ -521,9 +559,11 @@ fn decode_guest_resource(
     term.map_get(resource_key)?.decode()
 }
 
+#[allow(dead_code)]
 pub fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
+    let mut encode_resource = |_, env| "Unsupported type".encode(env);
     vals.iter()
-        .map(|val| val_to_term(val, env, vec![]))
+        .map(|val| val_to_term_with_resource(val, env, vec![], &mut encode_resource))
         .collect::<Vec<Term<'a>>>()
 }
 
@@ -567,6 +607,7 @@ pub fn encode_result<'a>(env: rustler::Env<'a>, vals: Vec<Val>) -> Term<'a> {
 ///
 /// Used to for Wasm function calls when passing Elixir results back to Wasm.
 /// The opposite of this is `term_to_val`, similar to `val_to_term`.
+#[allow(dead_code)]
 pub fn convert_result_term(
     result_term: Term,
     wit_type: &WitType,
@@ -676,6 +717,7 @@ pub fn convert_result_term(
     }
 }
 
+#[allow(dead_code)]
 fn convert_complex_result(
     result_term: Term,
     complex_type: &TypeDef,

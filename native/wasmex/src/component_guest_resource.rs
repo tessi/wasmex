@@ -830,22 +830,21 @@ fn encode_call_result<'a>(
     values: Vec<Val>,
     context: &Arc<ResourceContext>,
 ) -> Term<'a> {
+    let mut encode_guest_resource = |resource: ResourceAny, env| {
+        let metadata = metadata_for_type(context, resource.ty())
+            .expect("all exported guest resource types are discovered");
+        encode_resource(
+            env,
+            ResourceArc::new(ComponentGuestResource::new(
+                resource,
+                context.clone(),
+                metadata,
+            )),
+        )
+    };
     let terms = values
         .iter()
-        .map(|value| {
-            val_to_term_with_resource(value, env, vec![], &|resource, env| {
-                let metadata = metadata_for_type(context, resource.ty())
-                    .expect("all exported guest resource types are discovered");
-                encode_resource(
-                    env,
-                    ResourceArc::new(ComponentGuestResource::new(
-                        resource,
-                        context.clone(),
-                        metadata,
-                    )),
-                )
-            })
-        })
+        .map(|value| val_to_term_with_resource(value, env, vec![], &mut encode_guest_resource))
         .collect::<Vec<_>>();
 
     match terms.as_slice() {

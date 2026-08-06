@@ -149,8 +149,36 @@ defmodule Wasmex.Components do
   :ok = Counter.drop(counter)
   ```
 
-  Resource values passed through arbitrary freestanding component functions
-  and host-owned imported resources are not yet supported.
+  ### Host Resources
+
+  Host-owned resources imported by a component can be implemented with
+  `Wasmex.Components.HostResource`:
+
+  ```elixir
+  defmodule CounterHost do
+    use Wasmex.Components.HostResource,
+      wit_path: "wit",
+      resource: "counter"
+
+    def new(initial), do: MyCounter.start(initial)
+    def get_value(counter), do: MyCounter.value(counter)
+    def drop(counter), do: MyCounter.stop(counter)
+  end
+
+  {:ok, component_pid} =
+    Wasmex.Components.start_link(
+      bytes: component,
+      imports: CounterHost.imports()
+    )
+  ```
+
+  Constructors return an opaque Elixir term representing the resource. Methods
+  and the destructor receive that term. Borrowed handles remain live, while
+  owned handles transfer ownership to the receiving callback. `wit_path:`
+  resolves dependency packages from a standard `wit/deps` directory.
+
+  Guest-owned resource values passed through arbitrary freestanding component
+  functions are not yet supported.
 
   Support for the Component Model should be considered beta quality.
 
@@ -164,6 +192,8 @@ defmodule Wasmex.Components do
   * `:imports` - Optional map of host functions that can be called by the WebAssembly component
     * Keys are function names as strings
     * Values are tuples of `{:fn, function}` where function is the host function to call
+    * Modules generated with `Wasmex.Components.HostResource` expose
+      `imports/0` definitions for host-owned resources
 
   Additionally, any standard GenServer options (like `:name`) are supported.
 
@@ -323,9 +353,9 @@ defmodule Wasmex.Components do
   @impl true
   def handle_info(
         {:invoke_callback, namespace, name, token, params},
-        %{imports: imports, instance: _instance, component: component} = state
+        %{imports: imports, instance: _instance} = state
       ) do
-    {:fn, function} =
+    {_kind, function} =
       if namespace do
         imports
         |> Map.get(namespace)
@@ -345,7 +375,6 @@ defmodule Wasmex.Components do
 
     :ok =
       Wasmex.Native.component_receive_callback_result(
-        component.resource,
         token,
         success,
         result

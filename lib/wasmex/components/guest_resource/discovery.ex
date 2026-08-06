@@ -72,7 +72,7 @@ defmodule Wasmex.Components.GuestResource.Discovery do
     }
   end
 
-  defp normalize_function({name, kind, arity, has_return}) do
+  defp normalize_function({name, _canonical_name, kind, arity, has_return}) do
     %{
       wit_name: name,
       elixir_name: String.replace(name, "-", "_"),
