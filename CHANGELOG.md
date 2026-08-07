@@ -14,6 +14,12 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [0.15.1 - 2026-08-07]
+
+### Changed
+
+- Updated Wasmtime from 47.0.2 to 47.0.3 and refreshed the remaining Rust dependencies.
+
 ## [0.15.0 - 2026-08-06]
 
 ### Added
