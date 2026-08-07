@@ -55,6 +55,7 @@ defmodule Wasmex.MixProject do
         .formatter.exs
         mix.exs
         README.md
+        logo.svg
         LICENSE.md
         CHANGELOG.md
         ],
