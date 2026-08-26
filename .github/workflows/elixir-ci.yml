@@ -171,7 +171,7 @@ jobs:
             test/fixture_projects/wasm_test
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2.86.1
+        uses: taiki-e/install-action@v2.86.6
         with:
           tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 

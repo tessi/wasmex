@@ -48,7 +48,7 @@ jobs:
           toolchain: 1.97.1
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2.86.1
+        uses: taiki-e/install-action@v2.86.6
         with:
           tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 
