@@ -18,7 +18,7 @@ crate-type = ["dylib"]
 rand = "0.10.2"
 rustler = { version = "0.38.0", features = ["big_integer", "serde"] }
 tokio = { version = "1.53.1", features = ["full"] }
-wasmtime = "47.0.2"
+wasmtime = "48.0.1"
 wasmtime-wasi = "47.0.2"
 wasmtime-wasi-http = "47.0.2"
 wat = "1.254.0"
