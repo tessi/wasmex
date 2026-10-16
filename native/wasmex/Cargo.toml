@@ -16,7 +16,7 @@ crate-type = ["dylib"]
 
 [dependencies]
 rand = "0.10.2"
-rustler = { version = "0.38.0", features = ["big_integer", "serde"] }
+rustler = { version = "0.39.0", features = ["big_integer", "serde"] }
 tokio = { version = "1.53.1", features = ["full"] }
 wasmtime = "47.0.2"
 wasmtime-wasi = "47.0.2"
