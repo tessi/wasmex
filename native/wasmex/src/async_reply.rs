@@ -33,12 +33,7 @@ impl AsyncReply {
     }
 
     pub fn send_binary(self, bytes: &[u8]) {
-        let Some(mut binary) = OwnedBinary::new(bytes.len()) else {
-            self.send_error("not enough memory");
-            return;
-        };
-        binary.copy_from_slice(bytes);
-
+        let binary = OwnedBinary::from_slice(bytes);
         self.env.run(move |env| {
             let message = make_tuple(env, &[self.reference.load(env), binary.release(env).into()]);
             let _ = env.send(&self.pid, message);
