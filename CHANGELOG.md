@@ -14,7 +14,7 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
-## Unreleased
+## [0.16.0 - 2026-11-06]
 
 ### Changed
 
@@ -23,11 +23,18 @@ Types of changes
   Updated the development and CI toolchains to Rust 1.99.1, Elixir 1.20.5, and
   Erlang/OTP 29.1.2. [#1019](https://github.com/tessi/wasmex/pull/1019)
 
+### Fixed
+
+- Timed-out core Wasm calls can now release their Stores even when Wasm is busy
+  on every Store worker. Epoch ticks run on a dedicated worker so cancellation
+  can still progress. [#1022](https://github.com/tessi/wasmex/pull/1022)
+
 ### Security
 
 - Default store limits now cap each linear memory at 256 MiB and each table at
   100,000 elements across core, WASI, and component stores. Set explicit
   `Wasmex.StoreLimits` values for workloads that need larger resources.
+  [#1020](https://github.com/tessi/wasmex/pull/1020)
 - `Wasmex.Memory.read_binary/4` now rejects out-of-bounds reads before allocating
   the result, preventing oversized requests from crashing the Store executor
   and leaving callers waiting. This also applies to reads from imported
