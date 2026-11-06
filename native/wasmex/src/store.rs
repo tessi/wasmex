@@ -49,7 +49,10 @@ pub struct ExWasiP2Options {
     allow_http: bool,
 }
 
-#[derive(NifStruct)]
+const DEFAULT_MEMORY_SIZE: usize = 256 * 1024 * 1024;
+const DEFAULT_TABLE_ELEMENTS: usize = 100_000;
+
+#[derive(Default, NifStruct)]
 #[module = "Wasmex.StoreLimits"]
 pub struct ExStoreLimits {
     memory_size: Option<usize>,
@@ -61,19 +64,9 @@ pub struct ExStoreLimits {
 
 impl ExStoreLimits {
     pub fn to_wasmtime(&self) -> StoreLimits {
-        let limits = StoreLimitsBuilder::new();
-
-        let limits = if let Some(memory_size) = self.memory_size {
-            limits.memory_size(memory_size)
-        } else {
-            limits
-        };
-
-        let limits = if let Some(table_elements) = self.table_elements {
-            limits.table_elements(table_elements)
-        } else {
-            limits
-        };
+        let limits = StoreLimitsBuilder::new()
+            .memory_size(self.memory_size.unwrap_or(DEFAULT_MEMORY_SIZE))
+            .table_elements(self.table_elements.unwrap_or(DEFAULT_TABLE_ELEMENTS));
 
         let limits = if let Some(instances) = self.instances {
             limits.instances(instances)
@@ -209,11 +202,7 @@ pub fn new(
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<StoreOrCallerResource>, rustler::Error> {
     let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
-    let limits = if let Some(limits) = limits {
-        limits.to_wasmtime()
-    } else {
-        StoreLimits::default()
-    };
+    let limits = limits.unwrap_or_default().to_wasmtime();
     let mut store = Store::new(
         &engine,
         StoreData {
@@ -237,11 +226,7 @@ pub fn component_store_new(
     engine_resource: ResourceArc<EngineResource>,
 ) -> Result<ResourceArc<ComponentStoreResource>, rustler::Error> {
     let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
-    let limits = if let Some(limits) = limits {
-        limits.to_wasmtime()
-    } else {
-        StoreLimits::default()
-    };
+    let limits = limits.unwrap_or_default().to_wasmtime();
     let mut store = Store::new(
         &engine,
         ComponentStoreData {
@@ -294,11 +279,7 @@ pub fn component_store_new_wasi(
     }
 
     let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
-    let limits = if let Some(limits) = limits {
-        limits.to_wasmtime()
-    } else {
-        StoreLimits::default()
-    };
+    let limits = limits.unwrap_or_default().to_wasmtime();
 
     let http_option = if options.allow_http {
         Some(WasiHttpCtx::new())
@@ -352,11 +333,7 @@ pub fn new_wasi(
     let wasi_ctx = builder.build_p1();
 
     let (engine, ticker) = unwrap_engine_and_ticker(engine_resource)?;
-    let limits = if let Some(limits) = limits {
-        limits.to_wasmtime()
-    } else {
-        StoreLimits::default()
-    };
+    let limits = limits.unwrap_or_default().to_wasmtime();
     let mut store = Store::new(
         &engine,
         StoreData {

@@ -5,10 +5,15 @@ defmodule Wasmex.StoreLimits do
   Whenever resources such as linear memory, tables, or instances are
   allocated the `StoreLimits` specified here are enforced.
 
+  Defaults apply to core, WASI, and component stores. Omitting the limits
+  or leaving an individual field as `nil` uses the default for that field.
+  The size limits apply to each memory or table individually, including its
+  initial size. Set explicit limits to support workloads that need larger resources.
+
   ## Options
 
-    * `:memory_size` - The maximum number of bytes a linear memory can grow to. Growing a linear memory beyond this limit will fail. By default, linear memory will not be limited.
-    * `:table_elements` - The maximum number of elements in a table. Growing a table beyond this limit will fail. By default, table elements will not be limited.
+    * `:memory_size` - The maximum size of each linear memory in bytes. Defaults to 256 MiB (268,435,456 bytes).
+    * `:table_elements` - The maximum number of elements in each table. Defaults to 100,000.
     * `:instances` - The maximum number of instances that can be created for a `Wasmex.Store`. Module instantiation will fail if this limit is exceeded. This value defaults to 10,000.
     * `:tables` - The maximum number of tables that can be created for a `Wasmex.Store`. Module instantiation will fail if this limit is exceeded. This value defaults to 10,000.
     * `:memories` - The maximum number of linear memories that can be created for a `Wasmex.Store`. Instantiation will fail with an error if this limit is exceeded. This value defaults to 10,000.

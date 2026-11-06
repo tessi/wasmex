@@ -14,6 +14,21 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## Unreleased
+
+### Changed
+
+- Refreshed Rust and Elixir dependencies, including Wasmtime and its WASI crates
+  to 51.0.0-rc.1, the Rustler crate to 0.39.0, and RustlerPrecompiled to 0.10.1.
+  Updated the development and CI toolchains to Rust 1.99.1, Elixir 1.20.5, and
+  Erlang/OTP 29.1.2. [#1019](https://github.com/tessi/wasmex/pull/1019)
+
+### Security
+
+- Default store limits now cap each linear memory at 256 MiB and each table at
+  100,000 elements across core, WASI, and component stores. Set explicit
+  `Wasmex.StoreLimits` values for workloads that need larger resources.
+
 ## [0.15.1 - 2026-08-07]
 
 ### Changed
