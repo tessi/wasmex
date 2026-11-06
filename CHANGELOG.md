@@ -14,6 +14,14 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## Unreleased
+
+### Security
+
+- Default store limits now cap each linear memory at 256 MiB and each table at
+  100,000 elements across core, WASI, and component stores. Set explicit
+  `Wasmex.StoreLimits` values for workloads that need larger resources.
+
 ## [0.15.1 - 2026-08-07]
 
 ### Changed

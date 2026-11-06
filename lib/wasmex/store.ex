@@ -32,7 +32,7 @@ defmodule Wasmex.Store do
   Returns a `Wasmex.StoreOrCaller` even though we know it’s definitely a Store.
   This allows Elixir-provided imported functions, which only have a "Caller", to use the same Wasmex APIs.
 
-  Optionally, a `Wasmex.StoreLimits` can be passed in to limit the resources that can be created within the store.
+  See `Wasmex.StoreLimits` for the default resource limits and how to override them.
 
   ## Examples
 
@@ -59,6 +59,7 @@ defmodule Wasmex.Store do
   This allows Elixir-provided imported functions, which only have a "Caller", to use the same Wasmex APIs.
 
   See `Wasmex.Wasi.WasiOptions` for WASI configuration options.
+  See `Wasmex.StoreLimits` for the default resource limits and how to override them.
 
   ## Examples
 

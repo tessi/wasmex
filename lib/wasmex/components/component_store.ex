@@ -1,6 +1,7 @@
 defmodule Wasmex.Components.Store do
   @moduledoc """
-  This is the component model equivalent of `Wasmex.Store`
+  This is the component model equivalent of `Wasmex.Store`.
+  See `Wasmex.StoreLimits` for the default resource limits and how to override them.
   """
   alias Wasmex.Wasi.WasiP2Options
   alias Wasmex.Engine
