@@ -1,9 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
 
-use rand_core::RngCore;
-use wasi_rng::WasiRng;
-
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     match args.get(1).map(|s| s.as_str()) {
@@ -103,7 +100,7 @@ fn print_info(args: Vec<String>) {
         .as_secs();
     println!("{}", seconds_since_epoch);
     println!();
-    let mut rng = WasiRng;
-    println!("Random Number: {}", rng.next_u32());
+    let random_number = getrandom::u32().expect("Could not get random bytes");
+    println!("Random Number: {}", random_number);
     println!();
 }

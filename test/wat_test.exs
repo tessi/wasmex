@@ -42,8 +42,8 @@ defmodule WatTest do
       (func (export "length") (param "input" string) (result u32)
         (canon lift
           (core func $length_instance "length")
-          (memory $length_instance "mem")
-          (realloc (func $length_instance "realloc"))
+          (memory (core memory $length_instance "mem"))
+          (realloc (core func $length_instance "realloc"))
         )
       )
     )
