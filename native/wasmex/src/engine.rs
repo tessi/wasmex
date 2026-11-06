@@ -98,10 +98,7 @@ pub fn precompile_module<'a>(
     let serialized_module = engine.precompile_module(bytes).map_err(|err| {
         rustler::Error::Term(Box::new(format!("Could not precompile module: {err}")))
     })?;
-    let mut binary = OwnedBinary::new(serialized_module.len())
-        .ok_or_else(|| rustler::Error::Term(Box::new("not enough memory")))?;
-    binary.copy_from_slice(&serialized_module);
-    Ok(binary.release(env))
+    Ok(OwnedBinary::from_slice(&serialized_module).release(env))
 }
 
 pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {

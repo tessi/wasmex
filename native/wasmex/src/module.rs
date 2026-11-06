@@ -294,10 +294,7 @@ pub fn serialize(
     let serialized_module: Vec<u8> = module
         .serialize()
         .map_err(|e| rustler::Error::Term(Box::new(format!("Could not serialize module: {e}"))))?;
-    let mut binary = OwnedBinary::new(serialized_module.len())
-        .ok_or_else(|| rustler::Error::Term(Box::new("not enough memory")))?;
-    binary.copy_from_slice(&serialized_module);
-    Ok(binary.release(env))
+    Ok(OwnedBinary::from_slice(&serialized_module).release(env))
 }
 
 #[rustler::nif(name = "module_unsafe_deserialize", schedule = "DirtyCpu")]

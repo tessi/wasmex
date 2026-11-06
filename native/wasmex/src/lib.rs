@@ -19,4 +19,6 @@ pub mod store_executor;
 pub mod wat;
 pub mod wit;
 
+// Standalone Rust tests run without the BEAM symbols used by the NIFs.
+#[cfg(not(test))]
 rustler::init!("Elixir.Wasmex.Native");
