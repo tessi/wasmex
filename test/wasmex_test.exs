@@ -170,6 +170,13 @@ defmodule WasmexTest do
           {:fn, [:i32, :i32, :i32], [:i32],
            fn context, a, b, c ->
              assert 42 == Wasmex.Memory.get_byte(context.caller, context.memory, 0)
+
+             max_usize = Integer.pow(256, :erlang.system_info(:wordsize)) - 1
+
+             assert Wasmex.Memory.read_binary(context.caller, context.memory, 0, max_usize) ==
+                      {:error, "out of bounds memory access"}
+
+             assert Wasmex.Memory.read_binary(context.caller, context.memory, 0, 1) == <<42>>
              Wasmex.Memory.set_byte(context.caller, context.memory, 0, 23)
              a + b + c
            end}

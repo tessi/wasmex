@@ -1,5 +1,5 @@
 use rustler::{
-    env::SavedTerm, types::tuple::make_tuple, Encoder, LocalPid, NewBinary, OwnedEnv, Term,
+    env::SavedTerm, types::tuple::make_tuple, Encoder, LocalPid, OwnedBinary, OwnedEnv, Term,
 };
 
 /// An owned GenServer-style reply target that can safely cross NIF boundaries.
@@ -32,11 +32,15 @@ impl AsyncReply {
         self.send((crate::atoms::error(), reason.into()));
     }
 
-    pub fn send_binary(self, bytes: Vec<u8>) {
+    pub fn send_binary(self, bytes: &[u8]) {
+        let Some(mut binary) = OwnedBinary::new(bytes.len()) else {
+            self.send_error("not enough memory");
+            return;
+        };
+        binary.copy_from_slice(bytes);
+
         self.env.run(move |env| {
-            let mut binary = NewBinary::new(env, bytes.len());
-            binary.as_mut_slice().copy_from_slice(&bytes);
-            let message = make_tuple(env, &[self.reference.load(env), binary.into()]);
+            let message = make_tuple(env, &[self.reference.load(env), binary.release(env).into()]);
             let _ = env.send(&self.pid, message);
         });
     }

@@ -6,7 +6,7 @@ use crate::{
     functions,
     instance::{decode_function_param_terms, map_wasm_values_to_vals},
     instance::{decode_term_as_wasm_value, send_global_value},
-    memory::{memory_from_instance, MemoryResource},
+    memory::{memory_from_instance, reply_with_memory_read, MemoryResource},
     printable_term_type::PrintableTermType,
     store::StoreData,
 };
@@ -191,13 +191,7 @@ pub async fn handle_command(caller: &mut Caller<'_, StoreData>, command: CallerC
             index,
             len,
             reply,
-        } => {
-            let mut buffer = vec![0; len];
-            match memory.read(&*caller, index, &mut buffer) {
-                Ok(()) => reply.send_binary(buffer),
-                Err(error) => reply.send_error(error.to_string()),
-            }
-        }
+        } => reply_with_memory_read(memory, &*caller, index, len, reply),
         CallerCommand::MemoryWrite {
             memory,
             index,
