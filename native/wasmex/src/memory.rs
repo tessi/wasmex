@@ -8,7 +8,7 @@ use crate::{
     store::{StoreOrCallerResource, StoreTarget},
 };
 use rustler::{Atom, Binary, ResourceArc, Term};
-use wasmtime::{Instance, Memory};
+use wasmtime::{AsContext, Instance, Memory};
 
 pub struct MemoryResource {
     pub inner: Memory,
@@ -197,6 +197,20 @@ pub fn memory_from_instance<T: wasmtime::AsContextMut>(
         .ok_or_else(|| "The WebAssembly module has no exported memory.".to_string())
 }
 
+pub(crate) fn reply_with_memory_read(
+    memory: Memory,
+    store: impl AsContext,
+    index: usize,
+    len: usize,
+    reply: AsyncReply,
+) {
+    let data = memory.data(store.as_context());
+    match data.get(index..).and_then(|tail| tail.get(..len)) {
+        Some(bytes) => reply.send_binary(bytes),
+        None => reply.send_error("out of bounds memory access"),
+    }
+}
+
 #[rustler::nif(name = "memory_read_binary")]
 pub fn read_binary(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
@@ -212,11 +226,7 @@ pub fn read_binary(
         StoreTarget::Executor(executor) => {
             let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |store| async move {
-                let mut buffer = vec![0u8; len];
-                match memory.read(&store, index, &mut buffer) {
-                    Ok(()) => reply.send_binary(buffer),
-                    Err(error) => reply.send_error(error.to_string()),
-                }
+                reply_with_memory_read(memory, &store, index, len, reply);
                 store
             }) {
                 submit_error(submit_reply, error);
