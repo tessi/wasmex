@@ -11,13 +11,8 @@ use std::{
     sync::{atomic::AtomicBool, Arc, Mutex},
 };
 use wasmtime::{Engine, Store, StoreLimits, StoreLimitsBuilder};
-use wasmtime_wasi::{
-    p1::WasiP1Ctx, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
-};
-use wasmtime_wasi_http::{
-    p2::{WasiHttpCtxView, WasiHttpView},
-    WasiHttpCtx,
-};
+use wasmtime_wasi::{p1::WasiP1Ctx, FsPerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 #[derive(Debug, NifStruct)]
 #[module = "Wasmex.Wasi.PreopenOptions"]
@@ -293,6 +288,8 @@ pub fn component_store_new_wasi(
     if options.allow_http {
         wasi_ctx_builder
             .inherit_network()
+            .allow_tcp(true)
+            .allow_udp(true)
             .allow_ip_name_lookup(true);
     }
 
@@ -470,7 +467,7 @@ fn preopen_directory(
     let path = &preopen.path;
     let guest_path = preopen.alias.as_ref().unwrap_or(path);
     builder
-        .preopened_dir(path, guest_path, DirPerms::all(), FilePerms::all())
+        .preopened_dir(path, guest_path, FsPerms::ReadWrite)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     Ok(())
 }
