@@ -16,6 +16,17 @@ pub static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         .expect("Failed to create Tokio runtime")
 });
 
+// Wasm can occupy every Store worker until the next epoch. Advance epochs on a
+// separate worker so Wasm can still yield and observe timeouts under load.
+static EPOCH_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_name("wasmex-epoch")
+        .enable_time()
+        .build()
+        .expect("Failed to create epoch ticker runtime")
+});
+
 struct EpochTickerState {
     engine: Engine,
 }
@@ -30,7 +41,7 @@ impl EpochTicker {
         let state = Arc::new(EpochTickerState { engine });
         let weak_state: Weak<EpochTickerState> = Arc::downgrade(&state);
 
-        TOKIO_RUNTIME.spawn(async move {
+        EPOCH_RUNTIME.spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(10));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
