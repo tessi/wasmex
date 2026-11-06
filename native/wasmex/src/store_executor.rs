@@ -10,6 +10,8 @@ use std::{
 use tokio::sync::mpsc;
 use wasmtime::{Engine, Store, UpdateDeadline};
 
+use crate::runtime::{EpochTicker, TOKIO_RUNTIME};
+
 const DEFAULT_QUEUE_CAPACITY: usize = 1024;
 
 type StoreFuture<T> = Pin<Box<dyn Future<Output = Store<T>> + Send + 'static>>;
@@ -45,7 +47,7 @@ impl<T: 'static> Clone for StoreExecutor<T> {
 }
 
 impl<T: InterruptState + Send + 'static> StoreExecutor<T> {
-    pub(crate) fn new_async(mut store: Store<T>, epoch_ticker: crate::engine::EpochTicker) -> Self {
+    pub(crate) fn new_async(mut store: Store<T>, epoch_ticker: EpochTicker) -> Self {
         store.set_epoch_deadline(1);
         store.epoch_deadline_callback(|store| {
             if store.data().interrupt_requested().load(Ordering::Acquire) {
@@ -59,15 +61,11 @@ impl<T: InterruptState + Send + 'static> StoreExecutor<T> {
 }
 
 impl<T: Send + 'static> StoreExecutor<T> {
-    fn with_capacity(
-        store: Store<T>,
-        capacity: usize,
-        epoch_ticker: Option<crate::engine::EpochTicker>,
-    ) -> Self {
+    fn with_capacity(store: Store<T>, capacity: usize, epoch_ticker: Option<EpochTicker>) -> Self {
         let engine = store.engine().clone();
         let (sender, mut receiver) = mpsc::channel::<StoreCommand<T>>(capacity);
 
-        crate::engine::TOKIO_RUNTIME.spawn(async move {
+        TOKIO_RUNTIME.spawn(async move {
             let _epoch_ticker = epoch_ticker;
             let mut store = store;
             while let Some(command) = receiver.recv().await {

@@ -1,24 +1,12 @@
 use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
-use std::sync::{Arc, LazyLock, Mutex, Weak};
-use std::time::Duration;
+use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
 
 use crate::atoms;
+use crate::runtime::EpochTicker;
 
-pub static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
-    // Spawn <number of CPU cores> OS threads, fall back to `8` if detection fails
-    let num_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(8);
-
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(num_threads)
-        .thread_name("wasmex-async")
-        .enable_all()
-        .build()
-        .expect("Failed to create Tokio runtime")
-});
+pub use crate::runtime::TOKIO_RUNTIME;
 
 #[derive(NifStruct)]
 #[module = "Wasmex.EngineConfig"]
@@ -37,37 +25,6 @@ impl Resource for EngineResource {}
 pub struct EngineResource {
     pub inner: Mutex<Engine>,
     pub(crate) epoch_ticker: Mutex<EpochTicker>,
-}
-
-struct EpochTickerState {
-    engine: Engine,
-}
-
-#[derive(Clone)]
-pub(crate) struct EpochTicker {
-    _state: Arc<EpochTickerState>,
-}
-
-impl EpochTicker {
-    fn new(engine: Engine) -> Self {
-        let state = Arc::new(EpochTickerState { engine });
-        let weak_state: Weak<EpochTickerState> = Arc::downgrade(&state);
-
-        TOKIO_RUNTIME.spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(10));
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-            loop {
-                interval.tick().await;
-                let Some(state) = weak_state.upgrade() else {
-                    break;
-                };
-                state.engine.increment_epoch();
-            }
-        });
-
-        Self { _state: state }
-    }
 }
 
 #[rustler::nif(name = "engine_new")]
