@@ -46,7 +46,7 @@ jobs:
           - { target: x86_64-apple-ios, os: macos-15 }
           - { target: x86_64-pc-windows-gnu, os: windows-2022 }
           - { target: x86_64-pc-windows-msvc, os: windows-2022 }
-          - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true, cross-version: v0.2.5 }
+          - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
           - { target: x86_64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
 
@@ -60,10 +60,11 @@ jobs:
           # Get the project version from mix.exs
           echo "PROJECT_VERSION=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs | head -n1)" >> $GITHUB_ENV
 
-      - name: Add target
-        shell: bash
-        run: |
-          rustup target add ${{ matrix.job.target }}
+      - name: Install Rust and target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+          targets: ${{ matrix.job.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -81,7 +82,7 @@ jobs:
           target: ${{ matrix.job.target }}
           nif-version: ${{ matrix.nif }}
           use-cross: ${{ matrix.job.use-cross }}
-          cross-version: ${{ matrix.job.cross-version || 'v0.2.4' }}
+          cross-version: v0.2.5
           project-dir: "native/wasmex"
           cargo-args: ${{ matrix.job.cargo-args }}
 

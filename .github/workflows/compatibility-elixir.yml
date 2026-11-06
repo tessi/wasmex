@@ -45,7 +45,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.97.1
+          toolchain: 1.99.1
 
       - name: Install cargo-component
         uses: taiki-e/install-action@v2.90.1
