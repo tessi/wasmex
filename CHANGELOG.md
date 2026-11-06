@@ -28,6 +28,10 @@ Types of changes
 - Default store limits now cap each linear memory at 256 MiB and each table at
   100,000 elements across core, WASI, and component stores. Set explicit
   `Wasmex.StoreLimits` values for workloads that need larger resources.
+- `Wasmex.Memory.read_binary/4` now rejects out-of-bounds reads before allocating
+  the result, preventing oversized requests from crashing the Store executor
+  and leaving callers waiting. This also applies to reads from imported
+  callbacks. [#1021](https://github.com/tessi/wasmex/pull/1021)
 
 ## [0.15.1 - 2026-08-07]
 
