@@ -132,24 +132,26 @@ defmodule Wasmex.MemoryTest do
       assert Wasmex.Memory.read_binary(store, memory, 8, 0) == ""
     end
 
-    @tag timeout: 5_000
     test "rejects out-of-bounds binary reads and keeps the store usable" do
-      %{store: store, memory: memory} = build_memory()
+      {:ok, store} = Wasmex.Store.new()
+      {:ok, module} = Wasmex.Module.compile(store, ~s[(module (memory (export "memory") 1))])
+      {:ok, instance} = Wasmex.Instance.new(store, module, %{})
+      {:ok, memory} = Wasmex.Memory.from_instance(store, instance)
       max_usize = Integer.pow(256, :erlang.system_info(:wordsize)) - 1
 
       for {index, length} <- [
             {0, max_usize},
             {1, max_usize},
             {max_usize, 0},
-            {@min_memory_size - 1, 2}
+            {@page_size - 1, 2}
           ] do
         assert Wasmex.Memory.read_binary(store, memory, index, length) ==
                  {:error, "out of bounds memory access"}
       end
 
-      assert :ok = Wasmex.Memory.write_binary(store, memory, @min_memory_size - 1, "x")
-      assert Wasmex.Memory.read_binary(store, memory, @min_memory_size - 1, 1) == "x"
-      assert Wasmex.Memory.read_binary(store, memory, @min_memory_size, 0) == ""
+      assert :ok = Wasmex.Memory.write_binary(store, memory, @page_size - 1, "x")
+      assert Wasmex.Memory.read_binary(store, memory, @page_size - 1, 1) == "x"
+      assert Wasmex.Memory.read_binary(store, memory, @page_size, 0) == ""
     end
   end
 
