@@ -25,17 +25,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: [27.3.4.14, 28.5.0.3, 29.0.3]
-        elixir: [1.18.4, 1.19.5, 1.20.2]
+        otp: [27.3.4.19, 28.5.0.8, 29.1.2]
+        elixir: [1.18.6, 1.19.7, 1.20.5]
         exclude:
-          - otp: 28.5.0.3
-            elixir: 1.18.4
-          - otp: 29.0.3
-            elixir: 1.18.4
-          - otp: 29.0.3
-            elixir: 1.19.5
-          - otp: 29.0.3
-            elixir: 1.20.2
+          - otp: 28.5.0.8
+            elixir: 1.18.6
+          - otp: 29.1.2
+            elixir: 1.18.6
+          - otp: 29.1.2
+            elixir: 1.19.7
+          - otp: 29.1.2
+            elixir: 1.20.5
     steps:
       - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
@@ -45,10 +45,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.97.1
+          toolchain: 1.99.1
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2.86.6
+        uses: taiki-e/install-action@v2.90.1
         with:
           tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 
@@ -64,7 +64,7 @@ jobs:
           shared-key: elixir-tests
           add-job-id-key: false
           cache-bin: false
-          save-if: ${{ matrix.otp == '28.5.0.3' && matrix.elixir == '1.20.2' }}
+          save-if: ${{ matrix.otp == '28.5.0.8' && matrix.elixir == '1.20.5' }}
           workspaces: |
             native/wasmex
             test/fixture_projects/component_exported_interface

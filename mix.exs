@@ -27,9 +27,9 @@ defmodule Wasmex.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler_precompiled, "~> 0.9"},
+      {:rustler_precompiled, "~> 0.10.1"},
       {:rustler, "~> 0.38"},
-      {:ex_doc, "~> 0.40.3", only: [:dev, :test]},
+      {:ex_doc, "~> 0.40.4", only: [:dev, :test]},
       {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false}
     ]
   end

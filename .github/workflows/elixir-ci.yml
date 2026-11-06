@@ -7,8 +7,8 @@ on:
       - main
 
 env:
-  ELIXIR_VERSION: 1.20.2
-  OTP_VERSION: 29.0.3
+  ELIXIR_VERSION: 1.20.5
+  OTP_VERSION: 29.1.2
   MIX_ENV: test
   WASMEX_BUILD: true
   CARGO_COMPONENT_VERSION: 0.21.1
@@ -34,7 +34,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.97.1
+          toolchain: 1.99.1
 
       - id: get-cache-key
         run: echo "key=mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}" >> $GITHUB_OUTPUT
@@ -101,7 +101,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.97.1
+          toolchain: 1.99.1
 
       - name: Restore Rust build dependencies
         uses: Swatinem/rust-cache@v2
@@ -144,7 +144,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.97.1
+          toolchain: 1.99.1
 
       - name: Add targets
         run: |
@@ -171,7 +171,7 @@ jobs:
             test/fixture_projects/wasm_test
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2.86.6
+        uses: taiki-e/install-action@v2.90.1
         with:
           tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 
