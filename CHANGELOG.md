@@ -16,6 +16,12 @@ Types of changes
 
 ## [Unreleased]
 
+### Fixed
+
+- Pipe reads and writes now preserve arbitrary binary bytes, including WASI
+  stdout and stderr that contain invalid UTF-8, without panicking or poisoning
+  the pipe.
+
 ### Changed
 
 - Refreshed Rust transitive dependencies and component fixture lockfiles.

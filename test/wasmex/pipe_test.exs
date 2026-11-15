@@ -43,12 +43,61 @@ defmodule Wasmex.PipeTest do
       assert Pipe.read(pipe) == "Hello, World!"
     end
 
+    test "preserves arbitrary binary bytes and byte positions", %{pipe: pipe} do
+      bytes = <<0, 255, 195, 40, 226, 130>>
+      assert Pipe.write(pipe, bytes) == {:ok, byte_size(bytes)}
+      assert Pipe.read(pipe) == ""
+      assert Pipe.size(pipe) == byte_size(bytes)
+      assert Pipe.seek(pipe, 0) == :ok
+      assert Pipe.read(pipe) == bytes
+      assert Pipe.seek(pipe, 2) == :ok
+      assert Pipe.read(pipe) == <<195, 40, 226, 130>>
+      assert Pipe.seek(pipe, 1) == :ok
+      assert Pipe.write(pipe, <<128>>) == {:ok, 1}
+      assert Pipe.seek(pipe, 0) == :ok
+      assert Pipe.read(pipe) == <<0, 128, 195, 40, 226, 130>>
+    end
+
     test "#{t(&Pipe.seek/2)} sets pipe position", %{pipe: pipe} do
       Pipe.write(pipe, "Hello, World!")
       Pipe.seek(pipe, 7)
       Pipe.write(pipe, "Wasmex")
       Pipe.seek(pipe, 0)
       assert Pipe.read(pipe) == "Hello, Wasmex"
+    end
+  end
+
+  test "reads arbitrary WASI stdout and stderr bytes without poisoning the pipe" do
+    wat = ~S"""
+    (module
+      (import "wasi_snapshot_preview1" "fd_write"
+        (func $fd_write (param i32 i32 i32 i32) (result i32)))
+      (memory (export "memory") 1)
+      (data (i32.const 16) "\ff\00\c3\28\e2\82hello")
+      (func (export "write") (param $fd i32) (param $offset i32) (param $len i32) (result i32)
+        (i32.store (i32.const 0) (local.get $offset))
+        (i32.store (i32.const 4) (local.get $len))
+        (call $fd_write (local.get $fd) (i32.const 0) (i32.const 1) (i32.const 8))))
+    """
+
+    for {fd, stream} <- [{1, :stdout}, {2, :stderr}],
+        {offset, bytes} <- [{16, <<255, 0, 195, 40>>}, {20, <<226, 130>>}, {22, "hello"}] do
+      {:ok, pipe} = Pipe.new()
+      wasi = Map.put(%Wasmex.Wasi.WasiOptions{}, stream, pipe)
+
+      instance = start_supervised!({Wasmex, %{bytes: wat, wasi: wasi}}, id: {stream, offset})
+
+      assert Wasmex.call_function(instance, "write", [fd, offset, byte_size(bytes)]) == {:ok, [0]}
+      assert Pipe.read(pipe) == ""
+      assert Pipe.seek(pipe, 0) == :ok
+      assert Pipe.read(pipe) == bytes
+      assert Pipe.size(pipe) == byte_size(bytes)
+      assert Pipe.read(pipe) == ""
+      assert Pipe.seek(pipe, 0) == :ok
+      assert Pipe.read(pipe) == bytes
+      assert Pipe.write(pipe, "!") == {:ok, 1}
+      assert Pipe.seek(pipe, byte_size(bytes)) == :ok
+      assert Pipe.read(pipe) == "!"
     end
   end
 end
