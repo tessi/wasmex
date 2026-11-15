@@ -16,6 +16,12 @@ Types of changes
 
 ## [Unreleased]
 
+### Security
+
+- Bound each Pipe's retained buffer to 256 MiB by default, independently of Wasm
+  store limits. `Wasmex.Pipe.new(max_size: bytes)` configures a different limit;
+  writes exceeding it fail without partially changing the buffer.
+
 ### Changed
 
 - Refreshed Rust transitive dependencies and component fixture lockfiles.
