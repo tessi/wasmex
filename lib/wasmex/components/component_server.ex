@@ -88,9 +88,10 @@ defmodule Wasmex.Components.ComponentServer do
   ## Options
 
   * `:wit` - Path to the WIT file defining the component's interface
-  * `:convert_field_names` - All function calls recursively convert map field names
-  in arguments from underscore case to kebab-case
-  and vice versa for return values. Defaults to true.
+  * `:convert_field_names` - Recursively converts atom keys in arguments from
+  snake_case to kebab-case. Returned record and flag keys declared in the
+  compile-time WIT become snake_case atoms if they fit the BEAM atom length
+  limit. Other keys are strings with their original spelling. Defaults to true.
   * `:imports` - A map of import function implementations that the component requires, where each key
     is the function name as defined in the WIT file and the value is the implementing function
   """
@@ -115,35 +116,53 @@ defmodule Wasmex.Components.ComponentServer do
     functions =
       if wit_path = Keyword.get(opts, :wit) do
         wit_contents = File.read!(wit_path)
-        exported_functions = Wasmex.Native.wit_exported_functions(wit_path, wit_contents)
 
-        for {function, arity} <- exported_functions do
-          arglist = Macro.generate_arguments(arity, __MODULE__)
-          function_atom = function |> String.replace("-", "_") |> String.to_atom()
+        {exported_functions, field_names} =
+          Wasmex.Native.wit_component_server_metadata(wit_path, wit_contents)
 
-          quote do
-            def unquote(function_atom)(pid, unquote_splicing(arglist)) do
-              args = [unquote_splicing(arglist)]
+        field_atoms = compile_field_atoms(field_names, convert_field_names?)
 
-              converted_args =
-                Wasmex.Components.FieldConverter.maybe_convert_args(
-                  args,
-                  unquote(convert_field_names?)
+        external_resource = quote do: @external_resource(unquote(Path.expand(wit_path)))
+
+        wrappers =
+          for {function, arity} <- exported_functions do
+            arglist = Macro.generate_arguments(arity, __MODULE__)
+            function_atom = function |> String.replace("-", "_") |> String.to_atom()
+
+            quote do
+              def unquote(function_atom)(pid, unquote_splicing(arglist)) do
+                args = [unquote_splicing(arglist)]
+
+                converted_args =
+                  Wasmex.Components.FieldConverter.maybe_convert_args(
+                    args,
+                    unquote(convert_field_names?)
+                  )
+
+                result = Wasmex.Components.call_function(pid, unquote(function), converted_args)
+
+                Wasmex.Components.FieldConverter.maybe_convert_result(
+                  result,
+                  unquote(convert_field_names?),
+                  unquote(Macro.escape(field_atoms))
                 )
-
-              result = Wasmex.Components.call_function(pid, unquote(function), converted_args)
-
-              Wasmex.Components.FieldConverter.maybe_convert_result(
-                result,
-                unquote(convert_field_names?)
-              )
+              end
             end
           end
-        end
+
+        [external_resource | wrappers]
       else
         []
       end
 
     [genserver_setup, functions]
+  end
+
+  defp compile_field_atoms(_field_names, false), do: %{}
+
+  defp compile_field_atoms(field_names, _convert_field_names) do
+    for name <- field_names, byte_size(name) <= 255, into: %{} do
+      {name, name |> String.replace("-", "_") |> String.to_atom()}
+    end
   end
 end

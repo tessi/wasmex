@@ -153,6 +153,7 @@ defmodule Wasmex.Native do
     do: error()
 
   def wit_exported_functions(_path, _wit), do: error()
+  def wit_component_server_metadata(_path, _wit), do: error()
   def wit_exported_resources(_path, _wit, _world), do: error()
   def wit_imported_resources(_path, _wit, _world), do: error()
   def wit_imported_resources_from_path(_path, _world), do: error()
