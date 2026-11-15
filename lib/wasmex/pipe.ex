@@ -4,6 +4,11 @@ defmodule Wasmex.Pipe do
 
   Pipes have a read and write position which can be set using `seek/2`.
 
+  Each pipe retains at most 256 MiB by default, independently of store memory
+  limits. Use `new/1` to configure this limit. Reads advance the cursor without
+  freeing the retained buffer. The limit covers the total buffer extent,
+  including gaps introduced by seeking, rather than unread bytes or all VM memory.
+
   ## Example
 
   Pipes can be written to and read from:
@@ -50,13 +55,29 @@ defmodule Wasmex.Pipe do
   @doc ~S"""
   Creates and returns a new Pipe.
 
+  The optional `:max_size` is a non-negative maximum retained buffer size in
+  bytes, defaulting to 256 MiB (268,435,456 bytes). Larger workloads can opt into
+  a higher limit. No buffer is allocated until the pipe is written to.
+
   ## Example
 
       iex> {:ok, %Wasmex.Pipe{}} = Wasmex.Pipe.new()
+
+      iex> {:ok, %Wasmex.Pipe{}} = Wasmex.Pipe.new(max_size: 1024)
   """
   @spec new() :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
-  def new() do
-    case Wasmex.Native.pipe_new() do
+  @spec new(keyword()) :: {:error, reason :: binary()} | {:ok, __MODULE__.t()}
+  def new(options \\ []) do
+    resource =
+      case Keyword.validate!(options, max_size: 256 * 1024 * 1024) do
+        [max_size: max_size] when is_integer(max_size) and max_size >= 0 ->
+          Wasmex.Native.pipe_new_with_limit(max_size)
+
+        _ ->
+          raise ArgumentError, "max_size must be a non-negative integer"
+      end
+
+    case resource do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}
     end
@@ -129,6 +150,9 @@ defmodule Wasmex.Pipe do
   Writes the given binary into the pipe.
 
   Writing starts at the current write position, see `seek/2`, and forwards it.
+  A write that would exceed the pipe's maximum buffer size returns `:error`
+  without changing the buffer or cursor. WASI writes to a full pipe receive
+  an I/O error. Writes are never silently truncated.
 
   ## Example
 

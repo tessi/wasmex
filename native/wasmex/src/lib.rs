@@ -4,7 +4,7 @@ mod runtime;
 pub mod store_executor;
 
 // Rustler registers NIFs through static constructors that reference BEAM symbols.
-// Compile only the runtime and executor in standalone Rust tests.
+// Exclude NIF registration from standalone Rust tests.
 #[cfg(not(test))]
 pub mod async_reply;
 #[cfg(not(test))]
@@ -33,7 +33,6 @@ pub mod instance;
 pub mod memory;
 #[cfg(not(test))]
 pub mod module;
-#[cfg(not(test))]
 pub mod pipe;
 #[cfg(not(test))]
 pub mod printable_term_type;
