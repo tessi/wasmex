@@ -16,6 +16,12 @@ Types of changes
 
 ## [Unreleased]
 
+### Security
+
+- Prevented component result field names from creating BEAM atoms. ComponentServer
+  converts only fields declared in its compile-time WIT to snake_case atoms;
+  other fields remain strings with their original spelling.
+
 ### Changed
 
 - Refreshed Rust transitive dependencies and component fixture lockfiles.
