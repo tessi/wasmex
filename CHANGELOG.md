@@ -16,6 +16,8 @@ Types of changes
 
 ## [Unreleased]
 
+## [0.16.1 - 2026-11-15]
+
 ### Fixed
 
 - Pipe reads and writes now preserve arbitrary binary bytes, including WASI
