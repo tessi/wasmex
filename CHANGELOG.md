@@ -16,11 +16,22 @@ Types of changes
 
 ## [Unreleased]
 
+### Fixed
+
+- Pipe reads and writes now preserve arbitrary binary bytes, including WASI
+  stdout and stderr that contain invalid UTF-8, without panicking or poisoning
+  the pipe.
+- Flatten nested module links in linear time while preserving dependency order
+  and duplicate module precedence.
+
 ### Security
 
 - Prevented component result field names from creating BEAM atoms. ComponentServer
   converts only fields declared in its compile-time WIT to snake_case atoms;
   other fields remain strings with their original spelling.
+- Bound each Pipe's retained buffer to 256 MiB by default, independently of Wasm
+  store limits. `Wasmex.Pipe.new(max_size: bytes)` configures a different limit;
+  writes exceeding it fail without partially changing the buffer.
 
 ### Changed
 

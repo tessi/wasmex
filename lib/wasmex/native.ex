@@ -94,6 +94,7 @@ defmodule Wasmex.Native do
   def memory_write_binary(_store_resource, _memory_resource, _index, _binary, _from), do: error()
 
   def pipe_new(), do: error()
+  def pipe_new_with_limit(_max_size), do: error()
   def pipe_size(_pipe_resource), do: error()
   def pipe_seek(_pipe_resource, _pos_from_start), do: error()
   def pipe_read_binary(_pipe_resource), do: error()
