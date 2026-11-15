@@ -18,6 +18,9 @@ Types of changes
 
 ### Fixed
 
+- Pipe reads and writes now preserve arbitrary binary bytes, including WASI
+  stdout and stderr that contain invalid UTF-8, without panicking or poisoning
+  the pipe.
 - Flatten nested module links in linear time while preserving dependency order
   and duplicate module precedence.
 

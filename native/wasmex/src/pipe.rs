@@ -2,7 +2,7 @@
 //! It can, for example, be used to replace stdin/stdout/stderr of a WASI module.
 
 #[cfg(not(test))]
-use rustler::{Encoder, ResourceArc, Term};
+use rustler::{Binary, Encoder, OwnedBinary, ResourceArc, Term};
 use std::io::{self, Cursor, Read, Seek, Write};
 use std::pin::Pin;
 #[cfg(not(test))]
@@ -202,24 +202,29 @@ pub fn seek(
 
 #[cfg(not(test))]
 #[rustler::nif(name = "pipe_read_binary", schedule = "DirtyCpu")]
-pub fn read_binary(pipe_resource: ResourceArc<PipeResource>) -> String {
+pub fn read_binary(
+    env: rustler::Env,
+    pipe_resource: ResourceArc<PipeResource>,
+) -> rustler::NifResult<Binary> {
     let mut pipe = pipe_resource.pipe.lock().unwrap();
-    let mut buffer = String::new();
+    let mut buffer = Vec::new();
 
-    (*pipe).read_to_string(&mut buffer).unwrap();
-    buffer
+    (*pipe)
+        .read_to_end(&mut buffer)
+        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
+    Ok(OwnedBinary::from_slice(&buffer).release(env))
 }
 
 #[cfg(not(test))]
 #[rustler::nif(name = "pipe_write_binary", schedule = "DirtyCpu")]
-pub fn write_binary(
-    env: rustler::Env,
+pub fn write_binary<'a>(
+    env: rustler::Env<'a>,
     pipe_resource: ResourceArc<PipeResource>,
-    content: String,
-) -> Term {
+    content: Binary,
+) -> Term<'a> {
     let mut pipe = pipe_resource.pipe.lock().unwrap();
 
-    match (*pipe).write(content.as_bytes()) {
+    match (*pipe).write(content.as_slice()) {
         Ok(bytes_written) => (atoms::ok(), bytes_written).encode(env),
         _ => atoms::error().encode(env),
     }
