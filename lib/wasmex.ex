@@ -256,8 +256,7 @@ defmodule Wasmex do
 
     compiled_links =
       links
-      |> flatten_links()
-      |> Enum.reverse()
+      |> flatten_links_reversed()
       |> Enum.uniq_by(&elem(&1, 0))
       |> Enum.map(&build_compiled_links(&1, store))
 
@@ -273,12 +272,13 @@ defmodule Wasmex do
     GenServer.start_link(__MODULE__, state, gen_server_opts)
   end
 
-  defp flatten_links(links) do
-    Enum.flat_map(links, fn {name, opts} ->
+  # Accumulate in reverse traversal order so each link is added only once.
+  defp flatten_links_reversed(links, acc \\ []) do
+    Enum.reduce(links, acc, fn {name, opts}, acc ->
       if Map.has_key?(opts, :links) do
-        [{name, Map.drop(opts, [:links])} | flatten_links(opts.links)]
+        flatten_links_reversed(opts.links, [{name, Map.drop(opts, [:links])} | acc])
       else
-        [{name, opts}]
+        [{name, opts} | acc]
       end
     end)
   end
