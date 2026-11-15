@@ -21,6 +21,12 @@ Types of changes
 - Flatten nested module links in linear time while preserving dependency order
   and duplicate module precedence.
 
+### Security
+
+- Bound each Pipe's retained buffer to 256 MiB by default, independently of Wasm
+  store limits. `Wasmex.Pipe.new(max_size: bytes)` configures a different limit;
+  writes exceeding it fail without partially changing the buffer.
+
 ### Changed
 
 - Refreshed Rust transitive dependencies and component fixture lockfiles.
