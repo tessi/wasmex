@@ -54,7 +54,11 @@ defmodule Wasmex.Components.FieldConverter do
   defp map_keys(%_{} = struct, _convert), do: struct
 
   defp map_keys(map, convert) when is_map(map) do
-    Map.new(map, fn {key, value} -> {convert.(key, map), map_keys(value, convert)} end)
+    Map.new(map, fn {key, value} ->
+      converted_key = convert.(key, map)
+      value = Map.get(map, converted_key, value)
+      {converted_key, map_keys(value, convert)}
+    end)
   end
 
   defp map_keys(list, convert) when is_list(list), do: Enum.map(list, &map_keys(&1, convert))
@@ -70,7 +74,7 @@ defmodule Wasmex.Components.FieldConverter do
   defp to_wit_map_key(key, map) when is_atom(key) do
     name = to_wit_key(key)
 
-    if Map.has_key?(map, name) or (name != Atom.to_string(key) and has_atom_key?(map, name)) do
+    if name != Atom.to_string(key) and (Map.has_key?(map, name) or has_atom_key?(map, name)) do
       key
     else
       name

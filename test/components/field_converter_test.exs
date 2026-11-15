@@ -55,5 +55,9 @@ defmodule Wasmex.Components.FieldConverterTest do
 
     assert [%{"outer" => %{"inner-field" => "canonical", inner_field: "alias"}}] =
              FieldConverter.maybe_convert_args(input, true)
+
+    input = [%{"kebab-field" => "canonical", "kebab-field": "alias"}]
+
+    assert [%{"kebab-field" => "canonical"}] = FieldConverter.maybe_convert_args(input, true)
   end
 end
