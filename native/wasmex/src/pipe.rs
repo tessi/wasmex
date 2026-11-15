@@ -228,7 +228,6 @@ pub fn write_binary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::io::AsyncWriteExt;
 
     #[test]
     fn default_limit_rejects_sparse_extension_without_allocating() {
@@ -306,9 +305,11 @@ mod tests {
 
     #[tokio::test]
     async fn wasi_stdout_streams_share_the_limit_and_report_errors() {
+        use tokio::io::AsyncWriteExt;
+
         let pipe = Pipe::with_max_size(4);
-        let mut stdout = StdoutStream::async_stream(&pipe);
-        let mut stderr = StdoutStream::async_stream(&pipe);
+        let mut stdout = Box::into_pin(StdoutStream::async_stream(&pipe));
+        let mut stderr = Box::into_pin(StdoutStream::async_stream(&pipe));
         stdout.write_all(b"ab").await.unwrap();
         stderr.write_all(b"cd").await.unwrap();
         assert!(stdout.write_all(b"e").await.is_err());
