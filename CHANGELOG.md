@@ -14,6 +14,14 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [Unreleased]
+
+### Changed
+
+- Refreshed Rust transitive dependencies and component fixture lockfiles.
+  Updated the development and CI Rust toolchain to 1.100.0 and
+  taiki-e/install-action to v2.90.5.
+
 ## [0.16.0 - 2026-11-06]
 
 ### Changed
