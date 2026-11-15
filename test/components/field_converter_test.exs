@@ -55,9 +55,9 @@ defmodule Wasmex.Components.FieldConverterTest do
     assert [%{"outer" => %{"inner-field" => "canonical"}}] =
              FieldConverter.maybe_convert_args(input, true)
 
-    input = [%{"kebab-field" => "canonical", "kebab-field": "alias"}]
+    input = [%{"explicit-field" => "canonical", "explicit-field": "alias"}]
 
-    assert [%{"kebab-field" => "canonical"}] = FieldConverter.maybe_convert_args(input, true)
+    assert [%{"explicit-field" => "canonical"}] = FieldConverter.maybe_convert_args(input, true)
   end
 
   test "flag aliases collapse to the canonical string or atom value" do
