@@ -63,7 +63,7 @@ jobs:
       - name: Install Rust and target
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
+          toolchain: 1.100.0
           targets: ${{ matrix.job.target }}
 
       - uses: Swatinem/rust-cache@v2

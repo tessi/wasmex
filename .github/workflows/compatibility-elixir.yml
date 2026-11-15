@@ -45,10 +45,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
+          toolchain: 1.100.0
 
       - name: Install cargo-component
-        uses: taiki-e/install-action@v2.90.1
+        uses: taiki-e/install-action@v2.90.5
         with:
           tool: cargo-component@${{ env.CARGO_COMPONENT_VERSION }}
 
