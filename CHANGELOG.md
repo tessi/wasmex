@@ -16,6 +16,11 @@ Types of changes
 
 ## [Unreleased]
 
+### Fixed
+
+- Flatten nested module links in linear time while preserving dependency order
+  and duplicate module precedence.
+
 ### Changed
 
 - Refreshed Rust transitive dependencies and component fixture lockfiles.

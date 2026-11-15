@@ -84,4 +84,58 @@ defmodule WasmLinkTest do
 
     assert Wasmex.call_function(pid, "sum_range", [1, 5]) == {:ok, [15]}
   end
+
+  test "nested sibling links preserve order and the last occurrence of each module name" do
+    {:ok, store} = Wasmex.Store.new()
+
+    [main, first_shared, left, left_shared, leaf, right, right_shared] =
+      Enum.map(1..7, fn _ ->
+        {:ok, module} = Wasmex.Module.compile(store, "(module)")
+        module
+      end)
+
+    links = [
+      shared: %{module: first_shared},
+      left: %{
+        module: left,
+        links: [shared: %{module: left_shared}, leaf: %{module: leaf}]
+      },
+      right: %{module: right, links: [shared: %{module: right_shared}]}
+    ]
+
+    {:ok, pid} = Wasmex.start_link(%{module: main, store: store, links: links})
+
+    assert :sys.get_state(pid).links == [
+             %{name: "shared", module: right_shared},
+             %{name: "right", module: right},
+             %{name: "leaf", module: leaf},
+             %{name: "left", module: left}
+           ]
+  end
+
+  test "deep duplicate links take work proportional to their number" do
+    {:ok, store} = Wasmex.Store.new()
+    {:ok, module} = Wasmex.Module.compile(store, "(module)")
+
+    reductions =
+      Enum.map([2_000, 8_000], fn depth ->
+        links =
+          Enum.reduce(1..depth, %{}, fn _, children ->
+            %{shared: %{module: module, links: children}}
+          end)
+
+        :erlang.garbage_collect()
+        {:reductions, before} = Process.info(self(), :reductions)
+        {:ok, pid} = Wasmex.start_link(%{module: module, store: store, links: links})
+        {:reductions, after_count} = Process.info(self(), :reductions)
+
+        assert :sys.get_state(pid).links == [%{name: "shared", module: module}]
+        GenServer.stop(pid)
+        after_count - before
+      end)
+
+    [small, large] = reductions
+    # Four times as many links allows GC variance, but rejects quadratic copying.
+    assert large < small * 6
+  end
 end
