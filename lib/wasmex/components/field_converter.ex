@@ -56,7 +56,7 @@ defmodule Wasmex.Components.FieldConverter do
   defp map_keys(map, convert) when is_map(map) do
     Map.new(map, fn {key, value} ->
       converted_key = convert.(key, map)
-      value = Map.get(map, converted_key, value)
+      value = canonical_value(map, converted_key, value)
       {converted_key, map_keys(value, convert)}
     end)
   end
@@ -71,21 +71,17 @@ defmodule Wasmex.Components.FieldConverter do
 
   defp to_wit_key(key) when is_atom(key), do: key |> Atom.to_string() |> String.replace("_", "-")
 
-  defp to_wit_map_key(key, map) when is_atom(key) do
-    name = to_wit_key(key)
-
-    if name != Atom.to_string(key) and (Map.has_key?(map, name) or has_atom_key?(map, name)) do
-      key
-    else
-      name
-    end
-  end
-
+  defp to_wit_map_key(key, _map) when is_atom(key), do: to_wit_key(key)
   defp to_wit_map_key(key, _map), do: key
 
-  defp has_atom_key?(map, name) do
-    Map.has_key?(map, String.to_existing_atom(name))
+  defp canonical_value(map, name, default) when is_binary(name) do
+    case Map.fetch(map, name) do
+      {:ok, value} -> value
+      :error -> Map.get(map, String.to_existing_atom(name), default)
+    end
   rescue
-    ArgumentError -> false
+    ArgumentError -> default
   end
+
+  defp canonical_value(_map, _name, default), do: default
 end

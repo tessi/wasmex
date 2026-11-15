@@ -129,6 +129,32 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                Wasmex.Components.call_function(component_pid, "export-id-flags", [123])
     end
 
+    test "converted flag aliases collapse before native validation" do
+      component_bytes = File.read!(TestHelper.component_type_conversions_file_path())
+      original_flags = <<4, "read", 5, "write", 4, "exec">>
+      renamed_flags = <<4, "r-xx", 5, "write", 4, "exec">>
+      patched_bytes = :binary.replace(component_bytes, original_flags, renamed_flags, [:global])
+      assert patched_bytes != component_bytes
+
+      component_pid =
+        start_supervised!(
+          {Wasmex.Components,
+           bytes: patched_bytes,
+           imports: TestHelper.component_type_conversions_import_map(),
+           wasi: %WasiP2Options{}}
+        )
+
+      for flags <- [%{"r-xx" => true, r_xx: false}, %{"r-xx": true, r_xx: false}] do
+        args = Wasmex.Components.FieldConverter.maybe_convert_args([flags], true)
+        result = Wasmex.Components.call_function(component_pid, "export-id-flags", args)
+
+        assert {:ok, %{r_xx: true}} =
+                 Wasmex.Components.FieldConverter.maybe_convert_result(result, true, %{
+                   "r-xx" => :r_xx
+                 })
+      end
+    end
+
     test "enum types" do
       component_pid = start_component()
 

@@ -48,16 +48,28 @@ defmodule Wasmex.Components.FieldConverterTest do
   test "argument conversion retains canonical key precedence" do
     input = [%{"kebab-field" => "canonical", kebab_field: "alias"}]
 
-    assert [%{"kebab-field" => "canonical", kebab_field: "alias"}] =
-             FieldConverter.maybe_convert_args(input, true)
+    assert [%{"kebab-field" => "canonical"}] = FieldConverter.maybe_convert_args(input, true)
 
     input = [%{"outer" => %{"inner-field": "canonical", inner_field: "alias"}}]
 
-    assert [%{"outer" => %{"inner-field" => "canonical", inner_field: "alias"}}] =
+    assert [%{"outer" => %{"inner-field" => "canonical"}}] =
              FieldConverter.maybe_convert_args(input, true)
 
     input = [%{"kebab-field" => "canonical", "kebab-field": "alias"}]
 
     assert [%{"kebab-field" => "canonical"}] = FieldConverter.maybe_convert_args(input, true)
+  end
+
+  test "flag aliases collapse to the canonical string or atom value" do
+    for flags <- [
+          %{"is-ready" => true, is_ready: false},
+          %{"is-ready": true, is_ready: false},
+          %{"is-ready" => true, "is-ready": false, is_ready: false}
+        ] do
+      assert [%{"is-ready" => true}] = FieldConverter.maybe_convert_args([flags], true)
+
+      assert [%{"nested-flags" => %{"is-ready" => true}}] =
+               FieldConverter.maybe_convert_args([%{nested_flags: flags}], true)
+    end
   end
 end
