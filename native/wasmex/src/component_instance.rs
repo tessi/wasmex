@@ -6,7 +6,7 @@ use rustler::types::tuple;
 
 use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
-use crate::component::{ComponentResource, ParsedComponent};
+use crate::component::ComponentResource;
 use crate::component_host_resource::HostResourceRegistry;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
@@ -45,7 +45,7 @@ impl rustler::Resource for ComponentCallbackTokenResource {}
 
 pub struct ComponentInstanceResource {
     pub inner: Instance,
-    pub parsed: Arc<ParsedComponent>,
+    pub component: wasmtime::component::Component,
     _host_resources: Arc<HostResourceRegistry>,
 }
 
@@ -59,17 +59,8 @@ pub fn new_instance(
     imports: Term,
     from: Term,
 ) -> NifResult<rustler::Atom> {
-    let component = component_resource
-        .inner
-        .lock()
-        .map_err(|e| {
-            rustler::Error::Term(Box::new(format!(
-                "Could not unlock component resource as the mutex was poisoned: {e}"
-            )))
-        })?
-        .clone();
+    let component = component_resource.component()?;
     let callback_pid = imports.get_env().pid();
-    let parsed = component_resource.parsed.clone();
     let term_env = OwnedEnv::new();
     let imports = term_env.save(imports);
     let executor = store_resource.executor()?;
@@ -91,7 +82,7 @@ pub fn new_instance(
                 .map(|instance| {
                     ResourceArc::new(ComponentInstanceResource {
                         inner: instance,
-                        parsed,
+                        component,
                         _host_resources: host_resources,
                     })
                 })

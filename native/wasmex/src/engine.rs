@@ -1,4 +1,4 @@
-use rustler::{Binary, Error, NifStruct, OwnedBinary, Resource, ResourceArc};
+use rustler::{Binary, Error, NifResult, NifStruct, OwnedBinary, Resource, ResourceArc};
 use std::ops::Deref;
 use std::sync::Mutex;
 use wasmtime::{Config, Engine, WasmBacktraceDetails};
@@ -56,6 +56,19 @@ pub fn precompile_module<'a>(
         rustler::Error::Term(Box::new(format!("Could not precompile module: {err}")))
     })?;
     Ok(OwnedBinary::from_slice(&serialized_module).release(env))
+}
+
+#[rustler::nif(name = "engine_precompile_component", schedule = "DirtyCpu")]
+pub fn precompile_component<'a>(
+    env: rustler::Env<'a>,
+    engine_resource: ResourceArc<EngineResource>,
+    bytes: Binary<'a>,
+) -> NifResult<Binary<'a>> {
+    let engine = unwrap_engine(engine_resource)?;
+    let artifact = engine
+        .precompile_component(bytes.as_slice())
+        .map_err(|err| Error::Term(Box::new(format!("Could not precompile component: {err}"))))?;
+    Ok(OwnedBinary::from_slice(&artifact).release(env))
 }
 
 pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {

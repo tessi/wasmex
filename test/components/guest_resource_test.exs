@@ -59,6 +59,40 @@ defmodule Wasmex.Components.GuestResourceTest do
     assert :ok = Accumulator.drop(accumulator)
   end
 
+  test "discovers guest resources in a deserialized component" do
+    engine = Wasmex.Engine.default()
+    bytes = File.read!(TestHelper.guest_resource_component_file_path())
+    assert {:ok, artifact} = Wasmex.Engine.precompile_component(engine, bytes)
+    assert {:ok, component} = Component.unsafe_deserialize(artifact, engine)
+    assert {:ok, store} = Store.new(nil, engine)
+    pid = start_supervised!({Wasmex.Components, component: component, store: store})
+
+    assert {:ok, accumulator} = Accumulator.new(pid, 10)
+    assert {:ok, 11} = Accumulator.increment(accumulator)
+    assert {:ok, label} = Accumulator.make_label(accumulator, "precompiled")
+    assert {:ok, "precompiled"} = Label.text(label)
+    assert :ok = Label.drop(label)
+    assert :ok = Accumulator.drop(accumulator)
+  end
+
+  test "uses the resource methods when a type-only alias is exported first" do
+    engine = Wasmex.Engine.default()
+    source = File.read!("test/component_fixtures/guest_resource_alias.wat")
+    assert {:ok, artifact} = Wasmex.Engine.precompile_component(engine, source)
+    assert {:ok, component} = Component.unsafe_deserialize(artifact, engine)
+    assert {:ok, store} = Store.new(nil, engine)
+    pid = start_supervised!({Wasmex.Components, component: component, store: store})
+    path = ["primary", "counter"]
+
+    assert {:ok, constructed} = GuestResource.new(pid, path, [5])
+    assert {:ok, 5} = GuestResource.call(constructed, :method, "get-value")
+    assert :ok = GuestResource.drop(constructed)
+
+    assert {:ok, returned} = GuestResource.call_static(pid, path, :static, "make", [7])
+    assert {:ok, 7} = GuestResource.call(returned, :method, "get-value")
+    assert :ok = GuestResource.drop(returned)
+  end
+
   test "validates constructor and method argument counts exactly", %{instance: instance} do
     path = ["wasmex:resources/counters@1.2.3", "accumulator"]
 

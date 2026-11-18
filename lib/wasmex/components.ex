@@ -40,6 +40,22 @@ defmodule Wasmex.Components do
   {:ok, result} = Wasmex.Components.call_function(pid, "exported_function", ["param1"])
   ```
 
+  ## Ahead-of-time compilation
+
+  Use `Wasmex.Engine.precompile_component/2` to compile an artifact that can
+  be saved and loaded on a compatible host.
+
+  ```elixir
+  build_engine = Wasmex.Engine.default()
+  {:ok, artifact} = Wasmex.Engine.precompile_component(build_engine, File.read!("component.wasm"))
+
+  # On the runtime host, load the trusted artifact and use the same Engine for the Store.
+  engine = Wasmex.Engine.default()
+  {:ok, component} = Wasmex.Components.Component.unsafe_deserialize(artifact, engine)
+  {:ok, store} = Wasmex.Components.Store.new(nil, engine)
+  {:ok, pid} = Wasmex.Components.start_link(component: component, store: store)
+  ```
+
   ## Component Interface Types
 
   The component model supports the following WIT (WebAssembly Interface Type) types:
@@ -188,6 +204,10 @@ defmodule Wasmex.Components do
 
   * `:bytes` - Raw WebAssembly component bytes (mutually exclusive with `:path`)
   * `:path` - Path to a WebAssembly component file (mutually exclusive with `:bytes`)
+  * `:component` - Compiled `Wasmex.Components.Component`. Supply it with
+    `:store` in place of `:bytes` or `:path`.
+  * `:store` - Optional `Wasmex.Components.Store`. For a compiled component,
+    use a Store created with the Engine that compiled or loaded the component.
   * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct for system interface capabilities
   * `:imports` - Optional map of host functions that can be called by the WebAssembly component
     * Keys are function names as strings
@@ -227,6 +247,8 @@ defmodule Wasmex.Components do
 
   use GenServer
 
+  alias Wasmex.Components.Component
+
   @doc """
   Starts a new WebAssembly component instance.
 
@@ -234,6 +256,11 @@ defmodule Wasmex.Components do
 
     * `:bytes` - Raw WebAssembly component bytes (mutually exclusive with `:path`)
     * `:path` - Path to a WebAssembly component file (mutually exclusive with `:bytes`)
+    * `:component` - Compiled `Wasmex.Components.Component`. Supply it with
+      `:store` in place of `:bytes` or `:path`.
+    * `:store` - Optional `Wasmex.Components.Store`. When supplying a compiled
+      component, create its Store with the same Engine and configure WASI and
+      Store limits when constructing the Store.
     * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct
     * `:imports` - Optional map of host functions that can be called by the component
     * Any standard GenServer options (like `:name`)
@@ -247,9 +274,9 @@ defmodule Wasmex.Components do
     opts = normalize_opts(opts)
 
     with {:ok, store} <- get_store(opts),
-         component_bytes <- get_component_bytes(opts),
-         imports <- Keyword.get(opts, :imports, %{}),
-         {:ok, component} <- Wasmex.Components.Component.new(store, component_bytes) do
+         {:ok, component} <- get_component(opts, store) do
+      imports = Keyword.get(opts, :imports, %{})
+
       GenServer.start_link(
         __MODULE__,
         %{store: store, component: component, imports: imports},
@@ -266,6 +293,23 @@ defmodule Wasmex.Components do
 
   defp normalize_opts(opts) when is_list(opts), do: opts
 
+  defp get_component(opts, store) do
+    case Keyword.fetch(opts, :component) do
+      :error ->
+        Component.new(store, get_component_bytes(opts))
+
+      {:ok, %Component{} = component} ->
+        if Keyword.has_key?(opts, :bytes) or Keyword.has_key?(opts, :path) do
+          {:error, :conflicting_component_sources}
+        else
+          {:ok, component}
+        end
+
+      {:ok, _invalid_component} ->
+        {:error, :invalid_component}
+    end
+  end
+
   defp get_component_bytes(opts) do
     cond do
       bytes = Keyword.get(opts, :bytes) -> bytes
@@ -275,9 +319,10 @@ defmodule Wasmex.Components do
   end
 
   defp get_store(opts) do
-    case Keyword.get(opts, :store) do
-      nil -> build_store(opts)
-      store -> {:ok, store}
+    case {Keyword.get(opts, :store), Keyword.has_key?(opts, :component)} do
+      {nil, true} -> {:error, :must_specify_store_for_component}
+      {nil, false} -> build_store(opts)
+      {store, _} -> {:ok, store}
     end
   end
 
