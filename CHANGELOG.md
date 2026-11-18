@@ -21,6 +21,11 @@ Types of changes
 - Precompile WebAssembly components to reusable Wasmtime artifacts, or start
   component servers directly from an in-memory compiled component and a Store.
 
+### Changed
+
+- Refreshed native Rust dependencies and updated the CI installer action to
+  v2.90.6.
+
 ## [0.16.1 - 2026-11-15]
 
 ### Fixed

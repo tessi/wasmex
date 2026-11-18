@@ -15,7 +15,7 @@ path = "src/lib.rs"
 crate-type = ["dylib"]
 
 [dependencies]
-rand = "0.10.3"
+rand = "0.10.4"
 rustler = { version = "0.39.0", features = ["big_integer", "serde"] }
 tokio = { version = "1.54.1", features = ["full"] }
 wasmtime = "=51.0.0-rc.1"
