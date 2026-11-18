@@ -16,6 +16,8 @@ Types of changes
 
 ## [Unreleased]
 
+## [0.17.0 - 2026-11-18]
+
 ### Added
 
 - Precompile WebAssembly components to reusable Wasmtime artifacts, or start
