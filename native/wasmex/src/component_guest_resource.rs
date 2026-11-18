@@ -141,7 +141,17 @@ pub fn new(
                 saved_params,
             )
             .await?;
-            let Some(metadata) = metadata_for_type(&context, resource.ty()) else {
+            let metadata = context
+                .resources
+                .iter()
+                .find(|metadata| {
+                    metadata.ty == resource.ty()
+                        && metadata.interface_path == interface_path
+                        && metadata.resource_name == resource_name
+                })
+                .cloned()
+                .or_else(|| metadata_for_type(&context, resource.ty()));
+            let Some(metadata) = metadata else {
                 let _ = resource.resource_drop_async(&mut store).await;
                 return Err(format!(
                     "Could not identify returned guest resource type `{resource_name}`"
@@ -362,16 +372,33 @@ async fn execute_call(
         return Err("Guest resource methods require a resource handle".to_string());
     }
 
-    let export_name = format!(
-        "[{export_prefix}]{}.{function_name}",
-        target.metadata.resource_name
-    );
-    let function = lookup_function(
-        target.context.instance,
-        store,
-        &target.metadata.interface_path,
-        &export_name,
-    )?;
+    let mut lookup = |metadata: &ResourceMetadata| {
+        let export_name = format!(
+            "[{export_prefix}]{}.{function_name}",
+            metadata.resource_name
+        );
+        lookup_function(
+            target.context.instance,
+            store,
+            &metadata.interface_path,
+            &export_name,
+        )
+    };
+    let function = lookup(&target.metadata).or_else(|error| {
+        if !include_resource {
+            return Err(error);
+        }
+
+        // A returned handle can identify its resource type without an export path.
+        // Another interface may export the same type along with its methods.
+        target
+            .context
+            .resources
+            .iter()
+            .filter(|metadata| metadata.ty == target.metadata.ty)
+            .find_map(|metadata| lookup(metadata).ok())
+            .ok_or(error)
+    })?;
     let function_type = function.ty(&*store);
     let param_types = function_type
         .params()
