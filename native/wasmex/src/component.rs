@@ -1,11 +1,31 @@
 use crate::engine::{unwrap_engine, EngineResource};
 use crate::store::ComponentStoreResource;
 use rustler::{Binary, Env, Error, NifResult, OwnedBinary, ResourceArc};
+use std::sync::Mutex;
 use wasmtime::component::Component;
 use wit_parser::decoding::DecodedWasm;
 
 pub struct ComponentResource {
-    pub inner: Component,
+    inner: Mutex<Component>,
+}
+
+impl ComponentResource {
+    fn new(component: Component) -> ResourceArc<Self> {
+        ResourceArc::new(Self {
+            inner: Mutex::new(component),
+        })
+    }
+
+    pub fn component(&self) -> NifResult<Component> {
+        self.inner
+            .lock()
+            .map(|component| component.clone())
+            .map_err(|err| {
+                Error::Term(Box::new(format!(
+                    "Could not unlock component resource: {err}"
+                )))
+            })
+    }
 }
 
 #[rustler::resource_impl()]
@@ -26,13 +46,13 @@ pub fn new_component(
 
     let inner = Component::new(executor.engine(), bytes)
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-    Ok(ResourceArc::new(ComponentResource { inner }))
+    Ok(ComponentResource::new(inner))
 }
 
 #[rustler::nif(name = "component_serialize", schedule = "DirtyCpu")]
 pub fn serialize(env: Env, component: ResourceArc<ComponentResource>) -> NifResult<Binary> {
     let artifact = component
-        .inner
+        .component()?
         .serialize()
         .map_err(|err| Error::Term(Box::new(format!("Could not serialize component: {err}"))))?;
     Ok(OwnedBinary::from_slice(&artifact).release(env))
@@ -47,5 +67,5 @@ pub fn unsafe_deserialize(
     // SAFETY: The caller must supply an unchanged artifact from a trusted Wasmtime compiler.
     let inner = unsafe { Component::deserialize(&engine, bytes.as_slice()) }
         .map_err(|err| Error::Term(Box::new(format!("Could not deserialize component: {err}"))))?;
-    Ok(ResourceArc::new(ComponentResource { inner }))
+    Ok(ComponentResource::new(inner))
 }

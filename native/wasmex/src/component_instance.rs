@@ -59,7 +59,7 @@ pub fn new_instance(
     imports: Term,
     from: Term,
 ) -> NifResult<rustler::Atom> {
-    let component = component_resource.inner.clone();
+    let component = component_resource.component()?;
     let callback_pid = imports.get_env().pid();
     let term_env = OwnedEnv::new();
     let imports = term_env.save(imports);
