@@ -3,12 +3,11 @@ use std::sync::{Arc, Mutex};
 use rustler::env::SavedTerm;
 use rustler::types::tuple;
 use rustler::{Atom, Encoder, Error, NifResult, OwnedEnv, ResourceArc, Term};
-use wasmtime::component::{Func, Instance, ResourceAny, ResourceType, Type, Val};
-use wit_parser::{TypeDefKind, WorldItem, WorldKey};
+use wasmtime::component::types::ComponentItem;
+use wasmtime::component::{Component, Func, Instance, ResourceAny, ResourceType, Type, Val};
 
 use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
-use crate::component::ParsedComponent;
 use crate::component_instance::ComponentInstanceResource;
 use crate::component_type_conversion::{convert_params, val_to_term_with_resource};
 use crate::store::{ComponentStoreData, ComponentStoreResource};
@@ -122,7 +121,7 @@ pub fn new(
     let executor = store_resource.executor()?;
     let resource_executor = executor.clone();
     let instance = instance_resource.inner;
-    let parsed = instance_resource.parsed.clone();
+    let component = instance_resource.component.clone();
     let (interface_path, resource_name) =
         parse_resource_path(resource_path).map_err(|reason| Error::Term(Box::new(reason)))?;
     let deadline = deadline(timeout_ms);
@@ -132,7 +131,7 @@ pub fn new(
     if let Err(error) = executor.submit(move |mut store| async move {
         let interrupt_requested = store.data().interrupt_requested.clone();
         let result = async {
-            let context = resource_context(resource_executor, instance, parsed, &mut store)?;
+            let context = resource_context(resource_executor, instance, &component, &mut store)?;
             let resource = execute_constructor(
                 &mut thread_env,
                 &mut store,
@@ -251,7 +250,7 @@ pub fn call_static(
     let executor = store_resource.executor()?;
     let resource_executor = executor.clone();
     let instance = instance_resource.inner;
-    let parsed = instance_resource.parsed.clone();
+    let component = instance_resource.component.clone();
     let (interface_path, resource_name) =
         parse_resource_path(resource_path).map_err(|reason| Error::Term(Box::new(reason)))?;
     let call_deadline = deadline(timeout_ms);
@@ -261,7 +260,7 @@ pub fn call_static(
     if let Err(error) = executor.submit(move |mut store| async move {
         let interrupt_requested = store.data().interrupt_requested.clone();
         let result = async {
-            let context = resource_context(resource_executor, instance, parsed, &mut store)?;
+            let context = resource_context(resource_executor, instance, &component, &mut store)?;
             let metadata = context
                 .resources
                 .iter()
@@ -531,10 +530,10 @@ pub fn drop_resource(
 fn resource_context(
     executor: StoreExecutor<ComponentStoreData>,
     instance: Instance,
-    parsed: Arc<ParsedComponent>,
+    component: &Component,
     store: &mut wasmtime::Store<ComponentStoreData>,
 ) -> Result<Arc<ResourceContext>, String> {
-    let resources = discover_resources(instance, store, &parsed)?;
+    let resources = discover_resources(component, instance, store)?;
     Ok(Arc::new(ResourceContext {
         executor,
         instance,
@@ -543,74 +542,49 @@ fn resource_context(
 }
 
 fn discover_resources(
+    component: &Component,
     instance: Instance,
     store: &mut wasmtime::Store<ComponentStoreData>,
-    parsed: &ParsedComponent,
 ) -> Result<Vec<ResourceMetadata>, String> {
     let mut resources = Vec::new();
-    let world = &parsed.resolve.worlds[parsed.world_id];
+    let component_type = component.component_type();
+    let engine = component.engine();
 
-    for (world_key, world_item) in &world.exports {
-        let WorldItem::Interface {
-            id: interface_id, ..
-        } = world_item
-        else {
+    for (interface_name, export) in component_type.exports(engine) {
+        let ComponentItem::ComponentInstance(interface) = export.ty else {
             continue;
         };
-        let interface = &parsed.resolve.interfaces[*interface_id];
-        let interface_export = interface_export_name(&parsed.resolve, world_key, *interface_id)?;
-        let (_, interface_index) = instance
-            .get_export(&mut *store, None, &interface_export)
-            .ok_or_else(|| format!("Export path segment `{interface_export}` was not found"))?;
+        let interface_index = component
+            .get_export_index(None, interface_name)
+            .ok_or_else(|| format!("Export path segment `{interface_name}` was not found"))?;
 
-        for (resource_name, type_id) in &interface.types {
-            if !matches!(parsed.resolve.types[*type_id].kind, TypeDefKind::Resource) {
+        for (resource_name, export) in interface.exports(engine) {
+            if !matches!(export.ty, ComponentItem::Resource(_)) {
                 continue;
             }
-            let (_, resource_index) = instance
-                .get_export(&mut *store, Some(&interface_index), resource_name)
+            let resource_index = component
+                .get_export_index(Some(&interface_index), resource_name)
                 .ok_or_else(|| {
                     format!(
-                        "Guest resource type `{resource_name}` was not found in `{interface_export}`"
+                        "Guest resource type `{resource_name}` was not found in `{interface_name}`"
                     )
                 })?;
+            // Use the instantiated type, which identifies resources from this Store.
             let ty = instance
                 .get_resource(&mut *store, resource_index)
                 .ok_or_else(|| {
                     format!(
-                        "Guest resource export `{resource_name}` in `{interface_export}` is not a resource type"
+                        "Guest resource export `{resource_name}` in `{interface_name}` is not a resource type"
                     )
                 })?;
             resources.push(ResourceMetadata {
                 ty,
-                interface_path: vec![interface_export.clone()],
-                resource_name: resource_name.clone(),
+                interface_path: vec![interface_name.to_owned()],
+                resource_name: resource_name.to_owned(),
             });
         }
     }
     Ok(resources)
-}
-
-fn interface_export_name(
-    resolve: &wit_parser::Resolve,
-    world_key: &WorldKey,
-    interface_id: wit_parser::InterfaceId,
-) -> Result<String, String> {
-    if let WorldKey::Name(name) = world_key {
-        return Ok(name.clone());
-    }
-
-    let interface = &resolve.interfaces[interface_id];
-    let interface_name = interface
-        .name
-        .as_deref()
-        .ok_or_else(|| "An exported resource interface has no name".to_string())?;
-    let package_id = interface.package.ok_or_else(|| {
-        format!("Exported interface `{interface_name}` does not belong to a package")
-    })?;
-    Ok(resolve.packages[package_id]
-        .name
-        .interface_id(interface_name))
 }
 
 fn metadata_for_type(

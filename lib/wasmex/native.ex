@@ -28,6 +28,7 @@ defmodule Wasmex.Native do
 
   def engine_new(_engine_config), do: error()
   def engine_precompile_module(_engine_resource, _bytes), do: error()
+  def engine_precompile_component(_engine_resource, _bytes), do: error()
 
   def module_compile(_store_or_caller_resource, _bytes), do: error()
   def module_exports(_module_resource), do: error()
@@ -110,6 +111,8 @@ defmodule Wasmex.Native do
   def store_or_caller_set_fuel(_store_or_caller_resource, _fuel, _from), do: error()
 
   def component_new(_store, _component_bytes), do: error()
+  def component_serialize(_component), do: error()
+  def component_unsafe_deserialize(_bytes, _engine), do: error()
   def component_instance_new(_store, _component, _imports, _from), do: error()
 
   def component_call_function(

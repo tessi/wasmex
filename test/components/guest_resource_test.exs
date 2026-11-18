@@ -59,6 +59,22 @@ defmodule Wasmex.Components.GuestResourceTest do
     assert :ok = Accumulator.drop(accumulator)
   end
 
+  test "discovers guest resources in a deserialized component" do
+    engine = Wasmex.Engine.default()
+    bytes = File.read!(TestHelper.guest_resource_component_file_path())
+    assert {:ok, artifact} = Wasmex.Engine.precompile_component(engine, bytes)
+    assert {:ok, component} = Component.unsafe_deserialize(artifact, engine)
+    assert {:ok, store} = Store.new(nil, engine)
+    pid = start_supervised!({Wasmex.Components, component: component, store: store})
+
+    assert {:ok, accumulator} = Accumulator.new(pid, 10)
+    assert {:ok, 11} = Accumulator.increment(accumulator)
+    assert {:ok, label} = Accumulator.make_label(accumulator, "precompiled")
+    assert {:ok, "precompiled"} = Label.text(label)
+    assert :ok = Label.drop(label)
+    assert :ok = Accumulator.drop(accumulator)
+  end
+
   test "validates constructor and method argument counts exactly", %{instance: instance} do
     path = ["wasmex:resources/counters@1.2.3", "accumulator"]
 
