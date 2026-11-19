@@ -170,31 +170,50 @@ defmodule Wasmex.Components.GenServerTest do
              HelloWorldNoConversion.echo_kebab(component_pid, %{"kebab-field" => "test"})
   end
 
-  test "a callback completing after timeout does not terminate the component server" do
-    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+  test "an export that times out during a callback requires a fresh instance" do
+    component_pid = start_with_delayed_greeter()
 
-    imports = %{
-      "greeter" =>
-        {:fn,
-         fn ->
-           Process.sleep(100)
-           "Elixir"
-         end}
-    }
+    call =
+      Task.async(fn ->
+        catch_exit(Wasmex.Components.call_function(component_pid, "greet", ["World"], 500))
+      end)
 
-    component_pid =
-      start_supervised!(
-        {Wasmex.Components,
-         bytes: component_bytes, wasi: %WasiP2Options{allow_http: true}, imports: imports}
-      )
+    assert_receive :greeting_started, 1_000
+    assert {:timeout, _} = Task.await(call)
+    # Let the native deadline pass before the callback resumes the guest.
+    Process.sleep(50)
+    send(component_pid, :finish_greeting)
 
-    assert catch_exit(Wasmex.Components.call_function(component_pid, "greet", ["World"], 10))
-    Process.sleep(150)
+    assert {:error, :instance_interrupted} =
+             Wasmex.Components.call_function(component_pid, "echo-kebab", [
+               %{"kebab-field" => "value"}
+             ])
 
     assert Process.alive?(component_pid)
+  end
 
-    assert {:ok, "Hello, World from Elixir!"} =
-             Wasmex.Components.call_function(component_pid, "greet", ["World"])
+  test "a call that expires while waiting to start leaves the instance usable" do
+    component_pid = start_with_delayed_greeter()
+
+    call =
+      Task.async(fn ->
+        Wasmex.Components.call_function(component_pid, "greet", ["World"], :infinity)
+      end)
+
+    assert_receive :greeting_started, 1_000
+
+    assert {:timeout, _} =
+             catch_exit(Wasmex.Components.call_function(component_pid, "greet", ["Skipped"], 10))
+
+    send(component_pid, :finish_greeting)
+    assert {:ok, "Hello, World from Elixir!"} = Task.await(call)
+
+    assert {:ok, %{"kebab-field" => "unchanged"}} =
+             Wasmex.Components.call_function(component_pid, "echo-kebab", [
+               %{"kebab-field" => "unchanged"}
+             ])
+
+    refute_received :greeting_started
   end
 
   test "an invalid callback result does not terminate the component server" do
@@ -229,6 +248,28 @@ defmodule Wasmex.Components.GenServerTest do
              Wasmex.Components.call_function(component_pid, "greet", ["World"])
 
     assert Process.alive?(component_pid)
+  end
+
+  defp start_with_delayed_greeter do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+    owner = self()
+
+    greeter = fn ->
+      send(owner, :greeting_started)
+
+      receive do
+        :finish_greeting -> "Elixir"
+      after
+        5_000 -> raise "greeting was not released"
+      end
+    end
+
+    start_supervised!(
+      {Wasmex.Components,
+       bytes: component_bytes,
+       wasi: %WasiP2Options{allow_http: true},
+       imports: %{"greeter" => {:fn, greeter}}}
+    )
   end
 
   defp fresh_field(prefix) do

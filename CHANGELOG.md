@@ -16,6 +16,13 @@ Types of changes
 
 ## [Unreleased]
 
+### Fixed
+
+- A deadline that expires during a component guest call requests a Wasmtime
+  epoch interruption. Later `Wasmex.Components.call_function/4` calls return
+  `{:error, :instance_interrupted}`. Restart that instance to resume calling
+  the component.
+
 ## [0.17.0 - 2026-11-18]
 
 ### Added

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use rustler::env::SavedTerm;
@@ -10,6 +11,7 @@ use crate::component::ComponentResource;
 use crate::component_host_resource::HostResourceRegistry;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
+use crate::store_executor::with_deadline;
 use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
@@ -46,6 +48,7 @@ impl rustler::Resource for ComponentCallbackTokenResource {}
 pub struct ComponentInstanceResource {
     pub inner: Instance,
     pub component: wasmtime::component::Component,
+    interrupted: AtomicBool,
     _host_resources: Arc<HostResourceRegistry>,
 }
 
@@ -83,6 +86,7 @@ pub fn new_instance(
                     ResourceArc::new(ComponentInstanceResource {
                         inner: instance,
                         component,
+                        interrupted: AtomicBool::new(false),
                         _host_resources: host_resources,
                     })
                 })
@@ -347,28 +351,33 @@ pub fn call_exported_function(
     from: Term,
     timeout_ms: Option<u64>,
 ) -> NifResult<rustler::Atom> {
+    let deadline = timeout_ms
+        .map(|timeout| tokio::time::Instant::now() + std::time::Duration::from_millis(timeout));
     let reply = AsyncReply::new(from)?;
     let executor = component_store_resource.executor()?;
-    let instance = instance_resource.inner;
     let mut thread_env = OwnedEnv::new();
     let function_params = thread_env.save(given_params);
     let submit_reply = AsyncReply::new(from)?;
-    let deadline = timeout_ms
-        .map(|timeout| tokio::time::Instant::now() + std::time::Duration::from_millis(timeout));
 
     if let Err(error) = executor.submit(move |mut store| async move {
         if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
             return store;
         }
+        if instance_resource.interrupted.load(Ordering::Relaxed) {
+            reply.send((atoms::error(), atoms::instance_interrupted()));
+            return store;
+        }
         let result = component_execute_function(
             &mut thread_env,
             &mut store,
-            instance,
+            &instance_resource,
             function_name_path,
             function_params,
+            deadline,
         )
-        .await;
-        if deadline.is_none_or(|deadline| tokio::time::Instant::now() < deadline) {
+        .await
+        .filter(|_| deadline.is_none_or(|deadline| tokio::time::Instant::now() < deadline));
+        if let Some(result) = result {
             reply.send_saved(thread_env, result);
         }
         store
@@ -382,10 +391,12 @@ pub fn call_exported_function(
 async fn component_execute_function(
     thread_env: &mut OwnedEnv,
     component_store: &mut wasmtime::Store<ComponentStoreData>,
-    instance: Instance,
+    instance_resource: &ComponentInstanceResource,
     function_name_path: Vec<String>,
     function_params: SavedTerm,
-) -> SavedTerm {
+    deadline: Option<tokio::time::Instant>,
+) -> Option<SavedTerm> {
+    let instance = instance_resource.inner;
     let prepared = thread_env.run(|env| {
         let given_params = function_params
             .load(env)
@@ -460,18 +471,32 @@ async fn component_execute_function(
         Ok(prepared) => prepared,
         Err(reason) => {
             let result = thread_env.run(|env| env.error_tuple(reason).encode(env));
-            return thread_env.save(result);
+            return Some(thread_env.save(result));
         }
     };
 
     let mut result_values = vec![Val::Bool(false); results_count];
-    let call_result = function
-        .call_async(
-            &mut *component_store,
-            converted_params.as_slice(),
-            &mut result_values,
-        )
-        .await;
+    let interrupt_requested = component_store.data().interrupt_requested.clone();
+    let call_result = with_deadline(interrupt_requested, deadline, async {
+        // The timer can win before the first poll of this future. Parameter
+        // conversion may also have used up the remaining time.
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            return None;
+        }
+        let result = function
+            .call_async(component_store, &converted_params, &mut result_values)
+            .await;
+        // The call can finish after the deadline without observing an epoch,
+        // for example when a host callback returns near the end of the guest
+        // function. Apply the same lifecycle rule in either case.
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            instance_resource.interrupted.store(true, Ordering::Relaxed);
+            return None;
+        }
+        Some(result)
+    })
+    .await
+    .flatten()?;
 
     let result = thread_env.run(|env| {
         match call_result {
@@ -489,7 +514,7 @@ async fn component_execute_function(
         }
         .encode(env)
     });
-    thread_env.save(result)
+    Some(thread_env.save(result))
 }
 
 #[rustler::nif(name = "component_receive_callback_result")]
