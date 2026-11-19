@@ -180,6 +180,8 @@ defmodule Wasmex.Components.GenServerTest do
 
     assert_receive :greeting_started, 1_000
     assert {:timeout, _} = Task.await(call)
+    # Let the native deadline pass before the callback resumes the guest.
+    Process.sleep(50)
     send(component_pid, :finish_greeting)
 
     assert {:error, :instance_interrupted} =
