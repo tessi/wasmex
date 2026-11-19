@@ -99,8 +99,8 @@ impl ComponentCall {
                 let Ok(function) = function.typed(store) else {
                     return Ok(None);
                 };
-                let first = term_to_val(first, &Type::U32, vec![])?;
-                let second = term_to_val(second, &Type::String, vec![])?;
+                let first = term_to_val(first, &Type::U32)?;
+                let second = term_to_val(second, &Type::String)?;
                 let (Val::U32(first), Val::String(second)) = (first, second) else {
                     unreachable!("parameter conversion returned a different WIT type");
                 };

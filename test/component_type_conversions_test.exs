@@ -403,6 +403,11 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                  {:point, %Point{x: 1, y: 2}}
                ])
 
+      assert {:error, _reason} =
+               Wasmex.Components.call_function(component_pid, "export-id-variant", [
+                 {:"list-point", [%Point{x: 1, y: 2} | :improper_tail]}
+               ])
+
       assert {:ok, {:"list-point", [%{x: 1, y: 2}, %{x: 3, y: 4}]}} =
                Wasmex.Components.call_function(component_pid, "export-id-variant", [
                  {:"list-point", [%Point{x: 1, y: 2}, %Point{x: 3, y: 4}]}
