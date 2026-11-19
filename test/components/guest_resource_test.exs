@@ -81,15 +81,22 @@ defmodule Wasmex.Components.GuestResourceTest do
     assert {:ok, artifact} = Wasmex.Engine.precompile_component(engine, source)
     assert {:ok, component} = Component.unsafe_deserialize(artifact, engine)
     assert {:ok, store} = Store.new(nil, engine)
-    pid = start_supervised!({Wasmex.Components, component: component, store: store})
+
+    pid =
+      start_supervised!(
+        {Wasmex.Components, component: component, store: store, binary_byte_lists: true}
+      )
+
     path = ["primary", "counter"]
 
     assert {:ok, constructed} = GuestResource.new(pid, path, [5])
     assert {:ok, 5} = GuestResource.call(constructed, :method, "get-value")
+    assert {:ok, <<0, 128, 255>>} = GuestResource.call(constructed, :method, "get-bytes")
     assert :ok = GuestResource.drop(constructed)
 
     assert {:ok, returned} = GuestResource.call_static(pid, path, :static, "make", [7])
     assert {:ok, 7} = GuestResource.call(returned, :method, "get-value")
+    assert {:ok, <<0, 128, 255>>} = GuestResource.call(returned, :method, "get-bytes")
     assert :ok = GuestResource.drop(returned)
   end
 

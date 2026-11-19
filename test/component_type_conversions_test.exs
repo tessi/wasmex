@@ -6,12 +6,11 @@ defmodule Wasmex.ComponentTypeConversionsTest do
   describe "component type conversions" do
     defmodule Point, do: defstruct([:x, :y])
 
-    def start_component(imports \\ TestHelper.component_type_conversions_import_map()) do
+    def start_component(imports \\ TestHelper.component_type_conversions_import_map(), opts \\ []) do
       component_bytes = File.read!(TestHelper.component_type_conversions_file_path())
+      defaults = [bytes: component_bytes, imports: imports, wasi: %WasiP2Options{}]
 
-      start_supervised!(
-        {Wasmex.Components, bytes: component_bytes, imports: imports, wasi: %WasiP2Options{}}
-      )
+      start_supervised!({Wasmex.Components, Keyword.merge(defaults, opts)})
     end
 
     test "integer types" do
@@ -88,6 +87,9 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                Wasmex.Components.call_function(component_pid, "export-id-list-u8", [
                  [1, :two, "three"]
                ])
+
+      assert {:error, _} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [[1 | 2]])
     end
 
     test "accepts binaries as byte-list arguments" do
@@ -119,6 +121,57 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                Wasmex.Components.call_function(component_pid, "export-id-list-u8", [
                  [0, 128, 255]
                ])
+    end
+
+    test "encodes byte-list results and callback arguments as binaries when enabled" do
+      imports =
+        Map.put(
+          TestHelper.component_type_conversions_import_map(),
+          "import-id-list-u8",
+          {:fn,
+           fn
+             <<0, 128, 255>> -> <<255, 128, 0>>
+             <<>> -> []
+           end}
+        )
+
+      component_pid = start_component(imports, binary_byte_lists: true)
+
+      for input <- [<<0, 128, 255>>, [0, 128, 255]] do
+        assert {:ok, <<255, 128, 0>>} =
+                 Wasmex.Components.call_function(component_pid, "export-id-list-u8", [input])
+      end
+
+      assert {:ok, <<>>} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [<<>>])
+    end
+
+    test "encodes byte lists inside both result cases and options" do
+      wat = ~S"""
+      (component
+        (type $bytes (list u8))
+        (type $optional-bytes (option $bytes))
+        (type $result (result $optional-bytes (error $bytes)))
+        (core module $impl
+          (memory (export "memory") 1)
+          ;; ok(some(list)) at offset 0, error(empty list) at 16, bytes at 32.
+          (data (i32.const 0) "\00\00\00\00\01\00\00\00\20\00\00\00\03\00\00\00\01")
+          (data (i32.const 32) "\00\80\ff")
+          (func (export "get") (param i32) (result i32)
+            i32.const 0 i32.const 16 local.get 0 select))
+        (core instance $impl (instantiate $impl))
+        (alias core export $impl "memory" (core memory $memory))
+        (func (export "get") (param "ok" bool) (result $result)
+          (canon lift (core func $impl "get") (memory $memory))))
+      """
+
+      assert {:ok, bytes} = Wasmex.Wat.to_wasm(wat)
+      pid = start_supervised!({Wasmex.Components, bytes: bytes, binary_byte_lists: true})
+
+      assert {:ok, {:ok, {:some, <<0, 128, 255>>}}} =
+               Wasmex.Components.call_function(pid, "get", [true])
+
+      assert {:ok, {:error, <<>>}} = Wasmex.Components.call_function(pid, "get", [false])
     end
 
     test "tuple types" do
@@ -445,6 +498,15 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                ])
 
       assert reason =~ "record('list-point')"
+
+      stop_supervised!(Wasmex.Components)
+      imports = TestHelper.component_type_conversions_import_map()
+      pid = start_component(imports, binary_byte_lists: true)
+
+      input = %{complex_record | "list-u8": <<>>, "list-point": []}
+
+      assert {:ok, %{"list-u8": <<>>, "list-point": []}} =
+               Wasmex.Components.call_function(pid, "export-id-record-complex", [input])
     end
   end
 

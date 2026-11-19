@@ -1,8 +1,9 @@
 use rustler::types::atom;
+use rustler::types::list::ListIterator;
 use rustler::types::tuple::{self, make_tuple};
-use rustler::{Binary, Encoder, Error, Term, TermType};
+use rustler::{Binary, Encoder, Error, NewBinary, Term, TermType};
 use std::collections::HashMap;
-use wasmtime::component::{ResourceAny, ResourceType, Type, Val};
+use wasmtime::component::{types::ComponentFunc, ResourceAny, ResourceType, Type, Val};
 use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 
 use crate::atoms;
@@ -11,7 +12,7 @@ use crate::component_guest_resource::ComponentGuestResource;
 /// Convert an Elixir term to a Wasm value.
 ///
 /// Used to for Wasm function calls from Elixir and translating params to Wasm values.
-/// The opposite of this is `val_to_term` and `convert_result_term`.
+/// The opposite of this is `val_to_term_with_resource`.
 pub fn term_to_val(param_term: &Term, param_type: &Type, path: Vec<String>) -> Result<Val, Error> {
     term_to_val_with_resource(
         param_term,
@@ -100,13 +101,26 @@ pub fn term_to_val_with_resource(
                 binary.as_slice().iter().copied().map(Val::U8).collect(),
             ))
         }
+        (TermType::List, Type::List(list)) if matches!(list.ty(), Type::U8) => {
+            let mut values = Vec::with_capacity(param_term.list_length()?);
+            let terms = param_term.decode::<ListIterator>()?;
+            for (index, term) in terms.enumerate() {
+                let value = term.decode::<u8>().map(Val::U8).or_else(|_| {
+                    path.push(format!("list[{index}]"));
+                    term_to_val_with_resource(&term, &Type::U8, path.clone(), convert_resource)
+                })?;
+                values.push(value);
+            }
+            Ok(Val::List(values))
+        }
         (TermType::List, Type::List(list)) => {
             let decoded_list = param_term.decode::<Vec<Term>>()?;
+            let element_type = list.ty();
             let mut list_values = Vec::with_capacity(decoded_list.len());
             for (index, term) in decoded_list.iter().enumerate() {
                 path.push(format!("list[{index}]"));
                 let val =
-                    term_to_val_with_resource(term, &list.ty(), path.clone(), convert_resource)?;
+                    term_to_val_with_resource(term, &element_type, path.clone(), convert_resource)?;
                 path.pop();
                 list_values.push(val);
             }
@@ -419,144 +433,166 @@ pub fn term_to_val_with_resource(
     }
 }
 
-/// Convert a Wasm value to an Elixir term.
-///
-/// Used to for Wasm function calls when passing Wasm params to an Elixir function call.
-/// The opposite of this is `term_to_val`, similar to `convert_result_term`.
-pub fn val_to_term<'a>(val: &Val, env: rustler::Env<'a>, path: Vec<String>) -> Term<'a> {
-    val_to_term_with_resource(val, env, path, &mut |_, env| "Unsupported type".encode(env))
-}
-
+/// Convert a Wasm value to an Elixir term using its declared component type.
 pub fn val_to_term_with_resource<'a>(
     val: &Val,
+    ty: &Type,
     env: rustler::Env<'a>,
-    mut path: Vec<String>,
-    encode_resource: &mut dyn FnMut(ResourceAny, rustler::Env<'a>) -> Term<'a>,
+    binary_byte_lists: bool,
+    encode_resource: &mut impl FnMut(ResourceAny, rustler::Env<'a>) -> Term<'a>,
 ) -> Term<'a> {
-    match val {
-        Val::String(string) => string.encode(env),
-        Val::Bool(bool) => bool.encode(env),
-        Val::U64(num) => num.encode(env),
-        Val::U32(num) => num.encode(env),
-        Val::U16(num) => num.encode(env),
-        Val::U8(num) => num.encode(env),
-        Val::S8(num) => num.encode(env),
-        Val::S16(num) => num.encode(env),
-        Val::S32(num) => num.encode(env),
-        Val::S64(num) => num.encode(env),
-        Val::Float32(float) => float.encode(env),
-        Val::Float64(float) => float.encode(env),
-        Val::Char(ch) => ch.to_string().encode(env),
-        Val::List(list) => list
-            .iter()
-            .enumerate()
-            .map(|(index, val)| {
-                path.push(format!("list[{index}]"));
-                let term = val_to_term_with_resource(val, env, path.clone(), encode_resource);
-                path.pop();
-                term
-            })
-            .collect::<Vec<Term<'a>>>()
-            .encode(env),
-        Val::Record(record) => {
-            let converted_pairs = record
-                .iter()
-                .map(|(key, val)| {
-                    path.push(format!("record('{key}')"));
-                    let term = (
-                        field_name_to_term(&env, key),
-                        val_to_term_with_resource(val, env, path.clone(), encode_resource),
-                    );
-                    path.pop();
-                    term
-                })
-                .collect::<Vec<(Term, Term)>>();
-            Term::map_from_pairs(env, converted_pairs.as_slice()).unwrap()
-        }
-        Val::Tuple(tuple) => {
-            let tuple_terms = tuple
-                .iter()
-                .enumerate()
-                .map(|(index, val)| {
-                    path.push(format!("tuple[{index}]"));
-                    let term = val_to_term_with_resource(val, env, path.clone(), encode_resource);
-                    path.pop();
-                    term
-                })
-                .collect::<Vec<Term<'a>>>();
-            make_tuple(env, tuple_terms.as_slice())
-        }
-        Val::Option(option) => match option {
-            Some(boxed_val) => {
-                path.push("option(some)".to_string());
-                let inner_term =
-                    val_to_term_with_resource(boxed_val, env, path.clone(), encode_resource);
-                path.pop();
-                (atoms::some(), inner_term).encode(env)
+    ValueEncoder {
+        env,
+        binary_byte_lists,
+        encode_resource,
+    }
+    .encode(val, ty, &String::new)
+}
+
+struct ValueEncoder<'a, F> {
+    env: rustler::Env<'a>,
+    binary_byte_lists: bool,
+    encode_resource: F,
+}
+
+impl<'a, F> ValueEncoder<'a, F>
+where
+    F: FnMut(ResourceAny, rustler::Env<'a>) -> Term<'a>,
+{
+    fn encode(&mut self, val: &Val, ty: &Type, path: &dyn Fn() -> String) -> Term<'a> {
+        let env = self.env;
+        match (val, ty) {
+            (Val::String(string), _) => string.encode(env),
+            (Val::Bool(bool), _) => bool.encode(env),
+            (Val::U64(num), _) => num.encode(env),
+            (Val::U32(num), _) => num.encode(env),
+            (Val::U16(num), _) => num.encode(env),
+            (Val::U8(num), _) => num.encode(env),
+            (Val::S8(num), _) => num.encode(env),
+            (Val::S16(num), _) => num.encode(env),
+            (Val::S32(num), _) => num.encode(env),
+            (Val::S64(num), _) => num.encode(env),
+            (Val::Float32(float), _) => float.encode(env),
+            (Val::Float64(float), _) => float.encode(env),
+            (Val::Char(ch), _) => ch.to_string().encode(env),
+            (Val::List(values), Type::List(list)) => {
+                let element_type = list.ty();
+                if self.binary_byte_lists && matches!(element_type, Type::U8) {
+                    // Wasmtime lifts even byte lists as Vec<Val>. Write the bytes directly
+                    // into a BEAM binary without building a second Vec or any per-byte terms.
+                    let bytes = values.iter().map(|value| {
+                        let Val::U8(byte) = value else {
+                            unreachable!("Wasmtime lifted a non-byte in a list<u8>")
+                        };
+                        *byte
+                    });
+                    return NewBinary::from_iter(env, bytes).into();
+                }
+
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        self.encode(value, &element_type, &|| {
+                            child_path(path(), &format!("list[{index}]"))
+                        })
+                    })
+                    .collect::<Vec<_>>()
+                    .encode(env)
             }
-            None => atoms::none().encode(env),
-        },
-        Val::Enum(enum_val) => rustler::serde::atoms::str_to_term(env, enum_val),
-        Val::Result(result) => match result {
-            Ok(maybe_val) => {
-                if let Some(inner_val) = maybe_val {
-                    path.push("result(ok)".to_string());
-                    let inner_term =
-                        val_to_term_with_resource(inner_val, env, path.clone(), encode_resource);
-                    path.pop();
-                    (atom::ok(), inner_term).encode(env)
+            (Val::Record(values), Type::Record(record)) => {
+                let pairs = values
+                    .iter()
+                    .zip(record.fields())
+                    .map(|((key, value), field)| {
+                        (
+                            field_name_to_term(&env, key),
+                            self.encode(value, &field.ty, &|| {
+                                child_path(path(), &format!("record('{key}')"))
+                            }),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                Term::map_from_pairs(env, &pairs).unwrap()
+            }
+            (Val::Tuple(values), Type::Tuple(tuple)) => {
+                let terms = values
+                    .iter()
+                    .zip(tuple.types())
+                    .enumerate()
+                    .map(|(index, (value, ty))| {
+                        self.encode(value, &ty, &|| {
+                            child_path(path(), &format!("tuple[{index}]"))
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                make_tuple(env, &terms)
+            }
+            (Val::Option(Some(value)), Type::Option(option)) => {
+                let term = self.encode(value, &option.ty(), &|| child_path(path(), "option(some)"));
+                (atoms::some(), term).encode(env)
+            }
+            (Val::Option(None), _) => atoms::none().encode(env),
+            (Val::Enum(value), _) => rustler::serde::atoms::str_to_term(env, value),
+            (Val::Result(value), Type::Result(result)) => {
+                let (tag, payload, payload_type, segment) = match value {
+                    Ok(payload) => (atom::ok(), payload, result.ok(), "result(ok)"),
+                    Err(payload) => (atom::error(), payload, result.err(), "result(error)"),
+                };
+                if let (Some(payload), Some(ty)) = (payload, payload_type) {
+                    let term = self.encode(payload, &ty, &|| child_path(path(), segment));
+                    (tag, term).encode(env)
                 } else {
-                    atom::ok().encode(env)
+                    tag.encode(env)
                 }
             }
-            Err(maybe_val) => {
-                if let Some(inner_val) = maybe_val {
-                    path.push("result(error)".to_string());
-                    let inner_term =
-                        val_to_term_with_resource(inner_val, env, path.clone(), encode_resource);
-                    path.pop();
-                    (atom::error(), inner_term).encode(env)
+            (Val::Variant(case_name, payload), Type::Variant(variant)) => {
+                let tag = rustler::serde::atoms::str_to_term(env, case_name);
+                let Some(payload) = payload else {
+                    return tag;
+                };
+                let ty = variant
+                    .cases()
+                    .find(|case| case.name == case_name)
+                    .and_then(|case| case.ty)
+                    .expect("Wasmtime lifted a variant payload of a declared case");
+                let term = self.encode(payload, &ty, &|| {
+                    child_path(path(), &format!("Variant('{case_name}')"))
+                });
+                (tag, term).encode(env)
+            }
+            (Val::Flags(flags), _) => {
+                // Create an empty map
+                let mut map_term = rustler::Term::map_new(env);
+
+                // Add each set flag as a key with value true
+                for flag in flags {
+                    let key = field_name_to_term(&env, flag);
+                    let value = true.encode(env);
+                    map_term = map_term.map_put(key, value).unwrap();
+                }
+
+                map_term
+            }
+            (Val::Resource(resource), _) => (self.encode_resource)(*resource, env),
+            _ => {
+                let path = path();
+                if path.is_empty() {
+                    "Unsupported type".encode(env)
                 } else {
-                    atom::error().encode(env)
+                    format!("Unsupported type at {path:?}").encode(env)
                 }
-            }
-        },
-        Val::Variant(case_name, payload) => {
-            let atom = rustler::serde::atoms::str_to_term(env, case_name);
-
-            match payload {
-                Some(boxed_val) => {
-                    path.push(format!("Variant('{case_name}')"));
-                    let payload_term =
-                        val_to_term_with_resource(boxed_val, env, path.clone(), encode_resource);
-                    path.pop();
-                    (atom, payload_term).encode(env)
-                }
-                None => atom,
-            }
-        }
-        Val::Flags(flags) => {
-            // Create an empty map
-            let mut map_term = rustler::Term::map_new(env);
-
-            // Add each set flag as a key with value true
-            for flag in flags {
-                let key = field_name_to_term(&env, flag);
-                let value = true.encode(env);
-                map_term = map_term.map_put(key, value).unwrap();
-            }
-
-            map_term
-        }
-        Val::Resource(resource) => encode_resource(*resource, env),
-        _ => {
-            if path.is_empty() {
-                String::from("Unsupported type").encode(env)
-            } else {
-                format!("Unsupported type at {:?}", path.join(".")).encode(env)
             }
         }
     }
+}
+
+fn child_path(mut parent: String, segment: &str) -> String {
+    if !parent.is_empty() {
+        parent.push('.');
+    }
+    parent.push_str(segment);
+    parent
 }
 
 fn decode_guest_resource(
@@ -564,14 +600,6 @@ fn decode_guest_resource(
 ) -> Result<rustler::ResourceArc<ComponentGuestResource>, Error> {
     let resource_key = rustler::Atom::from_str(term.get_env(), "resource")?;
     term.map_get(resource_key)?.decode()
-}
-
-#[allow(dead_code)]
-pub fn vals_to_terms<'a>(vals: &[Val], env: rustler::Env<'a>) -> Vec<Term<'a>> {
-    let mut encode_resource = |_, env| "Unsupported type".encode(env);
-    vals.iter()
-        .map(|val| val_to_term_with_resource(val, env, vec![], &mut encode_resource))
-        .collect::<Vec<Term<'a>>>()
 }
 
 pub fn term_to_field_name(key_term: &Term) -> String {
@@ -598,22 +626,32 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
     Ok(params)
 }
 
-pub fn encode_result<'a>(env: rustler::Env<'a>, vals: Vec<Val>) -> Term<'a> {
-    let result_term = match vals.len() {
-        1 => val_to_term(vals.first().unwrap(), env, vec![]),
-        _ => vals
-            .iter()
-            .map(|term| val_to_term(term, env, vec![]))
-            .collect::<Vec<Term>>()
-            .encode(env),
+pub fn encode_result<'a>(
+    env: rustler::Env<'a>,
+    values: &[Val],
+    function_type: &ComponentFunc,
+    binary_byte_lists: bool,
+) -> Term<'a> {
+    let mut terms = values
+        .iter()
+        .zip(function_type.results())
+        .map(|(value, ty)| {
+            val_to_term_with_resource(value, &ty, env, binary_byte_lists, &mut |_, env| {
+                "Unsupported type".encode(env)
+            })
+        });
+    let result_term = if values.len() == 1 {
+        terms.next().unwrap()
+    } else {
+        terms.collect::<Vec<_>>().encode(env)
     };
-    make_tuple(env, &[atoms::ok().encode(env), result_term])
+    (atoms::ok(), result_term).encode(env)
 }
 
 /// Convert an Elixir function call result to a Wasm value.
 ///
 /// Used to for Wasm function calls when passing Elixir results back to Wasm.
-/// The opposite of this is `term_to_val`, similar to `val_to_term`.
+/// The opposite of this is `val_to_term_with_resource`.
 #[allow(dead_code)]
 pub fn convert_result_term(
     result_term: Term,

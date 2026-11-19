@@ -14,6 +14,8 @@ pub mod caller;
 #[cfg(not(test))]
 pub mod component;
 #[cfg(not(test))]
+mod component_call;
+#[cfg(not(test))]
 pub mod component_guest_resource;
 #[cfg(not(test))]
 mod component_host_resource;
