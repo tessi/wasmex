@@ -100,6 +100,95 @@ defmodule Wasmex.Components.GenServerTest do
              HelloWorld.echo_kebab(component_pid, %{kebab_field: "test"})
   end
 
+  test "component result fields cannot create atoms" do
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+    suffix = Base.encode16(:crypto.strong_rand_bytes(2), case: :lower)
+    field = "f#{suffix}-field"
+    atom_name = "f#{suffix}_field"
+    patched_bytes = :binary.replace(component_bytes, "kebab-field", field, [:global])
+
+    component_pid =
+      start_supervised!(
+        {HelloWorld, bytes: patched_bytes, wasi: %WasiP2Options{allow_http: true}}
+      )
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(field) end
+    assert_raise ArgumentError, fn -> String.to_existing_atom(atom_name) end
+    assert {:ok, %{^field => "test"}} = HelloWorld.echo_kebab(component_pid, %{field => "test"})
+    assert_raise ArgumentError, fn -> String.to_existing_atom(field) end
+    assert_raise ArgumentError, fn -> String.to_existing_atom(atom_name) end
+
+    _ = String.to_atom(field)
+    _ = String.to_atom(atom_name)
+    assert {:ok, %{^field => "test"}} = HelloWorld.echo_kebab(component_pid, %{field => "test"})
+  end
+
+  @tag :tmp_dir
+  test "declared fields become atoms without an atom in caller code", %{tmp_dir: tmp_dir} do
+    field = "known-field"
+    wit = File.read!("test/component_fixtures/hello_world/hello-world.wit")
+    wit_path = Path.join(tmp_dir, "hello-world.wit")
+    File.write!(wit_path, String.replace(wit, "kebab-field", field))
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom("known_field") end
+
+    {:module, wrapper, _, _} =
+      Module.create(
+        __MODULE__.DeclaredField,
+        quote do
+          @convert_field_names true
+          use Wasmex.Components.ComponentServer,
+            wit: unquote(wit_path),
+            convert_field_names: @convert_field_names,
+            imports: %{"greeter" => {:fn, &HelloWorld.greeter/0}}
+
+          def init(init_arg), do: {:ok, init_arg}
+        end,
+        Macro.Env.location(__ENV__)
+      )
+
+    assert wit_path in wrapper.__info__(:attributes)[:external_resource]
+
+    component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
+    patched_bytes = :binary.replace(component_bytes, "kebab-field", field, [:global])
+
+    component_pid =
+      start_supervised!({wrapper, bytes: patched_bytes, wasi: %WasiP2Options{allow_http: true}})
+
+    atom_key = String.to_existing_atom("known_field")
+    assert {:ok, %{^atom_key => "test"}} = wrapper.echo_kebab(component_pid, %{field => "test"})
+  end
+
+  test "nested record keys convert without changing tuple values" do
+    alias Wasmex.Components.FieldConverter
+
+    wit_result = {"kebab-field", [%{"kebab-field" => %{"kebab-field" => "test"}}]}
+    elixir_result = {"kebab-field", [%{kebab_field: %{kebab_field: "test"}}]}
+    fields = %{"kebab-field" => :kebab_field}
+
+    assert {:ok, ^elixir_result} =
+             FieldConverter.maybe_convert_result({:ok, wit_result}, true, fields)
+
+    assert [^wit_result] = FieldConverter.maybe_convert_args([elixir_result], true)
+
+    args = [%{"outer" => %{"inner-field": "canonical", inner_field: "alias"}}]
+
+    assert [%{"outer" => %{"inner-field" => "canonical", inner_field: "alias"}}] =
+             FieldConverter.maybe_convert_args(args, true)
+  end
+
+  test "field conversion does not create an alias for an existing atom key" do
+    key = :"kebab-only-key"
+    input = %{key => "test"}
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom("kebab_only_key") end
+
+    assert {:ok, ^input} =
+             Wasmex.Components.FieldConverter.maybe_convert_result({:ok, input}, true)
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom("kebab_only_key") end
+  end
+
   test "field name conversion can be disabled" do
     component_bytes = File.read!("test/component_fixtures/hello_world/hello_world.wasm")
 

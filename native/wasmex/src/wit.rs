@@ -3,13 +3,49 @@ use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldId, WorldItem, WorldKe
 
 #[rustler::nif(name = "wit_exported_functions")]
 pub fn exported_functions(env: rustler::Env, path: String, wit: String) -> NifResult<Term> {
+    let (resolve, world_id) = parse_world(path, &wit)?;
+    exported_function_map(env, &resolve, world_id)
+}
+
+#[rustler::nif(name = "wit_component_server_metadata")]
+pub fn component_server_metadata(
+    env: rustler::Env,
+    path: String,
+    wit: String,
+) -> NifResult<(Term, Term)> {
+    let (resolve, world_id) = parse_world(path, &wit)?;
+    let mut fields = Vec::new();
+
+    for (_, ty) in resolve.types.iter() {
+        match &ty.kind {
+            TypeDefKind::Record(record) => fields.extend(record.fields.iter().map(|f| &f.name)),
+            TypeDefKind::Flags(flags) => fields.extend(flags.flags.iter().map(|f| &f.name)),
+            _ => {}
+        }
+    }
+
+    Ok((
+        exported_function_map(env, &resolve, world_id)?,
+        fields.encode(env),
+    ))
+}
+
+fn parse_world(path: String, wit: &str) -> NifResult<(Resolve, WorldId)> {
     let mut resolve = Resolve::new();
     let id = resolve
-        .push_str(path, &wit)
+        .push_str(path, wit)
         .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to parse WIT: {e}"))))?;
     let world_id = resolve
         .select_world(&[id], None)
         .map_err(|e| rustler::Error::Term(Box::new(format!("Failed to select world: {e}"))))?;
+    Ok((resolve, world_id))
+}
+
+fn exported_function_map<'a>(
+    env: rustler::Env<'a>,
+    resolve: &Resolve,
+    world_id: WorldId,
+) -> NifResult<Term<'a>> {
     let exports = &resolve.worlds[world_id].exports;
     let exported_functions = exports
         .iter()
@@ -18,7 +54,7 @@ pub fn exported_functions(env: rustler::Env, path: String, wit: String) -> NifRe
             _ => None,
         })
         .collect::<Vec<(&String, usize)>>();
-    Ok(Term::map_from_pairs(env, exported_functions.as_slice()).unwrap())
+    Term::map_from_pairs(env, exported_functions.as_slice())
 }
 
 #[rustler::nif(name = "wit_exported_resources")]

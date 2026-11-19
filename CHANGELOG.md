@@ -14,6 +14,17 @@ Types of changes
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## [Unreleased]
+
+### Security
+
+- Fixed a denial of service where WebAssembly components could exhaust the BEAM
+  atom table through result field names. `Wasmex.Components.ComponentServer`
+  now uses the compile-time WIT definition to choose which result keys become
+  snake_case atoms. Keys outside that definition keep their WIT spelling as
+  strings. Field conversion leaves tuple elements such as variant tags in
+  their native representation.
+
 ## [0.16.0 - 2026-11-06]
 
 ### Changed
