@@ -17,6 +17,10 @@ pub struct ExEngineConfig {
     memory64: bool,
     wasm_component_model: bool,
     debug_info: bool,
+    parallel_compilation: Option<bool>,
+    memory_reservation: Option<u64>,
+    memory_guard_size: Option<u64>,
+    memory_init_cow: Option<bool>,
 }
 
 #[rustler::resource_impl()]
@@ -92,6 +96,19 @@ pub(crate) fn engine_config(engine_config: ExEngineConfig) -> Config {
     config.wasm_component_model(engine_config.wasm_component_model);
     config.debug_info(engine_config.debug_info);
     config.epoch_interruption(true);
+
+    if let Some(parallel) = engine_config.parallel_compilation {
+        config.parallel_compilation(parallel);
+    }
+    if let Some(bytes) = engine_config.memory_reservation {
+        config.memory_reservation(bytes);
+    }
+    if let Some(bytes) = engine_config.memory_guard_size {
+        config.memory_guard_size(bytes);
+    }
+    if let Some(enabled) = engine_config.memory_init_cow {
+        config.memory_init_cow(enabled);
+    }
 
     config
 }
