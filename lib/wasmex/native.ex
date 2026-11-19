@@ -26,6 +26,8 @@ defmodule Wasmex.Native do
     ),
     force_build: System.get_env("WASMEX_BUILD") in ["1", "true"]
 
+  def malloc_trim(), do: error()
+
   def engine_new(_engine_config), do: error()
   def engine_precompile_module(_engine_resource, _bytes), do: error()
   def engine_precompile_component(_engine_resource, _bytes), do: error()

@@ -469,6 +469,20 @@ defmodule Wasmex do
   @spec instance(GenServer.server()) :: {:ok, Wasmex.Instance.t()} | {:error, any()}
   def instance(pid), do: GenServer.call(pid, {:instance})
 
+  @doc """
+  Asks glibc to return unused heap pages to the operating system.
+
+  This is a best-effort, process-wide operation on Linux with glibc. It
+  affects memory already freed to glibc's allocator and can be useful after a
+  large WebAssembly compilation. Live allocations and the size and limits of
+  WebAssembly linear memory are unaffected.
+
+  Returns `true` if glibc reports that it released memory. Returns `false`
+  when it releases nothing or the platform does not support the operation.
+  """
+  @spec malloc_trim() :: boolean()
+  def malloc_trim, do: Wasmex.Native.malloc_trim()
+
   # Server
 
   @impl true

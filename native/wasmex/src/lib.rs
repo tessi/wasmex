@@ -44,4 +44,24 @@ pub mod wat;
 pub mod wit;
 
 #[cfg(not(test))]
+#[rustler::nif(schedule = "DirtyCpu")]
+fn malloc_trim() -> bool {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        unsafe extern "C" {
+            #[link_name = "malloc_trim"]
+            fn glibc_malloc_trim(pad: usize) -> std::ffi::c_int;
+        }
+
+        // SAFETY: glibc's malloc_trim is thread-safe and takes only a scalar padding argument.
+        unsafe { glibc_malloc_trim(0) == 1 }
+    }
+
+    #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+    {
+        false
+    }
+}
+
+#[cfg(not(test))]
 rustler::init!("Elixir.Wasmex.Native");
