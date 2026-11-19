@@ -170,7 +170,7 @@ defmodule Wasmex.Components.GenServerTest do
              HelloWorldNoConversion.echo_kebab(component_pid, %{"kebab-field" => "test"})
   end
 
-  test "an interrupted component reports that it needs replacing after a late callback" do
+  test "an export that times out during a callback requires a fresh instance" do
     component_pid = start_with_delayed_greeter()
 
     call =

@@ -346,16 +346,16 @@ defmodule Wasmex.Components do
   described in the component interface type documentation above.
 
   The default timeout is 5 seconds. A timeout exits the calling process unless
-  it catches the exit, just like `GenServer.call/3`. For local callers, the
-  deadline includes time waiting in both the server and Store queues. For a
-  caller on another node, the guest deadline starts when the server dispatches
-  the call. A call that expires before guest execution leaves the instance
-  usable. Use `:infinity` to run without a deadline.
+  it catches the exit, just like `GenServer.call/3`. The deadline includes
+  time waiting in both the server and Store queues. A call that expires before
+  guest execution leaves the instance usable. Use `:infinity` to run without a
+  deadline.
 
-  While the guest is running, reaching the deadline requests interruption at
-  the next Wasmtime epoch. If the guest is interrupted, later export calls
-  return `{:error, :instance_interrupted}`. Stop the component server and start
-  a fresh instance to continue using the component.
+  If the deadline expires after guest execution starts, Wasmex requests
+  interruption at the next Wasmtime epoch. Later calls through this API return
+  `{:error, :instance_interrupted}`, even if the guest finished after the
+  deadline. Stop the component server and start a fresh instance to continue
+  using the component.
 
   An Elixir callback or WASI host operation already in progress may continue
   after the deadline. Later operations on the same Store wait for it to finish.

@@ -54,9 +54,10 @@ defmodule Wasmex.Components.Instance do
   The `from` argument must be the caller tuple passed to
   `c:GenServer.handle_call/3`. The result is sent to that caller after execution.
   `timeout` is the remaining time in milliseconds, or `nil` for no deadline.
-  When it expires, the reply is discarded and Wasmex requests a Wasmtime epoch
-  interruption if the guest is running. A trapped instance must be replaced.
-  An in-progress host call may continue holding the store until it returns.
+  When it expires, the reply is discarded. If guest execution has started,
+  Wasmex requests a Wasmtime epoch interruption and later export calls on this
+  instance return `{:error, :instance_interrupted}`. An in-progress host call
+  may continue holding the store until it returns.
   """
   @spec call_function(
           __MODULE__.t(),

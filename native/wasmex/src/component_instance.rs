@@ -478,19 +478,25 @@ async fn component_execute_function(
     let mut result_values = vec![Val::Bool(false); results_count];
     let interrupt_requested = component_store.data().interrupt_requested.clone();
     let call_result = with_deadline(interrupt_requested, deadline, async {
+        // The timer can win before the first poll of this future. Parameter
+        // conversion may also have used up the remaining time.
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            return None;
+        }
         let result = function
             .call_async(component_store, &converted_params, &mut result_values)
             .await;
-        // An expired deadline can also race with normal completion. Only a
-        // guest that actually trapped on interruption needs to be replaced.
-        if let Err(error) = &result {
-            if matches!(error.downcast_ref::<Trap>(), Some(Trap::Interrupt)) {
-                instance_resource.interrupted.store(true, Ordering::Relaxed);
-            }
+        // The call can finish after the deadline without observing an epoch,
+        // for example when a host callback returns near the end of the guest
+        // function. Apply the same lifecycle rule in either case.
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            instance_resource.interrupted.store(true, Ordering::Relaxed);
+            return None;
         }
-        result
+        Some(result)
     })
-    .await?;
+    .await
+    .flatten()?;
 
     let result = thread_env.run(|env| {
         match call_result {

@@ -18,9 +18,10 @@ Types of changes
 
 ### Fixed
 
-- Timed-out component export calls request a Wasmtime epoch interruption.
-  Later export calls return `{:error, :instance_interrupted}` if the guest
-  was interrupted. Restart that instance to resume calling the component.
+- Component export calls that time out after guest execution starts request
+  a Wasmtime epoch interruption. Later export calls return
+  `{:error, :instance_interrupted}`. Restart that instance to resume calling
+  the component.
 
 ## [0.17.0 - 2026-11-18]
 
