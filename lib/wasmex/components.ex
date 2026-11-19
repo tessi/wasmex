@@ -93,8 +93,11 @@ defmodule Wasmex.Components do
       [1, 2, 3]
       ```
       For `list<u8>`, Elixir callers can also pass binaries such as `<<0, 128, 255>>`.
-      Host callbacks can return binaries for `list<u8>` results. Wasm results and
-      arguments sent to host callbacks use Elixir lists.
+      Host callbacks can return binaries for `list<u8>` results. Set
+      `binary_byte_lists: true` when starting the component to receive `list<u8>`
+      values as binaries, including nested values and empty lists (`<<>>`). This
+      applies to Wasm results and arguments sent to host callbacks. The default
+      is to receive byte lists.
 
     - `tuple<T1, T2>` (maps to Elixir tuples)
       ```wit
@@ -212,6 +215,7 @@ defmodule Wasmex.Components do
   * `:store` - Optional `Wasmex.Components.Store`. For a compiled component,
     use a Store created with the Engine that compiled or loaded the component.
   * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct for system interface capabilities
+  * `:binary_byte_lists` - Receive WIT `list<u8>` values as binaries. Defaults to `false`.
   * `:imports` - Optional map of host functions that can be called by the WebAssembly component
     * Keys are function names as strings
     * Values are tuples of `{:fn, function}` where function is the host function to call
@@ -265,6 +269,7 @@ defmodule Wasmex.Components do
       component, create its Store with the same Engine and configure WASI and
       Store limits when constructing the Store.
     * `:wasi` - Optional WASI configuration as `Wasmex.Wasi.WasiP2Options` struct
+    * `:binary_byte_lists` - Receive WIT `list<u8>` values as binaries. Defaults to `false`.
     * `:imports` - Optional map of host functions that can be called by the component
     * Any standard GenServer options (like `:name`)
 
@@ -275,14 +280,21 @@ defmodule Wasmex.Components do
   """
   def start_link(opts) when is_list(opts) or is_map(opts) do
     opts = normalize_opts(opts)
+    binary_byte_lists = Keyword.get(opts, :binary_byte_lists, false)
 
-    with {:ok, store} <- get_store(opts),
+    with true <- is_boolean(binary_byte_lists) || {:error, :invalid_binary_byte_lists},
+         {:ok, store} <- get_store(opts),
          {:ok, component} <- get_component(opts, store) do
       imports = Keyword.get(opts, :imports, %{})
 
       GenServer.start_link(
         __MODULE__,
-        %{store: store, component: component, imports: imports},
+        %{
+          store: store,
+          component: component,
+          imports: imports,
+          binary_byte_lists: binary_byte_lists
+        },
         opts
       )
     end
@@ -388,7 +400,9 @@ defmodule Wasmex.Components do
 
   @impl true
   def init(%{store: store, component: component, imports: imports} = state) do
-    case Wasmex.Components.Instance.new(store, component, imports) do
+    binary_byte_lists = Map.get(state, :binary_byte_lists, false)
+
+    case Wasmex.Components.Instance.new(store, component, imports, binary_byte_lists) do
       {:ok, instance} ->
         {:ok, Map.merge(state, %{instance: instance, component: component, imports: imports})}
 

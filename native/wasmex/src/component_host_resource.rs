@@ -157,8 +157,10 @@ impl HostResourceRegistry {
     pub(crate) fn vals_to_terms<'a>(
         &self,
         values: &[Val],
+        function_type: &wasmtime::component::types::ComponentFunc,
         env: rustler::Env<'a>,
         store: &mut StoreContextMut<'_, ComponentStoreData>,
+        binary_byte_lists: bool,
     ) -> Result<Vec<Term<'a>>, String> {
         let mut conversion_error = None;
         let mut encode_resource = |resource, env| match self.resource_to_term(resource, env, store)
@@ -171,7 +173,10 @@ impl HostResourceRegistry {
         };
         let terms = values
             .iter()
-            .map(|value| val_to_term_with_resource(value, env, vec![], &mut encode_resource))
+            .zip(function_type.params())
+            .map(|(value, (_, ty))| {
+                val_to_term_with_resource(value, &ty, env, binary_byte_lists, &mut encode_resource)
+            })
             .collect();
         match conversion_error {
             Some(reason) => Err(reason),

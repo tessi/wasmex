@@ -16,6 +16,19 @@ Types of changes
 
 ## [Unreleased]
 
+### Added
+
+- Set `binary_byte_lists: true` when starting a WebAssembly component to receive
+  WIT `list<u8>` values as Elixir binaries in results and host callback arguments.
+  This includes nested values and empty byte lists. The default is `false`.
+
+### Changed
+
+- Component calls with signature `func(list<u8>) -> result<u32, string>` use
+  Wasmtime's typed API for binary arguments. Calls with signature
+  `func(u32, string) -> result<list<u8>, string>` use it with binary output
+  enabled and return resource-backed binaries.
+
 ## [0.18.0 - 2026-11-19]
 
 ### Added

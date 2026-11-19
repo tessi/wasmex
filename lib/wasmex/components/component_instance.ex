@@ -28,7 +28,7 @@ defmodule Wasmex.Components.Instance do
     }
   end
 
-  def new(store_or_caller, component, imports) do
+  def new(store_or_caller, component, imports, binary_byte_lists \\ false) do
     %{resource: store_or_caller_resource} = store_or_caller
     %{resource: component_resource} = component
 
@@ -38,6 +38,7 @@ defmodule Wasmex.Components.Instance do
           store_or_caller_resource,
           component_resource,
           imports,
+          binary_byte_lists,
           from
         )
       end)

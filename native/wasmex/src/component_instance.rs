@@ -8,6 +8,7 @@ use rustler::types::tuple;
 use crate::async_reply::{submit_error, AsyncReply};
 use crate::atoms;
 use crate::component::ComponentResource;
+use crate::component_call::ComponentCall;
 use crate::component_host_resource::HostResourceRegistry;
 use crate::store::ComponentStoreData;
 use crate::store::ComponentStoreResource;
@@ -16,15 +17,13 @@ use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
-use wasmtime::component::{types::ComponentFunc, Instance, Linker, LinkerInstance, Type, Val};
+use wasmtime::component::{types::ComponentFunc, Instance, Linker, LinkerInstance, Val};
 use wasmtime::{Error as WasmtimeError, Trap};
 
 use rustler::Term;
 
 use wasmtime_wasi;
 use wasmtime_wasi_http;
-
-use crate::component_type_conversion::{convert_params, encode_result};
 
 struct ComponentCallbackResult {
     success: bool,
@@ -48,6 +47,7 @@ impl rustler::Resource for ComponentCallbackTokenResource {}
 pub struct ComponentInstanceResource {
     pub inner: Instance,
     pub component: wasmtime::component::Component,
+    pub binary_byte_lists: bool,
     interrupted: AtomicBool,
     _host_resources: Arc<HostResourceRegistry>,
 }
@@ -60,6 +60,7 @@ pub fn new_instance(
     store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
     imports: Term,
+    binary_byte_lists: bool,
     from: Term,
 ) -> NifResult<rustler::Atom> {
     let component = component_resource.component()?;
@@ -74,7 +75,7 @@ pub fn new_instance(
         let linker = term_env
             .run(|env| {
                 let imports = imports.load(env);
-                create_linker(&store, imports, callback_pid)
+                create_linker(&store, imports, callback_pid, binary_byte_lists)
             })
             .map_err(|error| format!("{error:?}"));
 
@@ -86,6 +87,7 @@ pub fn new_instance(
                     ResourceArc::new(ComponentInstanceResource {
                         inner: instance,
                         component,
+                        binary_byte_lists,
                         interrupted: AtomicBool::new(false),
                         _host_resources: host_resources,
                     })
@@ -110,6 +112,7 @@ fn create_linker(
     store: &wasmtime::Store<ComponentStoreData>,
     imports: Term,
     callback_pid: LocalPid,
+    binary_byte_lists: bool,
 ) -> NifResult<(Linker<ComponentStoreData>, Arc<HostResourceRegistry>)> {
     let mut linker = Linker::new(store.engine());
     let host_resources = Arc::new(HostResourceRegistry::new());
@@ -131,6 +134,7 @@ fn create_linker(
                 None,
                 callback_pid,
                 host_resources.clone(),
+                binary_byte_lists,
             )?;
         } else {
             let imports_map = implementation.decode::<HashMap<String, Term>>()?;
@@ -145,6 +149,7 @@ fn create_linker(
                     Some(name.clone()),
                     callback_pid,
                     host_resources.clone(),
+                    binary_byte_lists,
                 )?;
             }
         }
@@ -159,6 +164,7 @@ fn link_implementation(
     namespace: Option<String>,
     callback_pid: LocalPid,
     host_resources: Arc<HostResourceRegistry>,
+    binary_byte_lists: bool,
 ) -> NifResult<()> {
     match implementation_tag(implementation).as_deref() {
         Some("fn") => link_import(
@@ -167,6 +173,7 @@ fn link_implementation(
             namespace,
             callback_pid,
             host_resources,
+            binary_byte_lists,
         ),
         Some("resource") => link_resource(
             linker_instance,
@@ -203,11 +210,12 @@ async fn call_elixir_import(
     result_values: &mut [Val],
     pid: LocalPid,
     host_resources: Arc<HostResourceRegistry>,
+    binary_byte_lists: bool,
 ) -> Result<(), WasmtimeError> {
     let params_env = OwnedEnv::new();
     let saved_params = params_env.run(|env| {
         host_resources
-            .vals_to_terms(params, env, &mut store)
+            .vals_to_terms(params, &function_type, env, &mut store, binary_byte_lists)
             .map(|terms| params_env.save(terms))
     });
     let saved_params = saved_params.map_err(WasmtimeError::msg)?;
@@ -268,6 +276,7 @@ fn link_import(
     namespace: Option<String>,
     pid: LocalPid,
     host_resources: Arc<HostResourceRegistry>,
+    binary_byte_lists: bool,
 ) -> NifResult<()> {
     let name_for_closure = name.clone();
 
@@ -282,6 +291,7 @@ fn link_import(
                 result_values,
                 pid,
                 host_resources.clone(),
+                binary_byte_lists,
             ))
         })
         .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
@@ -449,25 +459,24 @@ async fn component_execute_function(
                 )
             })?;
 
-        let function_type = function.ty(&*component_store);
-        let param_types = function_type.params();
-        let param_types = param_types.map(|x| x.1.clone()).collect::<Vec<Type>>();
-
-        let converted_params =
-            convert_params(param_types.as_ref(), given_params).map_err(|error| match error {
-                Error::Term(value) => {
-                    let value = value.encode(env);
-                    value
-                        .decode::<String>()
-                        .unwrap_or_else(|_| format!("Error converting param: {value:?}"))
-                }
-                error => format!("Error converting param: {error:?}"),
-            })?;
-        let results_count = function_type.results().len();
-        Ok::<_, String>((function, converted_params, results_count))
+        ComponentCall::prepare(
+            function,
+            component_store,
+            given_params,
+            instance_resource.binary_byte_lists,
+        )
+        .map_err(|error| match error {
+            Error::Term(value) => {
+                let value = value.encode(env);
+                value
+                    .decode::<String>()
+                    .unwrap_or_else(|_| format!("Error converting param: {value:?}"))
+            }
+            error => format!("Error converting param: {error:?}"),
+        })
     });
 
-    let (function, converted_params, results_count) = match prepared {
+    let prepared = match prepared {
         Ok(prepared) => prepared,
         Err(reason) => {
             let result = thread_env.run(|env| env.error_tuple(reason).encode(env));
@@ -475,7 +484,6 @@ async fn component_execute_function(
         }
     };
 
-    let mut result_values = vec![Val::Bool(false); results_count];
     let interrupt_requested = component_store.data().interrupt_requested.clone();
     let call_result = with_deadline(interrupt_requested, deadline, async {
         // The timer can win before the first poll of this future. Parameter
@@ -483,9 +491,7 @@ async fn component_execute_function(
         if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
             return None;
         }
-        let result = function
-            .call_async(component_store, &converted_params, &mut result_values)
-            .await;
+        let result = prepared.call(component_store).await;
         // The call can finish after the deadline without observing an epoch,
         // for example when a host callback returns near the end of the guest
         // function. Apply the same lifecycle rule in either case.
@@ -500,7 +506,7 @@ async fn component_execute_function(
 
     let result = thread_env.run(|env| {
         match call_result {
-            Ok(()) => encode_result(env, result_values),
+            Ok(result) => result.encode(env, instance_resource.binary_byte_lists),
             Err(err) => {
                 let reason = format!("{err}");
                 if let Ok(trap) = err.downcast::<Trap>() {

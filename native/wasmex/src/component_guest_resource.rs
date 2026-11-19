@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rustler::env::SavedTerm;
 use rustler::types::tuple;
 use rustler::{Atom, Encoder, Error, NifResult, OwnedEnv, ResourceArc, Term};
-use wasmtime::component::types::ComponentItem;
+use wasmtime::component::types::{ComponentFunc, ComponentItem};
 use wasmtime::component::{Component, Func, Instance, ResourceAny, ResourceType, Type, Val};
 
 use crate::async_reply::{submit_error, AsyncReply};
@@ -23,6 +23,7 @@ struct ResourceMetadata {
 struct ResourceContext {
     executor: StoreExecutor<ComponentStoreData>,
     instance: Instance,
+    binary_byte_lists: bool,
     resources: Vec<ResourceMetadata>,
 }
 
@@ -30,6 +31,11 @@ struct CallTarget {
     context: Arc<ResourceContext>,
     resource: Option<ResourceArc<ComponentGuestResource>>,
     metadata: ResourceMetadata,
+}
+
+struct CallResults {
+    values: Vec<Val>,
+    function_type: ComponentFunc,
 }
 
 /// A guest-owned resource and the component instance required to use it.
@@ -121,7 +127,6 @@ pub fn new(
     let executor = store_resource.executor()?;
     let resource_executor = executor.clone();
     let instance = instance_resource.inner;
-    let component = instance_resource.component.clone();
     let (interface_path, resource_name) =
         parse_resource_path(resource_path).map_err(|reason| Error::Term(Box::new(reason)))?;
     let deadline = deadline(timeout_ms);
@@ -131,7 +136,7 @@ pub fn new(
     if let Err(error) = executor.submit(move |mut store| async move {
         let interrupt_requested = store.data().interrupt_requested.clone();
         let result = async {
-            let context = resource_context(resource_executor, instance, &component, &mut store)?;
+            let context = resource_context(resource_executor, &instance_resource, &mut store)?;
             let resource = execute_constructor(
                 &mut thread_env,
                 &mut store,
@@ -259,8 +264,6 @@ pub fn call_static(
     let submit_reply = AsyncReply::new(from)?;
     let executor = store_resource.executor()?;
     let resource_executor = executor.clone();
-    let instance = instance_resource.inner;
-    let component = instance_resource.component.clone();
     let (interface_path, resource_name) =
         parse_resource_path(resource_path).map_err(|reason| Error::Term(Box::new(reason)))?;
     let call_deadline = deadline(timeout_ms);
@@ -270,7 +273,7 @@ pub fn call_static(
     if let Err(error) = executor.submit(move |mut store| async move {
         let interrupt_requested = store.data().interrupt_requested.clone();
         let result = async {
-            let context = resource_context(resource_executor, instance, &component, &mut store)?;
+            let context = resource_context(resource_executor, &instance_resource, &mut store)?;
             let metadata = context
                 .resources
                 .iter()
@@ -361,7 +364,7 @@ async fn execute_call(
     function_kind: &str,
     function_name: &str,
     saved_params: SavedTerm,
-) -> Result<Vec<Val>, String> {
+) -> Result<CallResults, String> {
     let (export_prefix, include_resource) = match function_kind {
         "method" | "async-method" => ("method", true),
         "static" | "async-static" => ("static", false),
@@ -423,16 +426,19 @@ async fn execute_call(
         drop_result_resources(store, &results).await;
         return Err(reason);
     }
-    Ok(results)
+    Ok(CallResults {
+        values: results,
+        function_type,
+    })
 }
 
 fn send_call_result(
     reply: AsyncReply,
     thread_env: &mut OwnedEnv,
-    result: Result<(Arc<ResourceContext>, Vec<Val>), String>,
+    result: Result<(Arc<ResourceContext>, CallResults), String>,
 ) {
     let result = match result {
-        Ok((context, values)) => thread_env.run(|env| encode_call_result(env, values, &context)),
+        Ok((context, results)) => thread_env.run(|env| encode_call_result(env, &results, &context)),
         Err(reason) => thread_env.run(|env| env.error_tuple(reason).encode(env)),
     };
     let saved = thread_env.save(result);
@@ -556,14 +562,15 @@ pub fn drop_resource(
 
 fn resource_context(
     executor: StoreExecutor<ComponentStoreData>,
-    instance: Instance,
-    component: &Component,
+    instance_resource: &ComponentInstanceResource,
     store: &mut wasmtime::Store<ComponentStoreData>,
 ) -> Result<Arc<ResourceContext>, String> {
-    let resources = discover_resources(component, instance, store)?;
+    let instance = instance_resource.inner;
+    let resources = discover_resources(&instance_resource.component, instance, store)?;
     Ok(Arc::new(ResourceContext {
         executor,
         instance,
+        binary_byte_lists: instance_resource.binary_byte_lists,
         resources,
     }))
 }
@@ -828,7 +835,7 @@ fn decode_resource(term: &Term) -> Result<ResourceArc<ComponentGuestResource>, S
 
 fn encode_call_result<'a>(
     env: rustler::Env<'a>,
-    values: Vec<Val>,
+    results: &CallResults,
     context: &Arc<ResourceContext>,
 ) -> Term<'a> {
     let mut encode_guest_resource = |resource: ResourceAny, env| {
@@ -843,9 +850,19 @@ fn encode_call_result<'a>(
             )),
         )
     };
-    let terms = values
+    let terms = results
+        .values
         .iter()
-        .map(|value| val_to_term_with_resource(value, env, vec![], &mut encode_guest_resource))
+        .zip(results.function_type.results())
+        .map(|(value, ty)| {
+            val_to_term_with_resource(
+                value,
+                &ty,
+                env,
+                context.binary_byte_lists,
+                &mut encode_guest_resource,
+            )
+        })
         .collect::<Vec<_>>();
 
     match terms.as_slice() {
