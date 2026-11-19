@@ -183,7 +183,9 @@ defmodule Wasmex.Components.GenServerTest do
     send(component_pid, :finish_greeting)
 
     assert {:error, :instance_interrupted} =
-             Wasmex.Components.call_function(component_pid, "greet", ["World"])
+             Wasmex.Components.call_function(component_pid, "echo-kebab", [
+               %{"kebab-field" => "value"}
+             ])
 
     assert Process.alive?(component_pid)
   end

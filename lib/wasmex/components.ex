@@ -346,9 +346,11 @@ defmodule Wasmex.Components do
   described in the component interface type documentation above.
 
   The default timeout is 5 seconds. A timeout exits the calling process unless
-  it catches the exit, just like `GenServer.call/3`. The timeout includes time
-  waiting to start the call. A call that expires before guest execution leaves
-  the instance usable. Use `:infinity` to run without a deadline.
+  it catches the exit, just like `GenServer.call/3`. For local callers, the
+  deadline includes time waiting in both the server and Store queues. For a
+  caller on another node, the guest deadline starts when the server dispatches
+  the call. A call that expires before guest execution leaves the instance
+  usable. Use `:infinity` to run without a deadline.
 
   While the guest is running, reaching the deadline requests interruption at
   the next Wasmtime epoch. If the guest is interrupted, later export calls
@@ -367,7 +369,7 @@ defmodule Wasmex.Components do
           nil
 
         timeout when is_integer(timeout) and timeout >= 0 ->
-          System.monotonic_time(:millisecond) + timeout
+          {System.monotonic_time(:millisecond) + timeout, timeout}
       end
 
     GenServer.call(pid, {:call_function, name_or_path, params, deadline}, timeout)
@@ -395,10 +397,21 @@ defmodule Wasmex.Components do
   @impl true
   def handle_call(
         {:call_function, name, params, deadline},
-        from,
+        {caller, _tag} = from,
         %{instance: instance} = state
       ) do
-    timeout = if deadline, do: max(deadline - System.monotonic_time(:millisecond), 0)
+    timeout =
+      case deadline do
+        {deadline, _timeout} when node(caller) == node() ->
+          max(deadline - System.monotonic_time(:millisecond), 0)
+
+        {_deadline, timeout} ->
+          # Monotonic timestamps cannot be compared across nodes.
+          timeout
+
+        timeout ->
+          timeout
+      end
 
     if timeout != 0 do
       :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
