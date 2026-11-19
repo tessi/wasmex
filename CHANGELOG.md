@@ -16,7 +16,7 @@ Types of changes
 
 ## [Unreleased]
 
-## [0.18.0]
+## [0.18.0 - 2026-11-19]
 
 ### Added
 
