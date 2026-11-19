@@ -16,12 +16,27 @@ Types of changes
 
 ## [Unreleased]
 
+### Added
+
+- Load trusted precompiled components from memory-mapped files with
+  `Wasmex.Components.Component.unsafe_deserialize_file/2`. Keep each artifact
+  unchanged while its component or any of its instances is loaded.
+  [#1032](https://github.com/tessi/wasmex/pull/1032)
+- Pass Elixir binaries or byte lists for WIT `list<u8>` arguments and host
+  callback results. [#1033](https://github.com/tessi/wasmex/pull/1033)
+- Use `Wasmex.malloc_trim/0` to ask glibc on Linux to return unused heap pages
+  to the operating system. [#1034](https://github.com/tessi/wasmex/pull/1034)
+- Configure parallel compilation, linear-memory reservation and guard sizes,
+  and copy-on-write memory initialization through `Wasmex.EngineConfig`.
+  [#1036](https://github.com/tessi/wasmex/pull/1036)
+
 ### Fixed
 
 - A deadline that expires during a component guest call requests a Wasmtime
   epoch interruption. Later `Wasmex.Components.call_function/4` calls return
-  `{:error, :instance_interrupted}`. Restart that instance to resume calling
-  the component.
+  `{:error, :instance_interrupted}` until the instance is replaced. Calls that
+  expire while waiting to start leave the instance usable.
+  [#1035](https://github.com/tessi/wasmex/pull/1035)
 
 ## [0.17.0 - 2026-11-18]
 
