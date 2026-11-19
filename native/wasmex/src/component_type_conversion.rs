@@ -13,11 +13,11 @@ use crate::component_guest_resource::ComponentGuestResource;
 ///
 /// Used to for Wasm function calls from Elixir and translating params to Wasm values.
 /// The opposite of this is `val_to_term_with_resource`.
-pub fn term_to_val(param_term: &Term, param_type: &Type, path: Vec<String>) -> Result<Val, Error> {
+pub fn term_to_val(param_term: &Term, param_type: &Type) -> Result<Val, Error> {
     term_to_val_with_resource(
         param_term,
         param_type,
-        path,
+        &String::new,
         &mut |term, resource_type, owned| {
             let resource = decode_guest_resource(term)?;
             if owned {
@@ -34,7 +34,7 @@ pub fn term_to_val(param_term: &Term, param_type: &Type, path: Vec<String>) -> R
 pub fn term_to_val_with_resource(
     param_term: &Term,
     param_type: &Type,
-    mut path: Vec<String>,
+    path: &dyn Fn() -> String,
     convert_resource: &mut dyn FnMut(&Term, ResourceType, bool) -> Result<Val, Error>,
 ) -> Result<Val, Error> {
     let term_type = param_term.get_type();
@@ -106,22 +106,27 @@ pub fn term_to_val_with_resource(
             let terms = param_term.decode::<ListIterator>()?;
             for (index, term) in terms.enumerate() {
                 let value = term.decode::<u8>().map(Val::U8).or_else(|_| {
-                    path.push(format!("list[{index}]"));
-                    term_to_val_with_resource(&term, &Type::U8, path.clone(), convert_resource)
+                    term_to_val_with_resource(
+                        &term,
+                        &Type::U8,
+                        &|| child_path(path(), &format!("list[{index}]")),
+                        convert_resource,
+                    )
                 })?;
                 values.push(value);
             }
             Ok(Val::List(values))
         }
         (TermType::List, Type::List(list)) => {
-            let decoded_list = param_term.decode::<Vec<Term>>()?;
             let element_type = list.ty();
-            let mut list_values = Vec::with_capacity(decoded_list.len());
-            for (index, term) in decoded_list.iter().enumerate() {
-                path.push(format!("list[{index}]"));
-                let val =
-                    term_to_val_with_resource(term, &element_type, path.clone(), convert_resource)?;
-                path.pop();
+            let mut list_values = Vec::with_capacity(param_term.list_length()?);
+            for (index, term) in param_term.decode::<ListIterator>()?.enumerate() {
+                let val = term_to_val_with_resource(
+                    &term,
+                    &element_type,
+                    &|| child_path(path(), &format!("list[{index}]")),
+                    convert_resource,
+                )?;
                 list_values.push(val);
             }
             Ok(Val::List(list_values))
@@ -131,14 +136,12 @@ pub fn term_to_val_with_resource(
             let tuple_types = tuple.types();
             let mut tuple_vals: Vec<Val> = Vec::with_capacity(tuple_types.len());
             for (index, (tuple_type, tuple_term)) in tuple_types.zip(dedoded_tuple).enumerate() {
-                path.push(format!("tuple[{index}]"));
                 let component_val = term_to_val_with_resource(
                     &tuple_term,
                     &tuple_type,
-                    path.clone(),
+                    &|| child_path(path(), &format!("tuple[{index}]")),
                     convert_resource,
                 )?;
-                path.pop();
                 tuple_vals.push(component_val);
             }
             Ok(Val::Tuple(tuple_vals))
@@ -156,14 +159,12 @@ pub fn term_to_val_with_resource(
                     .iter()
                     .find(|(field_name, _)| field_name == field.name);
                 if let Some((field_name, field_term)) = field_term_option {
-                    path.push(format!("record('{field_name}')"));
                     let field_value = term_to_val_with_resource(
                         field_term,
                         &field.ty,
-                        path.clone(),
+                        &|| child_path(path(), &format!("record('{field_name}')")),
                         convert_resource,
                     )?;
-                    path.pop();
                     kv.push((field.name.to_string(), field_value))
                 }
             }
@@ -172,6 +173,7 @@ pub fn term_to_val_with_resource(
                     .fields()
                     .filter(|field| !terms.iter().any(|(name, _)| name == field.name))
                     .collect::<Vec<_>>();
+                let path = path();
                 if path.is_empty() {
                     return Err(Error::Term(Box::new(format!(
                         "Expected {} fields, got {} - missing fields: {}",
@@ -193,7 +195,7 @@ pub fn term_to_val_with_resource(
                             .map(|field| field.name)
                             .collect::<Vec<_>>()
                             .join(", "),
-                        path.join(".")
+                        path
                     ))));
                 }
             }
@@ -220,14 +222,12 @@ pub fn term_to_val_with_resource(
 
             let some_atom = first_term.atom_to_string()?;
             if some_atom == "some" {
-                path.push("option(some)".to_string());
                 let inner_val = term_to_val_with_resource(
                     second_term,
                     &option_type.ty(),
-                    path.clone(),
+                    &|| child_path(path(), "option(some)"),
                     convert_resource,
                 )?;
-                path.pop();
                 Ok(Val::Option(Some(Box::new(inner_val))))
             } else {
                 Err(Error::Term(Box::new(format!(
@@ -294,14 +294,12 @@ pub fn term_to_val_with_resource(
             let result_kind = first_term.atom_to_string()?;
             if result_kind == "ok" {
                 if let Some(ok_type) = result_type.ok() {
-                    path.push("result(ok)".to_string());
                     let ok_val = term_to_val_with_resource(
                         second_term,
                         &ok_type,
-                        path.clone(),
+                        &|| child_path(path(), "result(ok)"),
                         convert_resource,
                     )?;
-                    path.pop();
                     Ok(Val::Result(Ok(Some(Box::new(ok_val)))))
                 } else {
                     Err(Error::Term(Box::new(
@@ -310,14 +308,12 @@ pub fn term_to_val_with_resource(
                 }
             } else if result_kind == "error" {
                 if let Some(err_type) = result_type.err() {
-                    path.push("result(error)".to_string());
                     let err_val = term_to_val_with_resource(
                         second_term,
                         &err_type,
-                        path.clone(),
+                        &|| child_path(path(), "result(error)"),
                         convert_resource,
                     )?;
-                    path.pop();
                     Ok(Val::Result(Err(Some(Box::new(err_val)))))
                 } else {
                     Err(Error::Term(Box::new(
@@ -373,14 +369,12 @@ pub fn term_to_val_with_resource(
 
             if let Some(case) = case {
                 if let Some(case_type) = case.ty {
-                    path.push(format!("Variant('{}')", case.name));
                     let payload_val = term_to_val_with_resource(
                         payload_term,
                         &case_type,
-                        path.clone(),
+                        &|| child_path(path(), &format!("Variant('{}')", case.name)),
                         convert_resource,
                     )?;
-                    path.pop();
                     Ok(Val::Variant(case_name, Some(Box::new(payload_val))))
                 } else {
                     Ok(Val::Variant(case_name, None))
@@ -417,16 +411,14 @@ pub fn term_to_val_with_resource(
         (_, Type::Own(resource_type)) => convert_resource(param_term, *resource_type, true),
         (_, Type::Borrow(resource_type)) => convert_resource(param_term, *resource_type, false),
         (term_type, val_type) => {
+            let path = path();
             if path.is_empty() {
                 Err(Error::Term(Box::new(format!(
                     "Could not convert {term_type:?} to {val_type:?}"
                 ))))
             } else {
                 Err(Error::Term(Box::new(format!(
-                    "Could not convert {:?} to {:?} at {:?}",
-                    term_type,
-                    val_type,
-                    path.join(".")
+                    "Could not convert {term_type:?} to {val_type:?} at {path:?}"
                 ))))
             }
         }
@@ -620,7 +612,7 @@ pub fn convert_params(param_types: &[Type], param_terms: Vec<Term>) -> Result<Ve
     let mut params = Vec::with_capacity(param_types.len());
 
     for (param_term, param_type) in param_terms.iter().zip(param_types.iter()) {
-        let param = term_to_val(param_term, param_type, vec![])?;
+        let param = term_to_val(param_term, param_type)?;
         params.push(param);
     }
     Ok(params)

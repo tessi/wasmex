@@ -195,7 +195,7 @@ impl HostResourceRegistry {
         let result = term_to_val_with_resource(
             term,
             ty,
-            vec![],
+            &String::new,
             &mut |resource_term, resource_type, owned| {
                 if !owned {
                     return Err(Error::Term(Box::new(

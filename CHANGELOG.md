@@ -28,6 +28,8 @@ Types of changes
   Wasmtime's typed API for binary arguments. Calls with signature
   `func(u32, string) -> result<list<u8>, string>` use it with binary output
   enabled and return nonempty results as resource-backed binaries.
+- Convert component list inputs directly to Wasmtime values and build nested
+  input diagnostic paths only when conversion fails.
 
 ## [0.18.0 - 2026-11-19]
 
