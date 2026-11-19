@@ -60,6 +60,25 @@ pub fn new_instance(
     store_resource: ResourceArc<ComponentStoreResource>,
     component_resource: ResourceArc<ComponentResource>,
     imports: Term,
+    from: Term,
+) -> NifResult<rustler::Atom> {
+    instantiate(store_resource, component_resource, imports, false, from)
+}
+
+#[rustler::nif(name = "component_instance_new_with_binary_byte_lists")]
+pub fn new_instance_with_binary_byte_lists(
+    store_resource: ResourceArc<ComponentStoreResource>,
+    component_resource: ResourceArc<ComponentResource>,
+    imports: Term,
+    from: Term,
+) -> NifResult<rustler::Atom> {
+    instantiate(store_resource, component_resource, imports, true, from)
+}
+
+fn instantiate(
+    store_resource: ResourceArc<ComponentStoreResource>,
+    component_resource: ResourceArc<ComponentResource>,
+    imports: Term,
     binary_byte_lists: bool,
     from: Term,
 ) -> NifResult<rustler::Atom> {

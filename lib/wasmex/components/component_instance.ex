@@ -28,19 +28,21 @@ defmodule Wasmex.Components.Instance do
     }
   end
 
-  def new(store_or_caller, component, imports, binary_byte_lists \\ false) do
+  def new(store_or_caller, component, imports, binary_byte_lists \\ false)
+      when is_boolean(binary_byte_lists) do
     %{resource: store_or_caller_resource} = store_or_caller
     %{resource: component_resource} = component
 
+    native_new =
+      if binary_byte_lists do
+        &Wasmex.Native.component_instance_new_with_binary_byte_lists/4
+      else
+        &Wasmex.Native.component_instance_new/4
+      end
+
     result =
       Wasmex.Utils.native_request(fn from ->
-        Wasmex.Native.component_instance_new(
-          store_or_caller_resource,
-          component_resource,
-          imports,
-          binary_byte_lists,
-          from
-        )
+        native_new.(store_or_caller_resource, component_resource, imports, from)
       end)
 
     case result do

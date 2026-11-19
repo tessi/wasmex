@@ -27,7 +27,7 @@ Types of changes
 - Component calls with signature `func(list<u8>) -> result<u32, string>` use
   Wasmtime's typed API for binary arguments. Calls with signature
   `func(u32, string) -> result<list<u8>, string>` use it with binary output
-  enabled and return resource-backed binaries.
+  enabled and return nonempty results as resource-backed binaries.
 
 ## [0.18.0 - 2026-11-19]
 
