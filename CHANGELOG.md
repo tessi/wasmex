@@ -16,6 +16,8 @@ Types of changes
 
 ## [Unreleased]
 
+## [0.18.0 - 2026-11-19]
+
 ### Added
 
 - Load trusted precompiled components from memory-mapped files with
