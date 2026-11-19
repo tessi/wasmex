@@ -92,6 +92,9 @@ defmodule Wasmex.Components do
       ```elixir
       [1, 2, 3]
       ```
+      For `list<u8>`, Elixir callers can also pass binaries such as `<<0, 128, 255>>`.
+      Host callbacks can return binaries for `list<u8>` results. Wasm results and
+      arguments sent to host callbacks use Elixir lists.
 
     - `tuple<T1, T2>` (maps to Elixir tuples)
       ```wit

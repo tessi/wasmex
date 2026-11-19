@@ -90,6 +90,37 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                ])
     end
 
+    test "accepts binaries as byte-list arguments" do
+      component_pid = start_component()
+
+      assert {:ok, [0, 128, 255]} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [
+                 <<0, 128, 255>>
+               ])
+
+      assert {:ok, []} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [<<>>])
+
+      assert {:error, _reason} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [<<1::1>>])
+    end
+
+    test "accepts binaries returned by byte-list imports" do
+      imports =
+        Map.put(
+          TestHelper.component_type_conversions_import_map(),
+          "import-id-list-u8",
+          {:fn, fn [0, 128, 255] -> <<255, 128, 0>> end}
+        )
+
+      component_pid = start_component(imports)
+
+      assert {:ok, [255, 128, 0]} =
+               Wasmex.Components.call_function(component_pid, "export-id-list-u8", [
+                 [0, 128, 255]
+               ])
+    end
+
     test "tuple types" do
       component_pid = start_component()
 
@@ -367,7 +398,7 @@ defmodule Wasmex.ComponentTypeConversionsTest do
         int: 123,
         float: 123.456,
         boolean: true,
-        "list-u8": [1, 2, 3],
+        "list-u8": <<1, 2, 3>>,
         "list-point": [%{x: 1, y: 2}, %{x: 3, y: 4}],
         "option-u8": {:some, 123},
         "option-string": {:some, "hello"},
@@ -407,6 +438,13 @@ defmodule Wasmex.ComponentTypeConversionsTest do
                Wasmex.Components.call_function(component_pid, "export-id-record-complex", [
                  erroneus_record
                ])
+
+      assert {:error, "Could not convert Binary to List" <> reason} =
+               Wasmex.Components.call_function(component_pid, "export-id-record-complex", [
+                 %{complex_record | "list-point": <<1, 2, 3>>}
+               ])
+
+      assert reason =~ "record('list-point')"
     end
   end
 

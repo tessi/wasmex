@@ -1,6 +1,6 @@
 use rustler::types::atom;
 use rustler::types::tuple::{self, make_tuple};
-use rustler::{Encoder, Error, Term, TermType};
+use rustler::{Binary, Encoder, Error, Term, TermType};
 use std::collections::HashMap;
 use wasmtime::component::{ResourceAny, ResourceType, Type, Val};
 use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
@@ -93,6 +93,13 @@ pub fn term_to_val_with_resource(
         (TermType::Float, Type::Float32) => Ok(Val::Float32(param_term.decode::<f32>()?)),
         (TermType::Float, Type::Float64) => Ok(Val::Float64(param_term.decode::<f64>()?)),
         (_term_type, Type::Bool) => Ok(Val::Bool(rustler::types::atom::is_truthy(*param_term))),
+        (TermType::Binary, Type::List(list)) if matches!(list.ty(), Type::U8) => {
+            let binary = param_term.decode::<Binary>()?;
+            // Wasmtime's dynamic API still needs one Val per byte.
+            Ok(Val::List(
+                binary.as_slice().iter().copied().map(Val::U8).collect(),
+            ))
+        }
         (TermType::List, Type::List(list)) => {
             let decoded_list = param_term.decode::<Vec<Term>>()?;
             let mut list_values = Vec::with_capacity(decoded_list.len());
