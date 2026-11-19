@@ -351,7 +351,7 @@ defmodule Wasmex.Components do
   guest execution leaves the instance usable. Use `:infinity` to run without a
   deadline.
 
-  If the deadline expires after guest execution starts, Wasmex requests
+  If the deadline expires while the guest call is in progress, Wasmex requests
   interruption at the next Wasmtime epoch. Later calls through this API return
   `{:error, :instance_interrupted}`, even if the guest finished after the
   deadline. Stop the component server and start a fresh instance to continue

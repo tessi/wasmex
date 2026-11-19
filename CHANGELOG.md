@@ -18,8 +18,8 @@ Types of changes
 
 ### Fixed
 
-- Component export calls that time out after guest execution starts request
-  a Wasmtime epoch interruption. Later export calls return
+- A deadline that expires during a component guest call requests a Wasmtime
+  epoch interruption. Later `Wasmex.Components.call_function/4` calls return
   `{:error, :instance_interrupted}`. Restart that instance to resume calling
   the component.
 
