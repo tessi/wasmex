@@ -346,20 +346,31 @@ defmodule Wasmex.Components do
   described in the component interface type documentation above.
 
   The default timeout is 5 seconds. A timeout exits the calling process unless
-  it traps exits, just like `GenServer.call/3`. Wasmtime component calls cannot
-  currently be cancelled without invalidating the component instance, so a
-  timed-out call continues in the background. Its late result is discarded and
-  later operations on the same Store wait for it to finish. Use `:infinity` for
-  calls whose duration is intentionally unbounded.
+  it catches the exit, just like `GenServer.call/3`. The timeout includes time
+  waiting to start the call. A call that expires before guest execution leaves
+  the instance usable. Use `:infinity` to run without a deadline.
+
+  While the guest is running, reaching the deadline requests interruption at
+  the next Wasmtime epoch. If the guest is interrupted, later export calls
+  return `{:error, :instance_interrupted}`. Stop the component server and start
+  a fresh instance to continue using the component.
+
+  An Elixir callback or WASI host operation already in progress may continue
+  after the deadline. Later operations on the same Store wait for it to finish.
   """
   @spec call_function(GenServer.server(), function_name_or_path(), list(any()), timeout()) ::
           {:ok, any()} | {:error, any()}
   def call_function(pid, name_or_path, params, timeout \\ 5000) do
-    GenServer.call(
-      pid,
-      {:call_function, name_or_path, params, Wasmex.Utils.native_timeout(timeout)},
-      timeout
-    )
+    deadline =
+      case timeout do
+        :infinity ->
+          nil
+
+        timeout when is_integer(timeout) and timeout >= 0 ->
+          System.monotonic_time(:millisecond) + timeout
+      end
+
+    GenServer.call(pid, {:call_function, name_or_path, params, deadline}, timeout)
   end
 
   @doc """
@@ -383,11 +394,16 @@ defmodule Wasmex.Components do
 
   @impl true
   def handle_call(
-        {:call_function, name, params, timeout},
+        {:call_function, name, params, deadline},
         from,
         %{instance: instance} = state
       ) do
-    :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
+    timeout = if deadline, do: max(deadline - System.monotonic_time(:millisecond), 0)
+
+    if timeout != 0 do
+      :ok = Wasmex.Components.Instance.call_function(instance, name, params, from, timeout)
+    end
+
     {:noreply, state}
   end
 

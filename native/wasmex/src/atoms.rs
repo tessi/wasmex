@@ -42,6 +42,7 @@ rustler::atoms! {
 
     // calls to erlang processes
     invoke_callback,
+    instance_interrupted,
 
     // option
     some,
