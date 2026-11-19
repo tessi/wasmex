@@ -4,6 +4,16 @@ defmodule WasmexTest do
 
   doctest Wasmex
 
+  test "allocator trimming returns a boolean and does nothing outside Linux" do
+    result = Wasmex.malloc_trim()
+
+    assert is_boolean(result)
+
+    if :os.type() != {:unix, :linux} do
+      refute result
+    end
+  end
+
   test "register by name" do
     %{module: module, store: store} = TestHelper.wasm_module()
 
