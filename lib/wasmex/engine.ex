@@ -47,6 +47,9 @@ defmodule Wasmex.Engine do
   """
   @spec new(EngineConfig.t()) :: {:ok, __MODULE__.t()} | {:error, binary()}
   def new(%EngineConfig{} = config) do
+    # Fill in fields that are absent from previously created configurations.
+    config = Map.merge(%EngineConfig{}, config)
+
     case Wasmex.Native.engine_new(config) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}

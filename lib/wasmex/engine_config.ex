@@ -10,6 +10,19 @@ defmodule Wasmex.EngineConfig do
     * `:debug_info` - Configures whether DWARF debug information will be emitted during compilation. This defaults to `false`.
     * `:memory64` - Whether or not to use 64-bit memory. This defaults to `false`.
     * `:wasm_component_model` - Whether or not to use the WebAssembly component model. This defaults to `true`.
+    * `:parallel_compilation` - Whether Wasmtime can use multiple threads when compiling Wasm.
+    * `:memory_reservation` - Initial virtual address space to reserve for each linear memory, in bytes.
+    * `:memory_guard_size` - Size of the unmapped guard region around a linear memory, in bytes.
+    * `:memory_init_cow` - Whether to use copy-on-write mappings to initialize eligible linear memories. Support depends on the host platform and how the artifact was loaded.
+
+  These four tuning options default to `nil`, which uses Wasmtime's defaults.
+  Reservation and guard sizes are unsigned 64-bit byte counts. They tune virtual
+  address space and can affect generated bounds checks. Use `Wasmex.StoreLimits`
+  to cap guest memory growth. Use matching memory settings to compile and load
+  precompiled artifacts.
+
+  See [Wasmtime's engine configuration](https://docs.wasmtime.dev/api/wasmtime/struct.Config.html)
+  for the platform defaults and performance tradeoffs.
 
   ## Example
 
@@ -24,7 +37,11 @@ defmodule Wasmex.EngineConfig do
             wasm_backtrace_details: false,
             memory64: false,
             wasm_component_model: true,
-            debug_info: false
+            debug_info: false,
+            parallel_compilation: nil,
+            memory_reservation: nil,
+            memory_guard_size: nil,
+            memory_init_cow: nil
 
   @type t :: %__MODULE__{
           consume_fuel: boolean(),
@@ -32,7 +49,11 @@ defmodule Wasmex.EngineConfig do
           wasm_backtrace_details: boolean(),
           memory64: boolean(),
           wasm_component_model: boolean(),
-          debug_info: boolean()
+          debug_info: boolean(),
+          parallel_compilation: boolean() | nil,
+          memory_reservation: non_neg_integer() | nil,
+          memory_guard_size: non_neg_integer() | nil,
+          memory_init_cow: boolean() | nil
         }
 
   @doc ~S"""
