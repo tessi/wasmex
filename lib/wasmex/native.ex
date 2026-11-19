@@ -113,6 +113,7 @@ defmodule Wasmex.Native do
   def component_new(_store, _component_bytes), do: error()
   def component_serialize(_component), do: error()
   def component_unsafe_deserialize(_bytes, _engine), do: error()
+  def component_unsafe_deserialize_file(_path, _engine), do: error()
   def component_instance_new(_store, _component, _imports, _from), do: error()
 
   def component_call_function(

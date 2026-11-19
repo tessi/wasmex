@@ -69,3 +69,19 @@ pub fn unsafe_deserialize(
         .map_err(|err| Error::Term(Box::new(format!("Could not deserialize component: {err}"))))?;
     Ok(ComponentResource::new(inner))
 }
+
+#[rustler::nif(name = "component_unsafe_deserialize_file", schedule = "DirtyIo")]
+pub fn unsafe_deserialize_file(
+    path: String,
+    engine: ResourceArc<EngineResource>,
+) -> NifResult<ResourceArc<ComponentResource>> {
+    let engine = unwrap_engine(engine)?;
+    // SAFETY: The caller supplies a trusted artifact and keeps the backing file
+    // unchanged for the lifetime of the component and its instances.
+    let inner = unsafe { Component::deserialize_file(&engine, &path) }.map_err(|err| {
+        Error::Term(Box::new(format!(
+            "Could not deserialize component file `{path}`: {err:#}"
+        )))
+    })?;
+    Ok(ComponentResource::new(inner))
+}

@@ -50,7 +50,7 @@ defmodule Wasmex.Components.Component do
 
   @doc """
   Serializes a compiled WebAssembly component into an artifact for
-  `unsafe_deserialize/2`.
+  `unsafe_deserialize/2` or `unsafe_deserialize_file/2`.
   """
   @spec serialize(t()) :: {:ok, binary()} | {:error, binary()}
   def serialize(%__MODULE__{resource: resource}) do
@@ -78,6 +78,29 @@ defmodule Wasmex.Components.Component do
   @spec unsafe_deserialize(binary(), Engine.t()) :: {:ok, t()} | {:error, binary()}
   def unsafe_deserialize(bytes, %Engine{resource: engine_resource}) when is_binary(bytes) do
     case Wasmex.Native.component_unsafe_deserialize(bytes, engine_resource) do
+      {:error, err} -> {:error, err}
+      resource -> {:ok, __wrap_resource__(resource)}
+    end
+  end
+
+  @doc """
+  Loads a precompiled component by memory-mapping its artifact file.
+
+  The file must contain the output of `serialize/1` or
+  `Wasmex.Engine.precompile_component/2` and match the supplied Engine's
+  Wasmtime version, target, and configuration. Use the same Engine to create
+  the component Store before instantiating the component.
+
+  ## Safety
+
+  Only load unmodified artifacts from a trusted Wasmtime compiler. They
+  contain native executable code, and the mapped file must stay unchanged
+  for the lifetime of the component and all instances created from it.
+  Use a versioned artifact path when deploying updated files.
+  """
+  @spec unsafe_deserialize_file(String.t(), Engine.t()) :: {:ok, t()} | {:error, binary()}
+  def unsafe_deserialize_file(path, %Engine{resource: engine_resource}) when is_binary(path) do
+    case Wasmex.Native.component_unsafe_deserialize_file(path, engine_resource) do
       {:error, err} -> {:error, err}
       resource -> {:ok, __wrap_resource__(resource)}
     end
