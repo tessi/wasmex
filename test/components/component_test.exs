@@ -71,6 +71,43 @@ defmodule Wasmex.WasmComponentsTest do
                HelloWorld.greet(pid, "World")
     end
 
+    @tag :tmp_dir
+    test "loads a serialized component from a file and starts a ComponentServer", %{
+      bytes: bytes,
+      tmp_dir: tmp_dir
+    } do
+      engine = Engine.default()
+      assert {:ok, store} = Store.new_wasi(%WasiP2Options{allow_http: true}, nil, engine)
+      assert {:ok, compiled} = Component.new(store, bytes)
+      assert {:ok, artifact} = Component.serialize(compiled)
+      path = Path.join(tmp_dir, "greeting.cwasm")
+      File.write!(path, artifact)
+
+      assert {:ok, loaded} = Component.unsafe_deserialize_file(path, engine)
+      pid = start_supervised!({HelloWorld, component: loaded, store: store})
+
+      assert {:ok, "Hello, World from a function defined in the module!"} =
+               HelloWorld.greet(pid, "World")
+    end
+
+    @tag :tmp_dir
+    test "reports missing precompiled component files", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "missing.cwasm")
+
+      assert {:error, reason} = Component.unsafe_deserialize_file(path, Engine.default())
+      assert reason =~ "missing.cwasm"
+    end
+
+    @tag :tmp_dir
+    test "rejects a precompiled component file with an incompatible Engine", %{tmp_dir: tmp_dir} do
+      assert {:ok, artifact} = Engine.precompile_component(Engine.default(), "(component)")
+      path = Path.join(tmp_dir, "component.cwasm")
+      File.write!(path, artifact)
+
+      assert {:ok, fuel_engine} = Engine.new(%EngineConfig{consume_fuel: true})
+      assert {:error, _} = Component.unsafe_deserialize_file(path, fuel_engine)
+    end
+
     test "requires an explicit store and a single component source" do
       engine = Engine.default()
       assert {:ok, artifact} = Engine.precompile_component(engine, "(component)")

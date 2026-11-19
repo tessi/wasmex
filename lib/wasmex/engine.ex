@@ -106,9 +106,10 @@ defmodule Wasmex.Engine do
   Ahead-of-time (AOT) compiles a WebAssembly component from binary Wasm or
   WebAssembly text.
 
-  The resulting artifact can be saved and loaded with
-  `Wasmex.Components.Component.unsafe_deserialize/2`. The loading host must
-  use a compatible Wasmtime version, target, and Engine configuration.
+  Load the resulting artifact from bytes with
+  `Wasmex.Components.Component.unsafe_deserialize/2` or from a file with
+  `Wasmex.Components.Component.unsafe_deserialize_file/2`. The loading host
+  must use a compatible Wasmtime version, target, and Engine configuration.
   """
   @spec precompile_component(t(), binary()) :: {:ok, binary()} | {:error, binary()}
   def precompile_component(%__MODULE__{resource: resource}, bytes) when is_binary(bytes) do
