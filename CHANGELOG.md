@@ -24,6 +24,7 @@ Types of changes
 
 ### Changed
 
+- Update Wasmtime, WASI, and WASI HTTP from 51.0.0-rc.1 to 51.0.0.
 - Component calls with signature `func(list<u8>) -> result<u32, string>` use
   Wasmtime's typed API for binary arguments. Calls with signature
   `func(u32, string) -> result<list<u8>, string>` use it with binary output
