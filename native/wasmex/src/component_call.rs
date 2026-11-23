@@ -1,7 +1,5 @@
 use rustler::{Encoder, Env, Error, ResourceArc, Term};
-use wasmtime::component::{
-    types::ComponentFunc, ComponentNamedList, Func, Lower, Type, TypedFunc, Val,
-};
+use wasmtime::component::{types::ComponentFunc, ComponentNamedList, Func, Lower, Type, Val};
 use wasmtime::Store;
 
 use crate::atoms;
@@ -17,6 +15,70 @@ struct ComponentBinary(Vec<u8>);
 
 #[rustler::resource_impl()]
 impl rustler::Resource for ComponentBinary {}
+
+fn encode_binary(env: Env<'_>, bytes: Vec<u8>) -> Term<'_> {
+    if bytes.is_empty() {
+        return "".encode(env);
+    }
+    let resource = ResourceArc::new(ComponentBinary(bytes));
+    resource.make_binary(env, |data| &data.0).encode(env)
+}
+
+pub(crate) enum ByteListOutputParams {
+    Empty,
+    U32(u32),
+    String(String),
+    U32String(u32, String),
+}
+
+impl ByteListOutputParams {
+    fn prepare(types: &[Type], terms: &[Term]) -> Result<Option<Self>, Error> {
+        Ok(match (types, terms) {
+            ([], []) => Some(Self::Empty),
+            ([Type::U32], [number]) => Some(Self::U32(component_u32(number)?)),
+            ([Type::String], [text]) => Some(Self::String(component_string(text)?)),
+            ([Type::U32, Type::String], [number, text]) => Some(Self::U32String(
+                component_u32(number)?,
+                component_string(text)?,
+            )),
+            _ => None,
+        })
+    }
+
+    async fn call(
+        self,
+        function: Func,
+        store: &mut Store<ComponentStoreData>,
+        fallible: bool,
+    ) -> wasmtime::Result<ComponentCallResult> {
+        async fn call_typed<P: ComponentNamedList + Lower>(
+            function: Func,
+            store: &mut Store<ComponentStoreData>,
+            params: P,
+            fallible: bool,
+        ) -> wasmtime::Result<ComponentCallResult> {
+            // Lift into an owned Vec before Wasmtime runs the guest's post-return hook.
+            if fallible {
+                let function = function.typed::<P, (WitResult<Vec<u8>>,)>(&*store)?;
+                let (result,) = function.call_async(store, params).await?;
+                Ok(ComponentCallResult::BinaryResult(result))
+            } else {
+                let function = function.typed::<P, (Vec<u8>,)>(&*store)?;
+                let (bytes,) = function.call_async(store, params).await?;
+                Ok(ComponentCallResult::Binary(bytes))
+            }
+        }
+
+        match self {
+            Self::Empty => call_typed(function, store, (), fallible).await,
+            Self::U32(number) => call_typed(function, store, (number,), fallible).await,
+            Self::String(text) => call_typed(function, store, (text,), fallible).await,
+            Self::U32String(number, text) => {
+                call_typed(function, store, (number, text), fallible).await
+            }
+        }
+    }
+}
 
 pub(crate) enum ByteListParams {
     Bytes(Vec<u8>),
@@ -106,8 +168,9 @@ pub(crate) enum ComponentCall {
         fallible: bool,
     },
     ByteListOutput {
-        function: TypedFunc<(u32, String), (WitResult<Vec<u8>>,)>,
-        params: (u32, String),
+        function: Func,
+        params: ByteListOutputParams,
+        fallible: bool,
     },
 }
 
@@ -115,7 +178,8 @@ pub(crate) enum ComponentCallResult {
     Dynamic(Vec<Val>, ComponentFunc),
     Integer(WitResult<u32>),
     Count(u32),
-    Binary(WitResult<Vec<u8>>),
+    Binary(Vec<u8>),
+    BinaryResult(WitResult<Vec<u8>>),
 }
 
 impl ComponentCall {
@@ -130,7 +194,6 @@ impl ComponentCall {
 
         if let Some(call) = Self::prepare_typed(
             function,
-            store,
             &function_type,
             &param_types,
             &terms,
@@ -149,7 +212,6 @@ impl ComponentCall {
 
     fn prepare_typed(
         function: Func,
-        store: &Store<ComponentStoreData>,
         function_type: &ComponentFunc,
         param_types: &[Type],
         terms: &[Term],
@@ -171,26 +233,22 @@ impl ComponentCall {
             }));
         }
 
-        let Type::Result(result) = result else {
-            return Ok(None);
-        };
-        if result.err() != Some(Type::String) {
-            return Ok(None);
-        }
-        match (param_types, terms, result.ok()) {
-            ([Type::U32, Type::String], [first, second], Some(Type::List(list)))
-                if binary_byte_lists && list.ty() == Type::U8 =>
-            {
-                let Ok(function) = function.typed(store) else {
-                    return Ok(None);
-                };
-                Ok(Some(Self::ByteListOutput {
-                    function,
-                    params: (component_u32(first)?, component_string(second)?),
-                }))
+        if binary_byte_lists {
+            let fallible = matches!(&result, Type::Result(result)
+                if result.ok().is_some_and(|ty| is_byte_list(&ty)) && result.err() == Some(Type::String));
+            if is_byte_list(&result) || fallible {
+                return Ok(
+                    ByteListOutputParams::prepare(param_types, terms)?.map(|params| {
+                        Self::ByteListOutput {
+                            function,
+                            params,
+                            fallible,
+                        }
+                    }),
+                );
             }
-            _ => Ok(None),
         }
+        Ok(None)
     }
 
     pub(crate) async fn call(
@@ -212,10 +270,11 @@ impl ComponentCall {
                 params,
                 fallible,
             } => params.call(function, store, fallible).await,
-            Self::ByteListOutput { function, params } => {
-                let (result,) = function.call_async(store, params).await?;
-                Ok(ComponentCallResult::Binary(result))
-            }
+            Self::ByteListOutput {
+                function,
+                params,
+                fallible,
+            } => params.call(function, store, fallible).await,
         }
     }
 }
@@ -228,15 +287,9 @@ impl ComponentCallResult {
             }
             Self::Count(n) => (atoms::ok(), n).encode(env),
             Self::Integer(result) => (atoms::ok(), result).encode(env),
-            Self::Binary(result) => {
-                let result = result.map(|bytes| {
-                    if bytes.is_empty() {
-                        return "".encode(env);
-                    }
-                    let resource = ResourceArc::new(ComponentBinary(bytes));
-                    resource.make_binary(env, |data| &data.0).encode(env)
-                });
-                (atoms::ok(), result).encode(env)
+            Self::Binary(bytes) => (atoms::ok(), encode_binary(env, bytes)).encode(env),
+            Self::BinaryResult(result) => {
+                (atoms::ok(), result.map(|bytes| encode_binary(env, bytes))).encode(env)
             }
         }
     }

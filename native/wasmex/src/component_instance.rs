@@ -15,7 +15,7 @@ use crate::store::ComponentStoreResource;
 use crate::store_executor::with_deadline;
 use rustler::NifResult;
 use rustler::ResourceArc;
-use rustler::{Encoder, OwnedEnv};
+use rustler::{Encoder, Env, OwnedEnv};
 use rustler::{Error, LocalPid};
 use wasmtime::component::{
     types::{ComponentFunc, ComponentItem},
@@ -276,32 +276,33 @@ impl ImportCallback {
                 .map(|terms| params_env.save(terms))
         });
         let saved_params = saved_params.map_err(WasmtimeError::msg)?;
+        let receiver = self.send_callback(|env| {
+            params_env.run(|params_env| saved_params.load(params_env).in_env(env))
+        })?;
+        wait_for_callback(receiver).await
+    }
+
+    fn send_callback(
+        &self,
+        encode_params: impl for<'a> FnOnce(Env<'a>) -> Term<'a>,
+    ) -> Result<tokio::sync::oneshot::Receiver<ComponentCallbackResult>, WasmtimeError> {
         let mut msg_env = OwnedEnv::new();
         let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
         let callback_token = create_callback_token(return_sender);
 
         msg_env
             .send_and_clear(&self.pid, |env| {
-                let param_terms =
-                    params_env.run(|params_env| saved_params.load(params_env).in_env(env));
                 (
                     atoms::invoke_callback(),
                     &self.namespace,
                     &self.name,
                     callback_token,
-                    param_terms,
+                    encode_params(env),
                 )
             })
             .map_err(|_| WasmtimeError::msg("Could not send component callback"))?;
 
-        let callback_result = return_receiver
-            .await
-            .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
-        if !callback_result.success {
-            return Err(WasmtimeError::msg("Callback failed"));
-        }
-
-        Ok(callback_result)
+        Ok(return_receiver)
     }
 
     async fn call_dynamic(
@@ -339,8 +340,19 @@ impl ImportCallback {
     }
 }
 
-// The dynamic API represents each byte as a Val. Match typed callback signatures
-// when linking so both the callback reply and Wasmtime's lowering use packed bytes.
+async fn wait_for_callback(
+    return_receiver: tokio::sync::oneshot::Receiver<ComponentCallbackResult>,
+) -> Result<ComponentCallbackResult, WasmtimeError> {
+    let callback_result = return_receiver
+        .await
+        .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
+    if !callback_result.success {
+        return Err(WasmtimeError::msg("Callback failed"));
+    }
+    Ok(callback_result)
+}
+
+// Match typed callback signatures so byte lists stay packed across the boundary.
 mod byte_list_imports;
 
 fn link_resource(
