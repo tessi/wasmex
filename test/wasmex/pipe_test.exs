@@ -159,6 +159,30 @@ defmodule Wasmex.PipeTest do
       assert Pipe.read(pipe) == <<0, 128, 195, 40, 226, 130>>
     end
 
+    test "reads past the end without moving the cursor", %{pipe: pipe} do
+      assert {:ok, 1} = Pipe.write(pipe, "a")
+      assert :ok = Pipe.seek(pipe, 3)
+      assert <<>> = Pipe.read(pipe)
+      assert {:ok, 1} = Pipe.write(pipe, "b")
+      assert :ok = Pipe.seek(pipe, 0)
+      assert <<"a", 0, 0, "b">> = Pipe.read(pipe)
+      assert :ok = Pipe.seek(pipe, 18_446_744_073_709_551_615)
+      assert <<>> = Pipe.read(pipe)
+      assert :error = Pipe.write(pipe, "c")
+    end
+
+    test "returns a snapshot that survives an overwrite", %{pipe: pipe} do
+      bytes = :binary.copy(<<255, 0, 195, 40>>, 16_384)
+      assert {:ok, 65_536} = Pipe.write(pipe, bytes)
+      assert :ok = Pipe.seek(pipe, 0)
+      snapshot = Pipe.read(pipe)
+      assert :ok = Pipe.seek(pipe, 1)
+      assert {:ok, 1} = Pipe.write(pipe, "x")
+      assert snapshot == bytes
+      assert :ok = Pipe.seek(pipe, 0)
+      assert <<255, ?x, 195, 40, _::binary>> = Pipe.read(pipe)
+    end
+
     test "#{t(&Pipe.seek/2)} sets pipe position", %{pipe: pipe} do
       Pipe.write(pipe, "Hello, World!")
       Pipe.seek(pipe, 7)

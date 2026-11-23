@@ -6,7 +6,9 @@ use crate::{
     functions,
     instance::{decode_function_param_terms, map_wasm_values_to_vals},
     instance::{decode_term_as_wasm_value, send_global_value},
-    memory::{memory_from_instance, reply_with_memory_read, MemoryResource},
+    memory::{
+        memory_from_instance, reply_with_memory_read, reply_with_memory_write, MemoryResource,
+    },
     printable_term_type::PrintableTermType,
     store::StoreData,
 };
@@ -50,7 +52,7 @@ pub enum CallerCommand {
     MemoryWrite {
         memory: Memory,
         index: usize,
-        bytes: Vec<u8>,
+        bytes: SavedTerm,
         reply: AsyncReply,
     },
     CallExported {
@@ -197,10 +199,7 @@ pub async fn handle_command(caller: &mut Caller<'_, StoreData>, command: CallerC
             index,
             bytes,
             reply,
-        } => match memory.write(&mut *caller, index, &bytes) {
-            Ok(()) => reply.send(crate::atoms::ok()),
-            Err(error) => reply.send_error(error.to_string()),
-        },
+        } => reply_with_memory_write(memory, &mut *caller, index, bytes, reply),
         CallerCommand::CallExported {
             instance,
             function_name,

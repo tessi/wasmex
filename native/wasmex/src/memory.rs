@@ -7,8 +7,8 @@ use crate::{
     instance,
     store::{StoreOrCallerResource, StoreTarget},
 };
-use rustler::{Atom, Binary, ResourceArc, Term};
-use wasmtime::{AsContext, Instance, Memory};
+use rustler::{env::SavedTerm, Atom, Binary, Encoder, ResourceArc, Term};
+use wasmtime::{AsContext, AsContextMut, Instance, Memory};
 
 pub struct MemoryResource {
     pub inner: Memory,
@@ -252,21 +252,26 @@ pub fn write_binary(
     store_or_caller_resource: ResourceArc<StoreOrCallerResource>,
     memory_resource: ResourceArc<MemoryResource>,
     index: usize,
-    binary: Binary,
+    binary: Term,
     from: Term,
 ) -> Result<Atom, rustler::Error> {
+    if !binary.is_binary() {
+        return Err(rustler::Error::BadArg);
+    }
+
     let memory = clone_memory(&memory_resource);
-    let bytes = binary.as_slice().to_vec();
     let reply = AsyncReply::new(from)?;
 
-    match store_or_caller_resource.target()? {
+    let target = store_or_caller_resource.target()?;
+    // Keep a BEAM reference to the payload until the write runs. Large aligned
+    // binaries share their backing storage when copied into the owned environment.
+    let bytes = reply.save(binary);
+
+    match target {
         StoreTarget::Executor(executor) => {
             let submit_reply = AsyncReply::new(from)?;
             if let Err(error) = executor.submit(move |mut store| async move {
-                match memory.write(&mut store, index, &bytes) {
-                    Ok(()) => reply.send(atoms::ok()),
-                    Err(error) => reply.send_error(error.to_string()),
-                }
+                reply_with_memory_write(memory, &mut store, index, bytes, reply);
                 store
             }) {
                 submit_error(submit_reply, error);
@@ -285,4 +290,22 @@ pub fn write_binary(
         }
     }
     Ok(atoms::ok())
+}
+
+pub(crate) fn reply_with_memory_write(
+    memory: Memory,
+    store: impl AsContextMut,
+    index: usize,
+    bytes: SavedTerm,
+    reply: AsyncReply,
+) {
+    reply.send_term(|env| {
+        let Ok(binary) = bytes.load(env).decode::<Binary>() else {
+            return (atoms::error(), "Could not inspect the binary").encode(env);
+        };
+        match memory.write(store, index, binary.as_slice()) {
+            Ok(()) => atoms::ok().encode(env),
+            Err(error) => (atoms::error(), error.to_string()).encode(env),
+        }
+    });
 }

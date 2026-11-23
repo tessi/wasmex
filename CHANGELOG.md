@@ -25,6 +25,8 @@ Types of changes
   one `u32`, or one `string`. Supported replies are bare byte lists, optional
   byte lists, and results with byte-list success and `string`, `u32`, or empty
   errors.
+- Write binaries to Wasm memory and read from WASI pipes with fewer intermediate
+  copies.
 
 ### Fixed
 

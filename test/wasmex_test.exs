@@ -187,7 +187,16 @@ defmodule WasmexTest do
                       {:error, "out of bounds memory access"}
 
              assert Wasmex.Memory.read_binary(context.caller, context.memory, 0, 1) == <<42>>
-             Wasmex.Memory.set_byte(context.caller, context.memory, 0, 23)
+             assert :ok = Wasmex.Memory.set_byte(context.caller, context.memory, 0, 23)
+
+             assert :ok =
+                      Wasmex.Memory.write_binary(
+                        context.caller,
+                        context.memory,
+                        1,
+                        <<255, 0>>
+                      )
+
              a + b + c
            end}
         )
@@ -201,7 +210,7 @@ defmodule WasmexTest do
     # asserts that the byte at memory[0] was set to 42 and then sets it to 23
     {:ok, _} = Wasmex.call_function(pid, :using_imported_sum3, [1, 2, 3])
 
-    assert 23 == Wasmex.Memory.get_byte(store, memory, 0)
+    assert <<23, 255, 0>> == Wasmex.Memory.read_binary(store, memory, 0, 3)
   end
 
   describe "when instantiating with imports" do
