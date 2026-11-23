@@ -1,9 +1,13 @@
-use rustler::{Binary, Encoder, Env, Error, ResourceArc, Term};
-use wasmtime::component::{types::ComponentFunc, Func, Type, TypedFunc, Val};
+use rustler::{Encoder, Env, Error, ResourceArc, Term};
+use wasmtime::component::{
+    types::ComponentFunc, ComponentNamedList, Func, Lower, Type, TypedFunc, Val,
+};
 use wasmtime::Store;
 
 use crate::atoms;
-use crate::component_type_conversion::{convert_params, encode_result, term_to_val};
+use crate::component_type_conversion::{
+    component_string, component_u32, convert_params, decode_byte_list, encode_result, is_byte_list,
+};
 use crate::store::ComponentStoreData;
 
 type WitResult<T> = Result<T, String>;
@@ -14,6 +18,82 @@ struct ComponentBinary(Vec<u8>);
 #[rustler::resource_impl()]
 impl rustler::Resource for ComponentBinary {}
 
+pub(crate) enum ByteListParams {
+    Bytes(Vec<u8>),
+    StringBytes(String, Vec<u8>),
+    BytesString(Vec<u8>, String),
+    U32Bytes(u32, Vec<u8>),
+    BytesU32(Vec<u8>, u32),
+}
+
+impl ByteListParams {
+    fn prepare(types: &[Type], terms: &[Term]) -> Result<Option<Self>, Error> {
+        let byte_input =
+            |ty: &Type, term: &Term| is_byte_list(ty) && (term.is_binary() || term.is_list());
+        Ok(match (types, terms) {
+            ([ty], [bytes]) if byte_input(ty, bytes) => {
+                Some(Self::Bytes(decode_byte_list(*bytes)?))
+            }
+            ([Type::String, ty], [text, bytes]) if byte_input(ty, bytes) => Some(
+                Self::StringBytes(component_string(text)?, decode_byte_list(*bytes)?),
+            ),
+            ([ty, Type::String], [bytes, text]) if byte_input(ty, bytes) => Some(
+                Self::BytesString(decode_byte_list(*bytes)?, component_string(text)?),
+            ),
+            ([Type::U32, ty], [number, bytes]) if byte_input(ty, bytes) => Some(Self::U32Bytes(
+                component_u32(number)?,
+                decode_byte_list(*bytes)?,
+            )),
+            ([ty, Type::U32], [bytes, number]) if byte_input(ty, bytes) => Some(Self::BytesU32(
+                decode_byte_list(*bytes)?,
+                component_u32(number)?,
+            )),
+            _ => None,
+        })
+    }
+
+    async fn call(
+        self,
+        function: Func,
+        store: &mut Store<ComponentStoreData>,
+        fallible: bool,
+    ) -> wasmtime::Result<ComponentCallResult> {
+        async fn call_typed<P: ComponentNamedList + Lower>(
+            function: Func,
+            store: &mut Store<ComponentStoreData>,
+            params: P,
+            fallible: bool,
+        ) -> wasmtime::Result<ComponentCallResult> {
+            if fallible {
+                let function = function.typed::<P, (WitResult<u32>,)>(&*store)?;
+                Ok(ComponentCallResult::Integer(
+                    function.call_async(store, params).await?.0,
+                ))
+            } else {
+                let function = function.typed::<P, (u32,)>(&*store)?;
+                Ok(ComponentCallResult::Count(
+                    function.call_async(store, params).await?.0,
+                ))
+            }
+        }
+        match self {
+            Self::Bytes(bytes) => call_typed(function, store, (bytes,), fallible).await,
+            Self::StringBytes(text, bytes) => {
+                call_typed(function, store, (text, bytes), fallible).await
+            }
+            Self::BytesString(bytes, text) => {
+                call_typed(function, store, (bytes, text), fallible).await
+            }
+            Self::U32Bytes(number, bytes) => {
+                call_typed(function, store, (number, bytes), fallible).await
+            }
+            Self::BytesU32(bytes, number) => {
+                call_typed(function, store, (bytes, number), fallible).await
+            }
+        }
+    }
+}
+
 pub(crate) enum ComponentCall {
     Dynamic {
         function: Func,
@@ -21,8 +101,9 @@ pub(crate) enum ComponentCall {
         params: Vec<Val>,
     },
     ByteListInput {
-        function: TypedFunc<(Vec<u8>,), (WitResult<u32>,)>,
-        bytes: Vec<u8>,
+        function: Func,
+        params: ByteListParams,
+        fallible: bool,
     },
     ByteListOutput {
         function: TypedFunc<(u32, String), (WitResult<Vec<u8>>,)>,
@@ -33,6 +114,7 @@ pub(crate) enum ComponentCall {
 pub(crate) enum ComponentCallResult {
     Dynamic(Vec<Val>, ComponentFunc),
     Integer(WitResult<u32>),
+    Count(u32),
     Binary(WitResult<Vec<u8>>),
 }
 
@@ -74,39 +156,37 @@ impl ComponentCall {
         binary_byte_lists: bool,
     ) -> Result<Option<Self>, Error> {
         let mut results = function_type.results();
-        let (Some(Type::Result(result)), None) = (results.next(), results.next()) else {
+        let (Some(result), None) = (results.next(), results.next()) else {
+            return Ok(None);
+        };
+        let fallible_count = matches!(&result, Type::Result(r)
+            if r.ok() == Some(Type::U32) && r.err() == Some(Type::String));
+        if result == Type::U32 || fallible_count {
+            return Ok(ByteListParams::prepare(param_types, terms)?.map(|params| {
+                Self::ByteListInput {
+                    function,
+                    params,
+                    fallible: fallible_count,
+                }
+            }));
+        }
+
+        let Type::Result(result) = result else {
             return Ok(None);
         };
         if result.err() != Some(Type::String) {
             return Ok(None);
         }
-
         match (param_types, terms, result.ok()) {
-            ([Type::List(list)], [term], Some(Type::U32))
-                if list.ty() == Type::U8 && term.is_binary() =>
-            {
-                let Ok(function) = function.typed(store) else {
-                    return Ok(None);
-                };
-                // The binary is borrowed from the NIF environment here. Own a compact
-                // copy for the async call, which outlives that environment access.
-                let bytes = term.decode::<Binary>()?.as_slice().to_vec();
-                Ok(Some(Self::ByteListInput { function, bytes }))
-            }
             ([Type::U32, Type::String], [first, second], Some(Type::List(list)))
                 if binary_byte_lists && list.ty() == Type::U8 =>
             {
                 let Ok(function) = function.typed(store) else {
                     return Ok(None);
                 };
-                let first = term_to_val(first, &Type::U32)?;
-                let second = term_to_val(second, &Type::String)?;
-                let (Val::U32(first), Val::String(second)) = (first, second) else {
-                    unreachable!("parameter conversion returned a different WIT type");
-                };
                 Ok(Some(Self::ByteListOutput {
                     function,
-                    params: (first, second),
+                    params: (component_u32(first)?, component_string(second)?),
                 }))
             }
             _ => Ok(None),
@@ -127,10 +207,11 @@ impl ComponentCall {
                 function.call_async(store, &params, &mut values).await?;
                 Ok(ComponentCallResult::Dynamic(values, function_type))
             }
-            Self::ByteListInput { function, bytes } => {
-                let (result,) = function.call_async(store, (bytes,)).await?;
-                Ok(ComponentCallResult::Integer(result))
-            }
+            Self::ByteListInput {
+                function,
+                params,
+                fallible,
+            } => params.call(function, store, fallible).await,
             Self::ByteListOutput { function, params } => {
                 let (result,) = function.call_async(store, params).await?;
                 Ok(ComponentCallResult::Binary(result))
@@ -145,6 +226,7 @@ impl ComponentCallResult {
             Self::Dynamic(values, function_type) => {
                 encode_result(env, &values, &function_type, binary_byte_lists)
             }
+            Self::Count(n) => (atoms::ok(), n).encode(env),
             Self::Integer(result) => (atoms::ok(), result).encode(env),
             Self::Binary(result) => {
                 let result = result.map(|bytes| {

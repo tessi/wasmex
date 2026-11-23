@@ -12,6 +12,26 @@ defmodule Wasmex.Components.TypedByteListsTest do
     assert {:error, _} = Components.call_function(pid, "count-bytes", [<<1::1>>])
   end
 
+  test "passes bytes beside a string or integer and rejects invalid byte values" do
+    pid = start_component()
+
+    for input <- [<<0, 128, 255>>, [0, 128, 255]] do
+      assert {:ok, {:ok, 258}} = Components.call_function(pid, "count-labeled", [:label, input])
+      assert {:ok, 263} = Components.call_function(pid, "count-then-label", [input, :label])
+      assert {:ok, 265} = Components.call_function(pid, "count-with-offset", [input, 7])
+      assert {:ok, 265} = Components.call_function(pid, "offset-then-count", [7, input])
+    end
+
+    for invalid <- [<<1::1>>, [256], [-1], [0 | 1]] do
+      assert {:error, _} = Components.call_function(pid, "count-labeled", ["", invalid])
+    end
+
+    assert {:error, "Could not convert Atom to U8 at \"list[1]\""} =
+             Components.call_function(pid, "count-labeled", ["", [0, :bad]])
+
+    assert {:ok, {:ok, 0}} = Components.call_function(pid, "count-labeled", ["", <<>>])
+  end
+
   test "keeps binary results valid after guest cleanup, later calls and instance shutdown" do
     pid = start_component(binary_byte_lists: true)
 
