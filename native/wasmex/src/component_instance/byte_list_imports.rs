@@ -1,7 +1,7 @@
-use rustler::{types::tuple, Error, Term};
-use wasmtime::component::{ComponentNamedList, Lift, LinkerInstance, Lower, Type, Val};
+use rustler::{types::tuple, Encoder, Error, NewBinary, Term};
+use wasmtime::component::{ComponentNamedList, Lift, LinkerInstance, Lower, Type, Val, WasmList};
 
-use super::{ComponentFunc, ImportCallback};
+use super::{wait_for_callback, ComponentFunc, ImportCallback};
 use crate::atoms;
 use crate::component_type_conversion::{
     component_string, component_u32, decode_byte_list, is_byte_list,
@@ -14,14 +14,38 @@ impl ImportCallback {
         linker: &mut LinkerInstance<ComponentStoreData>,
         ty: &ComponentFunc,
     ) -> wasmtime::Result<bool> {
-        let mut results = ty.results();
-        let (Some(result), None) = (results.next(), results.next()) else {
-            return Ok(false);
-        };
         if ty.async_() {
             return Ok(false);
         }
-        match ty.params().map(|(_, ty)| ty).collect::<Vec<_>>().as_slice() {
+        let mut results = ty.results();
+        let result = results.next();
+        if results.next().is_some() {
+            return Ok(false);
+        }
+        let params = ty.params().map(|(_, ty)| ty).collect::<Vec<_>>();
+        if self.binary_byte_lists && matches!(params.as_slice(), [param] if is_byte_list(param)) {
+            match result {
+                None => self.register_byte_list_param(linker, |_| Ok(()))?,
+                Some(Type::U32) => {
+                    self.register_byte_list_param(linker, |term| Ok((component_u32(&term)?,)))?
+                }
+                Some(Type::Bool) => self.register_byte_list_param(linker, |term| {
+                    Ok((rustler::types::atom::is_truthy(term),))
+                })?,
+                Some(Type::String) => {
+                    self.register_byte_list_param(linker, |term| Ok((component_string(&term)?,)))?
+                }
+                Some(ref ty) if is_byte_list(ty) => {
+                    self.register_byte_list_param(linker, |term| Ok((decode_byte_list(term)?,)))?
+                }
+                _ => return Ok(false),
+            };
+            return Ok(true);
+        }
+        let Some(result) = result else {
+            return Ok(false);
+        };
+        match params.as_slice() {
             [] => self.link_result(linker, ty, &result, |()| vec![]),
             [Type::U32] => self.link_result(linker, ty, &result, |(key,)| vec![Val::U32(key)]),
             [Type::String] => {
@@ -29,6 +53,32 @@ impl ImportCallback {
             }
             _ => Ok(false),
         }
+    }
+
+    fn register_byte_list_param<R>(
+        &self,
+        linker: &mut LinkerInstance<ComponentStoreData>,
+        decode: fn(Term) -> Result<R, Error>,
+    ) -> wasmtime::Result<()>
+    where
+        R: ComponentNamedList + Lower + 'static,
+    {
+        let callback = self.clone();
+        linker.func_wrap_async(&self.name, move |store, (list,): (WasmList<u8>,)| {
+            let callback = callback.clone();
+            Box::new(async move {
+                let receiver = callback.send_callback(|env| {
+                    let bytes = list.as_le_slice(&store);
+                    let binary: Term = NewBinary::from_slice(env, bytes).into();
+                    [binary].as_slice().encode(env)
+                })?;
+                let reply = wait_for_callback(receiver).await?;
+                reply
+                    .env
+                    .run(|env| decode(reply.result.load(env)))
+                    .map_err(|err| wasmtime::Error::msg(format!("{err:?}")))
+            })
+        })
     }
 
     fn link_result<P: ComponentNamedList + Lift + 'static>(

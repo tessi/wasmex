@@ -25,6 +25,11 @@ Types of changes
   one `u32`, or one `string`. Supported replies are bare byte lists, optional
   byte lists, and results with byte-list success and `string`, `u32`, or empty
   errors.
+- With `binary_byte_lists: true`, lift bare byte-list results and
+  `result<list<u8>, string>` in bulk for exports taking no arguments, a single
+  `u32` or `string`, or `u32` followed by `string`. Host callbacks taking a single
+  byte list also receive a binary in bulk when returning no value, `u32`, `bool`,
+  `string`, or another byte list.
 
 ### Fixed
 
