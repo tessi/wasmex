@@ -18,6 +18,8 @@ Types of changes
 
 ### Changed
 
+- Write binaries to Wasm memory and read from WASI pipes with fewer intermediate
+  copies.
 - Pass binary `list<u8>` arguments in bulk when a component export takes bytes
   alone or alongside a `string` or `u32` in either order and returns `u32` or
   `result<u32, string>`.

@@ -1,5 +1,5 @@
 use rustler::{
-    env::SavedTerm, types::tuple::make_tuple, Encoder, LocalPid, OwnedBinary, OwnedEnv, Term,
+    env::SavedTerm, types::tuple::make_tuple, Encoder, Env, LocalPid, OwnedBinary, OwnedEnv, Term,
 };
 
 /// An owned GenServer-style reply target that can safely cross NIF boundaries.
@@ -22,8 +22,16 @@ impl AsyncReply {
     }
 
     pub fn send<T: Encoder>(self, value: T) {
+        self.send_term(|env| value.encode(env));
+    }
+
+    pub(crate) fn save(&self, term: Term<'_>) -> SavedTerm {
+        self.env.save(term)
+    }
+
+    pub(crate) fn send_term(self, build: impl for<'a> FnOnce(Env<'a>) -> Term<'a>) {
         self.env.run(move |env| {
-            let message = make_tuple(env, &[self.reference.load(env), value.encode(env)]);
+            let message = make_tuple(env, &[self.reference.load(env), build(env)]);
             let _ = env.send(&self.pid, message);
         });
     }

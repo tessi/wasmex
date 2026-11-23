@@ -206,13 +206,22 @@ pub fn read_binary(
     env: rustler::Env,
     pipe_resource: ResourceArc<PipeResource>,
 ) -> rustler::NifResult<Binary> {
-    let mut pipe = pipe_resource.pipe.lock().unwrap();
-    let mut buffer = Vec::new();
-
-    (*pipe)
-        .read_to_end(&mut buffer)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    Ok(OwnedBinary::from_slice(&buffer).release(env))
+    let pipe = pipe_resource.pipe.lock().unwrap();
+    let mut buffer = pipe.borrow();
+    let position = buffer.position();
+    let start = usize::try_from(position).unwrap_or(usize::MAX);
+    let remaining = buffer.get_ref().get(start..).unwrap_or_default();
+    // Grow an empty binary so a failed allocation can leave the cursor intact.
+    let mut binary = OwnedBinary::new(0);
+    if !remaining.is_empty() && !binary.realloc(remaining.len()) {
+        return Err(rustler::Error::Term(Box::new(
+            "Could not allocate the pipe read binary",
+        )));
+    }
+    binary.as_mut_slice().copy_from_slice(remaining);
+    let end = position + remaining.len() as u64;
+    buffer.set_position(end);
+    Ok(binary.release(env))
 }
 
 #[cfg(not(test))]

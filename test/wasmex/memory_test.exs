@@ -111,6 +111,82 @@ defmodule Wasmex.MemoryTest do
       # should also be able to read it back
       assert Wasmex.Memory.read_binary(store, memory, 0, 24) == random_bytes
     end
+
+    test "writes a byte-sized binary from an unaligned bit offset" do
+      %{store: store, memory: memory} = build_memory()
+      expected = :binary.copy(<<0, 255, 195, 40>>, 16_384)
+      size = byte_size(expected)
+
+      <<_::1, bytes::binary-size(^size), _::7, _::binary>> =
+        <<1::1, expected::binary, 1::7, "suffix">>
+
+      assert :ok = Wasmex.Memory.write_binary(store, memory, 3, bytes)
+      assert Wasmex.Memory.read_binary(store, memory, 3, size) == expected
+    end
+
+    test "rejects an out-of-bounds write without modifying memory" do
+      %{store: store, memory: memory} = build_memory()
+      offset = Wasmex.Memory.size(store, memory) - 1
+      assert :ok = Wasmex.Memory.write_binary(store, memory, offset, "x")
+      assert :ok = Wasmex.Memory.write_binary(store, memory, offset + 1, <<>>)
+
+      assert {:error, "out of bounds memory access"} =
+               Wasmex.Memory.write_binary(store, memory, offset, "yz")
+
+      assert Wasmex.Memory.read_binary(store, memory, offset, 1) == "x"
+    end
+
+    test "retains a queued binary after its sending process exits" do
+      wat = ~S"""
+      (module
+        (import "env" "hold" (func $hold))
+        (memory (export "memory") 2)
+        (func (export "run") call $hold))
+      """
+
+      owner = self()
+      hold = make_ref()
+
+      imports = %{
+        env: %{
+          hold:
+            {:fn, [], [],
+             fn _context ->
+               send(owner, {:holding, hold})
+               assert_receive ^hold, 5_000
+             end}
+        }
+      }
+
+      pid = start_supervised!({Wasmex, %{bytes: wat, imports: imports}})
+      {:ok, %{resource: store_resource} = store} = Wasmex.store(pid)
+      {:ok, %{resource: memory_resource} = memory} = Wasmex.memory(pid)
+
+      pending_call = Task.async(fn -> Wasmex.call_function(pid, :run, []) end)
+      assert_receive {:holding, ^hold}, 5_000
+      reply = make_ref()
+
+      {writer, monitor} =
+        spawn_monitor(fn ->
+          bytes = :binary.copy(<<255, 0, 195, 40>>, 16_384)
+
+          :ok =
+            Wasmex.Native.memory_write_binary(store_resource, memory_resource, 11, bytes, {
+              owner,
+              reply
+            })
+        end)
+
+      assert_receive {:DOWN, ^monitor, :process, ^writer, :normal}, 5_000
+      refute_received {^reply, _outcome}
+      send(pid, hold)
+
+      assert {:ok, []} = Task.await(pending_call, 5_000)
+      assert_receive {^reply, :ok}, 5_000
+
+      assert Wasmex.Memory.read_binary(store, memory, 11, 65_536) ==
+               :binary.copy(<<255, 0, 195, 40>>, 16_384)
+    end
   end
 
   describe t(&Memory.read_binary/3) do
