@@ -55,7 +55,11 @@ defmodule Wasmex.Components.HostResourceTest do
   end
 
   setup do
-    {:ok, drops} = Agent.start_link(fn -> 0 end, name: :host_resource_drops)
+    drops =
+      start_supervised!(%{
+        id: :host_resource_drops,
+        start: {Agent, :start_link, [fn -> 0 end, [name: :host_resource_drops]]}
+      })
 
     imports = HostResource.merge_imports([CounterHost, LabelHost])
     {:ok, drops: drops, imports: imports}
