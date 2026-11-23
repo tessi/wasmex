@@ -16,6 +16,20 @@ Types of changes
 
 ## [Unreleased]
 
+### Changed
+
+- Pass binary `list<u8>` arguments in bulk when a component export takes bytes
+  alone or alongside a `string` or `u32` in either order and returns `u32` or
+  `result<u32, string>`.
+- Pass host callback byte-list replies in bulk for functions taking no argument,
+  one `u32`, or one `string`. Supported replies are bare byte lists, optional
+  byte lists, and results with byte-list success and `string`, `u32`, or empty
+  errors.
+
+### Fixed
+
+- Reject out-of-range integers in component byte lists instead of truncating them.
+
 ## [0.18.1 - 2026-11-22]
 
 ### Added

@@ -17,7 +17,10 @@ use rustler::NifResult;
 use rustler::ResourceArc;
 use rustler::{Encoder, OwnedEnv};
 use rustler::{Error, LocalPid};
-use wasmtime::component::{types::ComponentFunc, Instance, Linker, LinkerInstance, Val};
+use wasmtime::component::{
+    types::{ComponentFunc, ComponentItem},
+    Component, Instance, Linker, LinkerInstance, Val,
+};
 use wasmtime::{Error as WasmtimeError, Trap};
 
 use rustler::Term;
@@ -94,7 +97,7 @@ fn instantiate(
         let linker = term_env
             .run(|env| {
                 let imports = imports.load(env);
-                create_linker(&store, imports, callback_pid, binary_byte_lists)
+                create_linker(&store, &component, imports, callback_pid, binary_byte_lists)
             })
             .map_err(|error| format!("{error:?}"));
 
@@ -129,6 +132,7 @@ fn instantiate(
 
 fn create_linker(
     store: &wasmtime::Store<ComponentStoreData>,
+    component: &Component,
     imports: Term,
     callback_pid: LocalPid,
     binary_byte_lists: bool,
@@ -143,32 +147,57 @@ fn create_linker(
             .map_err(|error| Error::Term(Box::new(error.to_string())))?;
     }
 
+    let ty = component.component_type();
     let imports_map = imports.decode::<HashMap<String, Term>>()?;
     for (name, implementation) in imports_map {
+        // The linker can reuse one versioned definition for multiple compatible
+        // import names. Keep it dynamic when those names may have distinct types.
+        let shared_name = name.split_once('@').is_some_and(|(base, _)| {
+            ty.imports(store.engine()).any(|(other, _)| {
+                other != name && other.split_once('@').is_some_and(|(stem, _)| stem == base)
+            })
+        });
+        let item = if shared_name {
+            None
+        } else {
+            ty.get_import(store.engine(), &name).map(|item| item.ty)
+        };
         if Term::is_tuple(implementation) {
             link_implementation(
                 &mut linker.root(),
-                name,
                 implementation,
-                None,
-                callback_pid,
-                host_resources.clone(),
-                binary_byte_lists,
+                item,
+                ImportCallback {
+                    name,
+                    namespace: None,
+                    pid: callback_pid,
+                    host_resources: host_resources.clone(),
+                    binary_byte_lists,
+                },
             )?;
         } else {
             let imports_map = implementation.decode::<HashMap<String, Term>>()?;
             let mut namespace = linker
                 .instance(&name)
                 .map_err(|error| Error::Term(Box::new(error.to_string())))?;
-            for (implementation_name, implementation) in imports_map {
+            for (func_name, implementation) in imports_map {
+                let func = match &item {
+                    Some(ComponentItem::ComponentInstance(instance)) => instance
+                        .get_export(store.engine(), &func_name)
+                        .map(|item| item.ty),
+                    _ => None,
+                };
                 link_implementation(
                     &mut namespace,
-                    implementation_name,
                     implementation,
-                    Some(name.clone()),
-                    callback_pid,
-                    host_resources.clone(),
-                    binary_byte_lists,
+                    func,
+                    ImportCallback {
+                        name: func_name,
+                        namespace: Some(name.clone()),
+                        pid: callback_pid,
+                        host_resources: host_resources.clone(),
+                        binary_byte_lists,
+                    },
                 )?;
             }
         }
@@ -178,28 +207,33 @@ fn create_linker(
 
 fn link_implementation(
     linker_instance: &mut LinkerInstance<ComponentStoreData>,
-    name: String,
     implementation: Term,
-    namespace: Option<String>,
-    callback_pid: LocalPid,
-    host_resources: Arc<HostResourceRegistry>,
-    binary_byte_lists: bool,
+    item: Option<ComponentItem>,
+    callback: ImportCallback,
 ) -> NifResult<()> {
     match implementation_tag(implementation).as_deref() {
-        Some("fn") => link_import(
-            linker_instance,
-            name,
-            namespace,
-            callback_pid,
-            host_resources,
-            binary_byte_lists,
-        ),
+        Some("fn") => {
+            if let Some(ComponentItem::ComponentFunc(ty)) = item {
+                if callback
+                    .link_byte_list(linker_instance, &ty)
+                    .map_err(|err| Error::Term(Box::new(err.to_string())))?
+                {
+                    return Ok(());
+                }
+            }
+            let name = callback.name.clone();
+            linker_instance
+                .func_new_async(&name, move |store, ty, params, results| {
+                    Box::new(callback.clone().call_dynamic(store, ty, params, results))
+                })
+                .map_err(|err| Error::Term(Box::new(err.to_string())))
+        }
         Some("resource") => link_resource(
             linker_instance,
-            name,
-            namespace,
-            callback_pid,
-            host_resources,
+            callback.name,
+            callback.namespace,
+            callback.pid,
+            callback.host_resources,
         ),
         _ => Ok(()),
     }
@@ -219,102 +253,95 @@ fn create_callback_token(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn call_elixir_import(
-    mut store: wasmtime::StoreContextMut<'_, ComponentStoreData>,
-    function_type: ComponentFunc,
+#[derive(Clone)]
+struct ImportCallback {
     name: String,
     namespace: Option<String>,
-    params: &[Val],
-    result_values: &mut [Val],
     pid: LocalPid,
     host_resources: Arc<HostResourceRegistry>,
     binary_byte_lists: bool,
-) -> Result<(), WasmtimeError> {
-    let params_env = OwnedEnv::new();
-    let saved_params = params_env.run(|env| {
-        host_resources
-            .vals_to_terms(params, &function_type, env, &mut store, binary_byte_lists)
-            .map(|terms| params_env.save(terms))
-    });
-    let saved_params = saved_params.map_err(WasmtimeError::msg)?;
-    let mut msg_env = OwnedEnv::new();
-    let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
-    let callback_token = create_callback_token(return_sender);
+}
 
-    msg_env
-        .send_and_clear(&pid, |env| {
-            let param_terms =
-                params_env.run(|params_env| saved_params.load(params_env).in_env(env));
-            (
-                atoms::invoke_callback(),
-                namespace,
-                name,
-                callback_token,
-                param_terms,
-            )
-        })
-        .map_err(|_| WasmtimeError::msg("Could not send component callback"))?;
-
-    let callback_result = return_receiver
-        .await
-        .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
-    if !callback_result.success {
-        return Err(WasmtimeError::msg("Callback failed"));
-    }
-
-    let result_types = function_type.results().collect::<Vec<_>>();
-    if result_types.len() != result_values.len() {
-        return Err(WasmtimeError::msg(format!(
-            "Expected {} component callback results, got {} result slots",
-            result_types.len(),
-            result_values.len()
-        )));
-    }
-    if result_types.len() > 1 {
-        return Err(WasmtimeError::msg(
-            "Component callbacks with multiple results are not supported",
-        ));
-    }
-    if let Some(result_type) = result_types.first() {
-        let converted = callback_result.env.run(|env| {
-            let result = callback_result.result.load(env);
-            host_resources
-                .term_to_val(&result, result_type, &mut store)
-                .map_err(|error| format!("{error:?}"))
+impl ImportCallback {
+    async fn invoke(
+        &self,
+        store: &mut wasmtime::StoreContextMut<'_, ComponentStoreData>,
+        function_type: &ComponentFunc,
+        params: &[Val],
+    ) -> Result<ComponentCallbackResult, WasmtimeError> {
+        let params_env = OwnedEnv::new();
+        let saved_params = params_env.run(|env| {
+            self.host_resources
+                .vals_to_terms(params, function_type, env, store, self.binary_byte_lists)
+                .map(|terms| params_env.save(terms))
         });
-        let converted = converted.map_err(WasmtimeError::msg)?;
-        result_values[0] = converted;
+        let saved_params = saved_params.map_err(WasmtimeError::msg)?;
+        let mut msg_env = OwnedEnv::new();
+        let (return_sender, return_receiver) = tokio::sync::oneshot::channel();
+        let callback_token = create_callback_token(return_sender);
+
+        msg_env
+            .send_and_clear(&self.pid, |env| {
+                let param_terms =
+                    params_env.run(|params_env| saved_params.load(params_env).in_env(env));
+                (
+                    atoms::invoke_callback(),
+                    &self.namespace,
+                    &self.name,
+                    callback_token,
+                    param_terms,
+                )
+            })
+            .map_err(|_| WasmtimeError::msg("Could not send component callback"))?;
+
+        let callback_result = return_receiver
+            .await
+            .map_err(|_| WasmtimeError::msg("Component callback result channel closed"))?;
+        if !callback_result.success {
+            return Err(WasmtimeError::msg("Callback failed"));
+        }
+
+        Ok(callback_result)
     }
-    Ok(())
+
+    async fn call_dynamic(
+        self,
+        mut store: wasmtime::StoreContextMut<'_, ComponentStoreData>,
+        function_type: ComponentFunc,
+        params: &[Val],
+        result_values: &mut [Val],
+    ) -> Result<(), WasmtimeError> {
+        let callback_result = self.invoke(&mut store, &function_type, params).await?;
+        let result_types = function_type.results().collect::<Vec<_>>();
+        if result_types.len() != result_values.len() {
+            return Err(WasmtimeError::msg(format!(
+                "Expected {} component callback results, got {} result slots",
+                result_types.len(),
+                result_values.len()
+            )));
+        }
+        if result_types.len() > 1 {
+            return Err(WasmtimeError::msg(
+                "Component callbacks with multiple results are not supported",
+            ));
+        }
+        if let Some(result_type) = result_types.first() {
+            let converted = callback_result.env.run(|env| {
+                let result = callback_result.result.load(env);
+                self.host_resources
+                    .term_to_val(&result, result_type, &mut store)
+                    .map_err(|error| format!("{error:?}"))
+            });
+            let converted = converted.map_err(WasmtimeError::msg)?;
+            result_values[0] = converted;
+        }
+        Ok(())
+    }
 }
 
-fn link_import(
-    linker_instance: &mut LinkerInstance<ComponentStoreData>,
-    name: String,
-    namespace: Option<String>,
-    pid: LocalPid,
-    host_resources: Arc<HostResourceRegistry>,
-    binary_byte_lists: bool,
-) -> NifResult<()> {
-    let name_for_closure = name.clone();
-
-    linker_instance
-        .func_new_async(&name, move |store, function_type, params, result_values| {
-            Box::new(call_elixir_import(
-                store,
-                function_type,
-                name_for_closure.clone(),
-                namespace.clone(),
-                params,
-                result_values,
-                pid,
-                host_resources.clone(),
-                binary_byte_lists,
-            ))
-        })
-        .map_err(|e| rustler::Error::Term(Box::new(e.to_string())))
-}
+// The dynamic API represents each byte as a Val. Match typed callback signatures
+// when linking so both the callback reply and Wasmtime's lowering use packed bytes.
+mod byte_list_imports;
 
 fn link_resource(
     linker_instance: &mut LinkerInstance<ComponentStoreData>,

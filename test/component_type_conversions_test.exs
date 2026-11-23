@@ -508,6 +508,18 @@ defmodule Wasmex.ComponentTypeConversionsTest do
       imports = TestHelper.component_type_conversions_import_map()
       pid = start_component(imports, binary_byte_lists: true)
 
+      for input <- [<<0, 128, 255>>, [0, 128, 255]] do
+        assert {:ok, %{"list-u8": <<0, 128, 255>>}} =
+                 Wasmex.Components.call_function(pid, "export-id-record-complex", [
+                   %{complex_record | "list-u8": input}
+                 ])
+      end
+
+      assert {:error, _} =
+               Wasmex.Components.call_function(pid, "export-id-record-complex", [
+                 %{complex_record | "list-u8": [256]}
+               ])
+
       input = %{complex_record | "list-u8": <<>>, "list-point": []}
 
       assert {:ok, %{"list-u8": <<>>, "list-point": []}} =

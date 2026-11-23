@@ -9,6 +9,62 @@ use wit_parser::{Resolve, Type as WitType, TypeDef, TypeDefKind};
 use crate::atoms;
 use crate::component_guest_resource::ComponentGuestResource;
 
+// Rustler decodes u8 through a narrowing cast from an Erlang unsigned int.
+fn decode_byte(term: Term) -> Result<u8, Error> {
+    u8::try_from(term.decode::<u32>()?).map_err(|_| Error::BadArg)
+}
+
+pub(crate) fn decode_byte_list(term: Term) -> Result<Vec<u8>, Error> {
+    if term.is_binary() {
+        return Ok(term.decode::<Binary>()?.as_slice().to_vec());
+    }
+    decode_list_elements(term, &String::new, |byte| byte)
+}
+
+fn decode_list_elements<T>(
+    term: Term,
+    path: &dyn Fn() -> String,
+    wrap: fn(u8) -> T,
+) -> Result<Vec<T>, Error> {
+    // Check the tail before using ListIterator, which expects a proper list.
+    let mut bytes = Vec::with_capacity(term.list_length()?);
+    for (index, item) in term.decode::<ListIterator>()?.enumerate() {
+        let byte = decode_byte(item).map_err(|err| {
+            if item.get_type() == TermType::Integer {
+                err
+            } else {
+                conversion_error(
+                    item.get_type(),
+                    &Type::U8,
+                    child_path(path(), &format!("list[{index}]")),
+                )
+            }
+        })?;
+        bytes.push(wrap(byte));
+    }
+    Ok(bytes)
+}
+
+// Reuse the public term conversion rules (including atom strings and diagnostics)
+// when a typed Wasmtime function needs a concrete scalar.
+pub(crate) fn component_string(term: &Term) -> Result<String, Error> {
+    match term_to_val(term, &Type::String)? {
+        Val::String(value) => Ok(value),
+        _ => unreachable!("WIT string conversion returned a different type"),
+    }
+}
+
+pub(crate) fn component_u32(term: &Term) -> Result<u32, Error> {
+    match term_to_val(term, &Type::U32)? {
+        Val::U32(value) => Ok(value),
+        _ => unreachable!("WIT u32 conversion returned a different type"),
+    }
+}
+
+pub(crate) fn is_byte_list(ty: &Type) -> bool {
+    matches!(ty, Type::List(list) if list.ty() == Type::U8)
+}
+
 /// Convert an Elixir term to a Wasm value.
 ///
 /// Used to for Wasm function calls from Elixir and translating params to Wasm values.
@@ -40,7 +96,7 @@ pub fn term_to_val_with_resource(
     let term_type = param_term.get_type();
     match (term_type, param_type) {
         (TermType::Binary, Type::String) => Ok(Val::String(param_term.decode::<String>()?)),
-        (TermType::Integer, Type::U8) => Ok(Val::U8(param_term.decode::<u8>()?)),
+        (TermType::Integer, Type::U8) => decode_byte(*param_term).map(Val::U8),
         (TermType::Integer, Type::U16) => Ok(Val::U16(param_term.decode::<u16>()?)),
         (TermType::Integer, Type::U64) => Ok(Val::U64(param_term.decode::<u64>()?)),
         (TermType::Integer, Type::U32) => Ok(Val::U32(param_term.decode::<u32>()?)),
@@ -102,20 +158,7 @@ pub fn term_to_val_with_resource(
             ))
         }
         (TermType::List, Type::List(list)) if matches!(list.ty(), Type::U8) => {
-            let mut values = Vec::with_capacity(param_term.list_length()?);
-            let terms = param_term.decode::<ListIterator>()?;
-            for (index, term) in terms.enumerate() {
-                let value = term.decode::<u8>().map(Val::U8).or_else(|_| {
-                    term_to_val_with_resource(
-                        &term,
-                        &Type::U8,
-                        &|| child_path(path(), &format!("list[{index}]")),
-                        convert_resource,
-                    )
-                })?;
-                values.push(value);
-            }
-            Ok(Val::List(values))
+            decode_list_elements(*param_term, path, Val::U8).map(Val::List)
         }
         (TermType::List, Type::List(list)) => {
             let element_type = list.ty();
@@ -410,19 +453,17 @@ pub fn term_to_val_with_resource(
         }
         (_, Type::Own(resource_type)) => convert_resource(param_term, *resource_type, true),
         (_, Type::Borrow(resource_type)) => convert_resource(param_term, *resource_type, false),
-        (term_type, val_type) => {
-            let path = path();
-            if path.is_empty() {
-                Err(Error::Term(Box::new(format!(
-                    "Could not convert {term_type:?} to {val_type:?}"
-                ))))
-            } else {
-                Err(Error::Term(Box::new(format!(
-                    "Could not convert {term_type:?} to {val_type:?} at {path:?}"
-                ))))
-            }
-        }
+        (term_type, val_type) => Err(conversion_error(term_type, val_type, path())),
     }
+}
+
+fn conversion_error(term: TermType, ty: &Type, path: String) -> Error {
+    let message = if path.is_empty() {
+        format!("Could not convert {term:?} to {ty:?}")
+    } else {
+        format!("Could not convert {term:?} to {ty:?} at {path:?}")
+    };
+    Error::Term(Box::new(message))
 }
 
 /// Convert a Wasm value to an Elixir term using its declared component type.
@@ -654,9 +695,7 @@ pub fn convert_result_term(
     match wit_type {
         WitType::Bool => Ok(Val::Bool(rustler::types::atom::is_truthy(result_term))),
         WitType::U8 => Ok(Val::U8(
-            result_term
-                .decode::<u8>()
-                .map_err(|_e| ("Expected u8".to_string(), path))?,
+            decode_byte(result_term).map_err(|_e| ("Expected u8".to_string(), path))?,
         )),
         WitType::U16 => Ok(Val::U16(
             result_term
